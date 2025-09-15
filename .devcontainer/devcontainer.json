@@ -1,0 +1,35 @@
+{
+	"name": "Rust ECS Development",
+	"image": "mcr.microsoft.com/devcontainers/rust:1-1-bullseye",
+	
+	"features": {
+		"ghcr.io/devcontainers/features/git:1": {},
+		"ghcr.io/devcontainers/features/github-cli:1": {}
+	},
+
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"rust-lang.rust-analyzer",
+				"vadimcn.vscode-lldb",
+				"serayuzgur.crates",
+				"tamasfe.even-better-toml",
+				"ms-vscode.test-adapter-converter",
+				"hbenl.vscode-test-explorer",
+				"ms-vscode.vscode-json"
+			],
+			"settings": {
+				"rust-analyzer.cargo.autoreload": true,
+				"rust-analyzer.checkOnSave.command": "clippy",
+				"rust-analyzer.checkOnSave.extraArgs": ["--all-targets"],
+				"rust-analyzer.cargo.features": "all",
+				"editor.formatOnSave": true,
+				"editor.defaultFormatter": "rust-lang.rust-analyzer"
+			}
+		}
+	},
+
+	"postCreateCommand": "rustc --version && cargo --version && rustup component add clippy rustfmt",
+
+	"remoteUser": "vscode"
+}
