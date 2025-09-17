@@ -1,3 +1,14 @@
+This is a rust ECS framework. Its goal is not to be the fastest ECS, but to provide a good
+developer experience with high debuggability. The ecs concept is quite basic - we have 
+components assigned to entities and systems operating on these components. But what is different
+from most ecs implementations is that each system defines the output components what it may modify.
+Having this knowledge the world can track these changes in form of a replay which can then be played
+an empty world to reproduce the playthrough. Most importantly it will allow for replaying bugs and 
+crashes since the biggest problem with ecs are the problems that are caused by a bug in another system
+a few frames earlier.
+
+Additionally worlds can be nested an
+
 Entity - unique ID
 Component - data assigned to entity
 System - logic operating on components
@@ -29,6 +40,22 @@ struct SystemWrapper<S: System> {
 }
 
 impl<S: System> SystemWrapper<S> {
+    fn initialize(&mut self, world: &mut World) -> SystemInitDiff {
+        // create a snapshot of system output components
+        // ...
+
+        // create a snapshot of the system state
+        // ...
+
+        // call initialize
+        self.system.initialize(world);
+
+        // diff the snapshot with current state and record changes
+        // ...
+
+        SystemInitDiff { /* ... */ }
+    }
+
     fn update(&mut self, world: &mut World) -> SystemUpdateDiff {
         // create a snapshot of system output components
         // ...
@@ -43,6 +70,22 @@ impl<S: System> SystemWrapper<S> {
         // ...
 
         SystemUpdateDiff { /* ... */ }
+    }
+
+    fn denitialize(&mut self, world: &mut World) -> SystemDenitDiff {
+        // create a snapshot of system output components
+        // ...
+
+        // create a snapshot of the system state
+        // ...
+
+        // call denitialize
+        self.system.denitialize(world);
+
+        // diff the snapshot with current state and record changes
+        // ...
+
+        SystemDenitDiff { /* ... */ }
     }
 }
 
@@ -84,7 +127,7 @@ struct World {
     components: HashMap<TypeId, Vec<Component>>,
     systems: Vec<Box<dyn Any>>,
     next_entity_id: usize,
-    world_update_history: WorldUpdateHistory,
+    child_worlds: Vec<World>,
 }
 
 impl World {
@@ -99,10 +142,16 @@ impl World {
     }
 
     fn add_system<S: System + 'static>(&mut self, system: S) {
+        // record change in world update history
+        world_update_history.record_add_system(system);
+
         self.systems.push(Box::new(SystemWrapper { system }));
     }
 
     fn create_entity(&mut self) -> Entity {
+        // record change in world update history
+        world_update_history.record_create_entity(self.next_entity_id);
+
         let entity = Entity(self.next_entity_id);
         self.next_entity_id += 1;
         self.entities.push(entity);
@@ -110,6 +159,9 @@ impl World {
     }
 
     fn add_component<T: 'static>(&mut self, entity: Entity, component: T) {
+        // record change in world update history
+        world_update_history.record_add_component(entity, &component);
+
         self.components
             .entry(TypeId::of::<T>())
             .or_insert_with(Vec::new)
@@ -117,28 +169,35 @@ impl World {
     }
 
     fn initialize_systems(&mut self) {
+        // create object for tracking changes in initialization
+        let mut system_init_diff = SystemInitDiff::new();
+
         for system in &mut self.systems {
-            if let Some(wrapper) = system.downcast_mut::<SystemWrapper<impl System>>() {
-                // Call any initialization logic here if needed
-            }
+            let system_init_diff = system.initialize(self);
+            system_diff.record(system_init_diff);
         }
+
+        self.world_update_history.record(system_init_diff);
     }
 
-    fn update(&mut self) {
+    fn update(&mut self, &mut world_update_history: WorldUpdateHistory) {
         // create object for tracking changes in this update
         let mut world_update_diff = WorldUpdateDiff::new();
 
+        // update this world systems
         for system in &mut self.systems {
             let system_diff = system.update(self);
             world_update_diff.record(system_diff);
         }
 
+
+
         self.world_update_history.record(world_update_diff);
     }
 
-    fn get_iterators<I>(&self) -> I {
-        // Logic to construct and return the required iterators based on I
-        unimplemented!()
+    // get_components should return an iterator over entities that have all specified components
+    fn get_components<C1, C2, C3, ...>(&self) -> EntityIterator<C1, C2, C3, ...> {
+        // get components recursively (include components from child worlds)
     }
 }
 
@@ -156,5 +215,9 @@ fn main() {
     loop {
         world.update();
     }
+
+    // replay the game in a new world instance
+    let mut replay_world = World::new();
+    replay_world.replay(world.world_update_history);
 }
 ```
