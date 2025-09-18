@@ -1,11 +1,13 @@
-use rust_ecs::{In, Out, System, World, WorldView};
+use rust_ecs::{impl_diffable, Diffable, DiffableComponent, In, Out, System, World, WorldView};
 
-// Example components
+// Example components with Diffable implementation
 #[derive(Debug)]
 struct Position {
     x: f32,
     y: f32,
 }
+
+impl_diffable!(Position { x: f32, y: f32 });
 
 #[derive(Debug, Clone)]
 struct Velocity {
@@ -13,11 +15,18 @@ struct Velocity {
     dy: f32,
 }
 
+impl_diffable!(Velocity { dx: f32, dy: f32 });
+
 #[derive(Debug)]
 struct Health {
     current: i32,
     max: i32,
 }
+
+impl_diffable!(Health {
+    current: i32,
+    max: i32,
+});
 
 // Example system that moves entities based on their velocity
 struct MovementSystem;
@@ -180,4 +189,105 @@ fn main() {
         "Entities with Health: {:?}",
         world.entities_with_component::<Health>()
     );
+
+    // Demonstrate diffable functionality
+    demo_diffable_functionality();
+}
+
+fn demo_diffable_functionality() {
+    println!("\n--- Diffable Component Tracking Demo ---");
+
+    let mut world = World::new();
+
+    // Create entities
+    let entity1 = world.create_entity();
+    let entity2 = world.create_entity();
+
+    println!("Created entities: {:?}, {:?}", entity1, entity2);
+
+    // Add diffable components with tracking
+    let initial_pos = Position { x: 0.0, y: 0.0 };
+    let initial_health = Health {
+        current: 100,
+        max: 100,
+    };
+
+    world.add_diffable_component(entity1, initial_pos);
+    world.add_diffable_component(entity1, initial_health);
+
+    println!("Added initial components with tracking");
+
+    // Update components to show diff tracking
+    let new_pos = Position { x: 5.0, y: 3.0 };
+    let damaged_health = Health {
+        current: 75,
+        max: 100,
+    };
+
+    world.update_diffable_component(entity1, new_pos);
+    world.update_diffable_component(entity1, damaged_health);
+
+    println!("Updated components - changes tracked in world history");
+
+    // Create and remove a child world
+    let child_world_index = world.create_child_world();
+    println!("Created child world: {}", child_world_index);
+
+    world.remove_child_world(child_world_index);
+    println!("Removed child world: {}", child_world_index);
+
+    // Display world update history
+    let history = world.get_update_history();
+    println!("\nWorld Update History:");
+    for (i, update) in history.updates().iter().enumerate() {
+        println!(
+            "  Update {}: {} system diffs",
+            i + 1,
+            update.system_diffs().len()
+        );
+        for (j, system_diff) in update.system_diffs().iter().enumerate() {
+            println!(
+                "    System {}: {} component changes, {} world operations",
+                j,
+                system_diff.component_changes.len(),
+                system_diff.world_operations.len()
+            );
+
+            for change in &system_diff.component_changes {
+                match &change.operation {
+                    rust_ecs::DiffableComponentOperation::Added { data } => {
+                        println!(
+                            "      Added {} to {:?}: {}",
+                            change.component_type_name, change.entity, data
+                        );
+                    }
+                    rust_ecs::DiffableComponentOperation::Modified { diff } => {
+                        println!(
+                            "      Modified {} on {:?}: {}",
+                            change.component_type_name, change.entity, diff
+                        );
+                    }
+                    rust_ecs::DiffableComponentOperation::Removed => {
+                        println!(
+                            "      Removed {} from {:?}",
+                            change.component_type_name, change.entity
+                        );
+                    }
+                }
+            }
+
+            for operation in &system_diff.world_operations {
+                match operation.operation {
+                    rust_ecs::WorldOperationType::Created => {
+                        println!("      Created world {}", operation.world_index);
+                    }
+                    rust_ecs::WorldOperationType::Removed => {
+                        println!("      Removed world {}", operation.world_index);
+                    }
+                }
+            }
+        }
+    }
+
+    println!("\nDiffable tracking allows complete reproduction of all world changes!");
 }

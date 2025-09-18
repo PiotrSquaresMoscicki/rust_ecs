@@ -13,6 +13,313 @@ pub fn add(a: i32, b: i32) -> i32 {
     a + b
 }
 
+/// Trait for types that can be diffed to track changes
+pub trait Diffable {
+    /// The type representing the diff between two instances
+    type Diff: Clone + std::fmt::Debug;
+
+    /// Compute the difference between self and other
+    /// Returns None if there are no differences
+    fn diff(&self, other: &Self) -> Option<Self::Diff>;
+
+    /// Apply a diff to self to get the new state
+    fn apply_diff(&mut self, diff: &Self::Diff);
+
+    /// Convert the diff to a human-readable string representation
+    fn diff_to_string(diff: &Self::Diff) -> String {
+        format!("{:?}", diff)
+    }
+}
+
+/// Macro to automatically implement Diffable for structs
+/// Generates diff functions for all fields
+#[macro_export]
+macro_rules! impl_diffable {
+    ($type:ident { $($field:ident: $field_type:ty),* $(,)? }) => {
+        paste::paste! {
+            #[derive(Clone, Debug)]
+            pub struct [<$type Diff>] {
+                $(
+                    pub $field: Option<<$field_type as Diffable>::Diff>,
+                )*
+            }
+
+            impl Diffable for $type {
+                type Diff = [<$type Diff>];
+
+                fn diff(&self, other: &Self) -> Option<Self::Diff> {
+                    let mut has_changes = false;
+                    let diff = Self::Diff {
+                        $(
+                            $field: {
+                                let field_diff = self.$field.diff(&other.$field);
+                                if field_diff.is_some() {
+                                    has_changes = true;
+                                }
+                                field_diff
+                            },
+                        )*
+                    };
+
+                    if has_changes {
+                        Some(diff)
+                    } else {
+                        None
+                    }
+                }
+
+                fn apply_diff(&mut self, diff: &Self::Diff) {
+                    $(
+                        if let Some(ref field_diff) = diff.$field {
+                            self.$field.apply_diff(field_diff);
+                        }
+                    )*
+                }
+            }
+
+            impl DiffableComponent for $type {}
+        }
+    };
+}
+
+// Implement Diffable for primitive types
+impl Diffable for i32 {
+    type Diff = i32;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        if self != other {
+            Some(*other)
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        *self = *diff;
+    }
+}
+
+impl DiffableComponent for i32 {}
+
+impl Diffable for f32 {
+    type Diff = f32;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        if (self - other).abs() > f32::EPSILON {
+            Some(*other)
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        *self = *diff;
+    }
+}
+
+impl DiffableComponent for f32 {}
+
+impl Diffable for usize {
+    type Diff = usize;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        if self != other {
+            Some(*other)
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        *self = *diff;
+    }
+}
+
+impl DiffableComponent for usize {}
+
+impl Diffable for String {
+    type Diff = String;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        if self != other {
+            Some(other.clone())
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        *self = diff.clone();
+    }
+}
+
+impl DiffableComponent for String {}
+
+impl<T: Diffable + Clone + std::fmt::Debug> Diffable for Vec<T> {
+    type Diff = VecDiff<T>;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        let mut changes = Vec::new();
+        let max_len = self.len().max(other.len());
+        let mut has_changes = false;
+
+        for i in 0..max_len {
+            match (self.get(i), other.get(i)) {
+                (Some(a), Some(b)) => {
+                    if let Some(item_diff) = a.diff(b) {
+                        changes.push(VecChange::Modified {
+                            index: i,
+                            diff: item_diff,
+                        });
+                        has_changes = true;
+                    }
+                }
+                (Some(_), None) => {
+                    changes.push(VecChange::Removed { index: i });
+                    has_changes = true;
+                }
+                (None, Some(b)) => {
+                    changes.push(VecChange::Added {
+                        index: i,
+                        value: b.clone(),
+                    });
+                    has_changes = true;
+                }
+                (None, None) => unreachable!(),
+            }
+        }
+
+        if has_changes {
+            Some(VecDiff { changes })
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        // Sort changes by index in reverse order to handle removals correctly
+        let mut sorted_changes = diff.changes.clone();
+        sorted_changes.sort_by_key(|b| std::cmp::Reverse(b.index()));
+
+        for change in sorted_changes {
+            match change {
+                VecChange::Added { index, value } => {
+                    if index <= self.len() {
+                        self.insert(index, value);
+                    } else {
+                        self.push(value);
+                    }
+                }
+                VecChange::Removed { index } => {
+                    if index < self.len() {
+                        self.remove(index);
+                    }
+                }
+                VecChange::Modified { index, diff } => {
+                    if let Some(item) = self.get_mut(index) {
+                        item.apply_diff(&diff);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct VecDiff<T: Diffable + std::fmt::Debug> {
+    pub changes: Vec<VecChange<T>>,
+}
+
+#[derive(Clone, Debug)]
+pub enum VecChange<T: Diffable + std::fmt::Debug> {
+    Added { index: usize, value: T },
+    Removed { index: usize },
+    Modified { index: usize, diff: T::Diff },
+}
+
+impl<T: Diffable + std::fmt::Debug> VecChange<T> {
+    fn index(&self) -> usize {
+        match self {
+            VecChange::Added { index, .. } => *index,
+            VecChange::Removed { index } => *index,
+            VecChange::Modified { index, .. } => *index,
+        }
+    }
+}
+
+impl<
+        K: Clone + std::cmp::Eq + std::hash::Hash + std::fmt::Debug,
+        V: Diffable + Clone + std::fmt::Debug,
+    > Diffable for HashMap<K, V>
+{
+    type Diff = HashMapDiff<K, V>;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        let mut changes = HashMap::new();
+        let mut has_changes = false;
+
+        // Check for added and modified entries
+        for (key, other_value) in other {
+            match self.get(key) {
+                Some(self_value) => {
+                    if let Some(value_diff) = self_value.diff(other_value) {
+                        changes.insert(key.clone(), HashMapChange::Modified(value_diff));
+                        has_changes = true;
+                    }
+                }
+                None => {
+                    changes.insert(key.clone(), HashMapChange::Added(other_value.clone()));
+                    has_changes = true;
+                }
+            }
+        }
+
+        // Check for removed entries
+        for key in self.keys() {
+            if !other.contains_key(key) {
+                changes.insert(key.clone(), HashMapChange::Removed);
+                has_changes = true;
+            }
+        }
+
+        if has_changes {
+            Some(HashMapDiff { changes })
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        for (key, change) in &diff.changes {
+            match change {
+                HashMapChange::Added(value) => {
+                    self.insert(key.clone(), value.clone());
+                }
+                HashMapChange::Removed => {
+                    self.remove(key);
+                }
+                HashMapChange::Modified(value_diff) => {
+                    if let Some(existing_value) = self.get_mut(key) {
+                        existing_value.apply_diff(value_diff);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct HashMapDiff<K: std::fmt::Debug, V: Diffable + std::fmt::Debug> {
+    pub changes: HashMap<K, HashMapChange<V>>,
+}
+
+#[derive(Clone, Debug)]
+pub enum HashMapChange<V: Diffable + std::fmt::Debug> {
+    Added(V),
+    Removed,
+    Modified(V::Diff),
+}
+
 /// An Entity is a unique identifier consisting of world index and entity index.
 /// This allows entities to be uniquely identified across multiple worlds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -42,6 +349,12 @@ impl Entity {
         self.entity_index
     }
 }
+
+// Implement Diffable for Entity using the macro
+impl_diffable!(Entity {
+    world_index: usize,
+    entity_index: usize,
+});
 
 /// The System trait defines the contract for all systems in the ECS.
 /// Systems declare their input and output components for change tracking.
@@ -376,10 +689,55 @@ pub enum ComponentOperation {
     Removed,
 }
 
-/// Placeholder for system initialization diff tracking
+/// Tracks world-level operations like world creation and removal
+#[derive(Debug, Clone)]
+pub struct WorldOperation {
+    pub world_index: usize,
+    pub operation: WorldOperationType,
+}
+
+/// Types of world operations
+#[derive(Debug, Clone)]
+pub enum WorldOperationType {
+    Created,
+    Removed,
+}
+
+/// Enhanced component change that includes diffable data
+#[derive(Debug, Clone)]
+pub struct DiffableComponentChange {
+    pub entity: Entity,
+    pub component_type: TypeId,
+    pub component_type_name: String,
+    pub operation: DiffableComponentOperation,
+}
+
+/// Enhanced component operations with diff data
+#[derive(Debug, Clone)]
+pub enum DiffableComponentOperation {
+    Added { data: String },    // Serialized component data
+    Modified { diff: String }, // Serialized diff data
+    Removed,
+}
+
+/// Trait for components that can be tracked in the diffable change system
+pub trait DiffableComponent: Diffable + std::fmt::Debug + 'static {
+    /// Serialize the component to a string representation
+    fn serialize(&self) -> String {
+        format!("{:?}", self)
+    }
+
+    /// Get the type name for this component
+    fn type_name() -> &'static str {
+        std::any::type_name::<Self>()
+    }
+}
+
+/// Enhanced system initialization diff tracking with diffable components
 #[derive(Debug)]
 pub struct SystemInitDiff {
-    pub component_changes: Vec<ComponentChange>,
+    pub component_changes: Vec<DiffableComponentChange>,
+    pub world_operations: Vec<WorldOperation>,
 }
 
 impl Default for SystemInitDiff {
@@ -392,18 +750,24 @@ impl SystemInitDiff {
     pub fn new() -> Self {
         Self {
             component_changes: Vec::new(),
+            world_operations: Vec::new(),
         }
     }
 
-    pub fn record_component_change(&mut self, change: ComponentChange) {
+    pub fn record_component_change(&mut self, change: DiffableComponentChange) {
         self.component_changes.push(change);
+    }
+
+    pub fn record_world_operation(&mut self, operation: WorldOperation) {
+        self.world_operations.push(operation);
     }
 }
 
-/// Placeholder for system update diff tracking
+/// Enhanced system update diff tracking with diffable components
 #[derive(Debug)]
 pub struct SystemUpdateDiff {
-    pub component_changes: Vec<ComponentChange>,
+    pub component_changes: Vec<DiffableComponentChange>,
+    pub world_operations: Vec<WorldOperation>,
 }
 
 impl Default for SystemUpdateDiff {
@@ -416,18 +780,24 @@ impl SystemUpdateDiff {
     pub fn new() -> Self {
         Self {
             component_changes: Vec::new(),
+            world_operations: Vec::new(),
         }
     }
 
-    pub fn record_component_change(&mut self, change: ComponentChange) {
+    pub fn record_component_change(&mut self, change: DiffableComponentChange) {
         self.component_changes.push(change);
+    }
+
+    pub fn record_world_operation(&mut self, operation: WorldOperation) {
+        self.world_operations.push(operation);
     }
 }
 
-/// Placeholder for system deinitialization diff tracking
+/// Enhanced system deinitialization diff tracking with diffable components
 #[derive(Debug)]
 pub struct SystemDeinitDiff {
-    pub component_changes: Vec<ComponentChange>,
+    pub component_changes: Vec<DiffableComponentChange>,
+    pub world_operations: Vec<WorldOperation>,
 }
 
 impl Default for SystemDeinitDiff {
@@ -440,11 +810,16 @@ impl SystemDeinitDiff {
     pub fn new() -> Self {
         Self {
             component_changes: Vec::new(),
+            world_operations: Vec::new(),
         }
     }
 
-    pub fn record_component_change(&mut self, change: ComponentChange) {
+    pub fn record_component_change(&mut self, change: DiffableComponentChange) {
         self.component_changes.push(change);
+    }
+
+    pub fn record_world_operation(&mut self, operation: WorldOperation) {
+        self.world_operations.push(operation);
     }
 }
 
@@ -470,6 +845,11 @@ impl WorldUpdateDiff {
     pub fn record(&mut self, diff: SystemUpdateDiff) {
         self.system_diffs.push(diff);
     }
+
+    /// Get the system diffs for iteration
+    pub fn system_diffs(&self) -> &[SystemUpdateDiff] {
+        &self.system_diffs
+    }
 }
 
 /// Maintains history of all world changes for replay functionality
@@ -493,6 +873,11 @@ impl WorldUpdateHistory {
 
     pub fn record(&mut self, diff: WorldUpdateDiff) {
         self.updates.push(diff);
+    }
+
+    /// Get the updates for iteration
+    pub fn updates(&self) -> &[WorldUpdateDiff] {
+        &self.updates
     }
 }
 
@@ -589,8 +974,44 @@ impl World {
         let child_world_index = self.next_world_index;
         self.next_world_index += 1;
         let child_world = World::new_with_index(child_world_index);
+
+        // Record world creation operation
+        let mut world_diff = WorldUpdateDiff::new();
+        let mut system_diff = SystemUpdateDiff::new();
+        system_diff.record_world_operation(WorldOperation {
+            world_index: child_world_index,
+            operation: WorldOperationType::Created,
+        });
+        world_diff.record(system_diff);
+        self.world_update_history.record(world_diff);
+
         self.child_worlds.push(child_world);
         child_world_index
+    }
+
+    /// Remove a child world by index
+    pub fn remove_child_world(&mut self, world_index: usize) -> Option<World> {
+        if let Some(pos) = self
+            .child_worlds
+            .iter()
+            .position(|w| w.world_index == world_index)
+        {
+            let removed_world = self.child_worlds.remove(pos);
+
+            // Record world removal operation
+            let mut world_diff = WorldUpdateDiff::new();
+            let mut system_diff = SystemUpdateDiff::new();
+            system_diff.record_world_operation(WorldOperation {
+                world_index,
+                operation: WorldOperationType::Removed,
+            });
+            world_diff.record(system_diff);
+            self.world_update_history.record(world_diff);
+
+            Some(removed_world)
+        } else {
+            None
+        }
     }
 
     /// Get a reference to a child world by index
@@ -682,37 +1103,77 @@ impl World {
         &self.world_update_history
     }
 
-    /// Apply a recorded world update diff for replay
-    pub fn apply_update_diff(&mut self, diff: &WorldUpdateDiff) {
-        // In a complete implementation, this would replay all component changes
-        // For now, we just demonstrate the structure
-        println!(
-            "Applying world update diff with {} system updates",
-            diff.system_diffs.len()
-        );
-        for (i, system_diff) in diff.system_diffs.iter().enumerate() {
-            println!(
-                "  System {}: {} component changes",
-                i,
-                system_diff.component_changes.len()
-            );
-        }
-    }
-
-    /// Replay the entire world history in a new world
+    /// Create a new world and replay all changes from the given history
     pub fn replay_history(history: &WorldUpdateHistory) -> World {
-        let mut new_world = World::new();
+        let mut replay_world = World::new();
 
         println!(
             "Replaying world history with {} updates",
-            history.updates.len()
+            history.updates().len()
         );
-        for (frame, update) in history.updates.iter().enumerate() {
+
+        for (frame, update) in history.updates().iter().enumerate() {
             println!("Frame {}: Applying update", frame + 1);
-            new_world.apply_update_diff(update);
+            replay_world.apply_update_diff(update);
         }
 
-        new_world
+        replay_world
+    }
+
+    /// Apply a recorded world update diff for replay
+    pub fn apply_update_diff(&mut self, diff: &WorldUpdateDiff) {
+        println!(
+            "Applying world update diff with {} system updates",
+            diff.system_diffs().len()
+        );
+
+        for (system_idx, system_diff) in diff.system_diffs().iter().enumerate() {
+            println!(
+                "  System {}: {} component changes",
+                system_idx,
+                system_diff.component_changes.len()
+            );
+
+            // Apply world operations
+            for operation in &system_diff.world_operations {
+                match operation.operation {
+                    WorldOperationType::Created => {
+                        // In a full replay, we would recreate the child world
+                        println!("    Would recreate child world {}", operation.world_index);
+                    }
+                    WorldOperationType::Removed => {
+                        // In a full replay, we would remove the child world
+                        println!("    Would remove child world {}", operation.world_index);
+                    }
+                }
+            }
+
+            // Apply component changes
+            // Note: In a complete implementation, this would deserialize and apply
+            // the actual component data and diffs. For this demo, we just log them.
+            for change in &system_diff.component_changes {
+                match &change.operation {
+                    DiffableComponentOperation::Added { data } => {
+                        println!(
+                            "    Would add {} to {:?}: {}",
+                            change.component_type_name, change.entity, data
+                        );
+                    }
+                    DiffableComponentOperation::Modified { diff } => {
+                        println!(
+                            "    Would apply diff to {} on {:?}: {}",
+                            change.component_type_name, change.entity, diff
+                        );
+                    }
+                    DiffableComponentOperation::Removed => {
+                        println!(
+                            "    Would remove {} from {:?}",
+                            change.component_type_name, change.entity
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /// Remove an entity and all its components
@@ -742,6 +1203,94 @@ impl World {
             .get(&TypeId::of::<T>())
             .map(|components| components.iter().map(|(entity, _)| *entity).collect())
             .unwrap_or_default()
+    }
+
+    /// Add a diffable component to an entity with full change tracking
+    pub fn add_diffable_component<T: DiffableComponent>(&mut self, entity: Entity, component: T) {
+        // Record the addition in the update history
+        let change = DiffableComponentChange {
+            entity,
+            component_type: TypeId::of::<T>(),
+            component_type_name: T::type_name().to_string(),
+            operation: DiffableComponentOperation::Added {
+                data: component.serialize(),
+            },
+        };
+
+        let mut world_diff = WorldUpdateDiff::new();
+        let mut system_diff = SystemUpdateDiff::new();
+        system_diff.record_component_change(change);
+        world_diff.record(system_diff);
+        self.world_update_history.record(world_diff);
+
+        // Add the component
+        self.components
+            .entry(TypeId::of::<T>())
+            .or_default()
+            .push((entity, Box::new(component)));
+    }
+
+    /// Update a diffable component with change tracking
+    pub fn update_diffable_component<T: DiffableComponent>(
+        &mut self,
+        entity: Entity,
+        new_component: T,
+    ) -> bool {
+        if let Some(components) = self.components.get_mut(&TypeId::of::<T>()) {
+            if let Some((_, component_box)) = components.iter_mut().find(|(e, _)| *e == entity) {
+                if let Some(old_component) = component_box.downcast_mut::<T>() {
+                    // Calculate diff
+                    if let Some(diff) = old_component.diff(&new_component) {
+                        // Record the modification in the update history
+                        let change = DiffableComponentChange {
+                            entity,
+                            component_type: TypeId::of::<T>(),
+                            component_type_name: T::type_name().to_string(),
+                            operation: DiffableComponentOperation::Modified {
+                                diff: T::diff_to_string(&diff),
+                            },
+                        };
+
+                        let mut world_diff = WorldUpdateDiff::new();
+                        let mut system_diff = SystemUpdateDiff::new();
+                        system_diff.record_component_change(change);
+                        world_diff.record(system_diff);
+                        self.world_update_history.record(world_diff);
+
+                        // Apply the diff
+                        old_component.apply_diff(&diff);
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Remove a diffable component with change tracking
+    pub fn remove_diffable_component<T: DiffableComponent>(&mut self, entity: Entity) -> bool {
+        if let Some(components) = self.components.get_mut(&TypeId::of::<T>()) {
+            if let Some(pos) = components.iter().position(|(e, _)| *e == entity) {
+                components.remove(pos);
+
+                // Record the removal in the update history
+                let change = DiffableComponentChange {
+                    entity,
+                    component_type: TypeId::of::<T>(),
+                    component_type_name: T::type_name().to_string(),
+                    operation: DiffableComponentOperation::Removed,
+                };
+
+                let mut world_diff = WorldUpdateDiff::new();
+                let mut system_diff = SystemUpdateDiff::new();
+                system_diff.record_component_change(change);
+                world_diff.record(system_diff);
+                self.world_update_history.record(world_diff);
+
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -1075,5 +1624,108 @@ mod tests {
 
         // Entities from different worlds should not be equal even with same entity index
         assert_ne!(main_entity1, child_entity1);
+    }
+
+    #[test]
+    fn test_diffable_entity() {
+        let entity1 = Entity::new(0, 5);
+        let entity2 = Entity::new(0, 5);
+        let entity3 = Entity::new(0, 10);
+        let entity4 = Entity::new(1, 5);
+
+        // No diff for identical entities
+        assert!(entity1.diff(&entity2).is_none());
+
+        // Diff for different entity indices
+        let diff = entity1.diff(&entity3).unwrap();
+        assert!(diff.world_index.is_none());
+        assert_eq!(diff.entity_index, Some(10));
+
+        // Diff for different world indices
+        let diff = entity1.diff(&entity4).unwrap();
+        assert_eq!(diff.world_index, Some(1));
+        assert!(diff.entity_index.is_none());
+
+        // Apply diff
+        let mut entity = entity1;
+        entity.apply_diff(&entity1.diff(&entity3).unwrap());
+        assert_eq!(entity, entity3);
+    }
+
+    #[test]
+    fn test_diffable_primitives() {
+        // Test i32 diffing
+        let a = 5i32;
+        let b = 5i32;
+        let c = 10i32;
+
+        assert!(a.diff(&b).is_none());
+        assert_eq!(a.diff(&c), Some(10));
+
+        let mut x = a;
+        x.apply_diff(&10);
+        assert_eq!(x, 10);
+
+        // Test f32 diffing
+        let f1 = std::f32::consts::PI;
+        let f2 = std::f32::consts::PI;
+        let f3 = 2.71f32;
+
+        assert!(f1.diff(&f2).is_none());
+        assert_eq!(f1.diff(&f3), Some(2.71));
+
+        // Test String diffing
+        let s1 = "hello".to_string();
+        let s2 = "hello".to_string();
+        let s3 = "world".to_string();
+
+        assert!(s1.diff(&s2).is_none());
+        assert_eq!(s1.diff(&s3), Some("world".to_string()));
+    }
+
+    #[test]
+    fn test_diffable_vec() {
+        let vec1 = vec![1, 2, 3];
+        let vec2 = vec![1, 2, 3];
+        let vec3 = vec![1, 5, 3, 4];
+
+        // No diff for identical vectors
+        assert!(vec1.diff(&vec2).is_none());
+
+        // Diff for modified and added elements
+        let diff = vec1.diff(&vec3).unwrap();
+        assert_eq!(diff.changes.len(), 2);
+
+        // Apply diff
+        let mut vec = vec1.clone();
+        vec.apply_diff(&diff);
+        assert_eq!(vec, vec3);
+    }
+
+    #[test]
+    fn test_diffable_hashmap() {
+        let mut map1 = HashMap::new();
+        map1.insert("key1".to_string(), 1);
+        map1.insert("key2".to_string(), 2);
+
+        let mut map2 = HashMap::new();
+        map2.insert("key1".to_string(), 1);
+        map2.insert("key2".to_string(), 2);
+
+        let mut map3 = HashMap::new();
+        map3.insert("key1".to_string(), 5);
+        map3.insert("key3".to_string(), 3);
+
+        // No diff for identical maps
+        assert!(map1.diff(&map2).is_none());
+
+        // Diff for modified, added, and removed entries
+        let diff = map1.diff(&map3).unwrap();
+        assert_eq!(diff.changes.len(), 3);
+
+        // Apply diff
+        let mut map = map1.clone();
+        map.apply_diff(&diff);
+        assert_eq!(map, map3);
     }
 }
