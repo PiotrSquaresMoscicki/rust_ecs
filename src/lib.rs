@@ -13,9 +13,35 @@ pub fn add(a: i32, b: i32) -> i32 {
     a + b
 }
 
-/// An Entity is just a unique identifier.
+/// An Entity is a unique identifier consisting of world index and entity index.
+/// This allows entities to be uniquely identified across multiple worlds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Entity(pub usize);
+pub struct Entity {
+    /// Index of the world this entity belongs to
+    pub world_index: usize,
+    /// Index of the entity within its world
+    pub entity_index: usize,
+}
+
+impl Entity {
+    /// Create a new entity with world and entity indices
+    pub fn new(world_index: usize, entity_index: usize) -> Self {
+        Self {
+            world_index,
+            entity_index,
+        }
+    }
+
+    /// Get the world index of this entity
+    pub fn world_index(&self) -> usize {
+        self.world_index
+    }
+
+    /// Get the entity index within its world
+    pub fn entity_index(&self) -> usize {
+        self.entity_index
+    }
+}
 
 /// The System trait defines the contract for all systems in the ECS.
 /// Systems declare their input and output components for change tracking.
@@ -514,6 +540,8 @@ type ComponentStorage = HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>;
 
 /// The main World struct that manages entities, components, and systems
 pub struct World {
+    /// Unique index identifying this world
+    world_index: usize,
     entities: Vec<Entity>,
     components: ComponentStorage,
     systems: Vec<Box<dyn SystemWrapper>>,
@@ -521,6 +549,8 @@ pub struct World {
     #[allow(dead_code)]
     child_worlds: Vec<World>,
     world_update_history: WorldUpdateHistory,
+    /// Global counter for assigning unique world indices
+    next_world_index: usize,
 }
 
 impl Default for World {
@@ -530,16 +560,51 @@ impl Default for World {
 }
 
 impl World {
-    /// Creates a new empty world
+    /// Creates a new empty world with world index 0 (main world)
     pub fn new() -> Self {
+        Self::new_with_index(0)
+    }
+
+    /// Creates a new world with a specific world index
+    pub fn new_with_index(world_index: usize) -> Self {
         Self {
+            world_index,
             entities: Vec::new(),
             components: HashMap::new(),
             systems: Vec::new(),
             next_entity_id: 0,
             child_worlds: Vec::new(),
             world_update_history: WorldUpdateHistory::new(),
+            next_world_index: world_index + 1,
         }
+    }
+
+    /// Get the world index of this world
+    pub fn world_index(&self) -> usize {
+        self.world_index
+    }
+
+    /// Create a child world with a unique world index
+    pub fn create_child_world(&mut self) -> usize {
+        let child_world_index = self.next_world_index;
+        self.next_world_index += 1;
+        let child_world = World::new_with_index(child_world_index);
+        self.child_worlds.push(child_world);
+        child_world_index
+    }
+
+    /// Get a reference to a child world by index
+    pub fn get_child_world(&self, world_index: usize) -> Option<&World> {
+        self.child_worlds
+            .iter()
+            .find(|world| world.world_index == world_index)
+    }
+
+    /// Get a mutable reference to a child world by index
+    pub fn get_child_world_mut(&mut self, world_index: usize) -> Option<&mut World> {
+        self.child_worlds
+            .iter_mut()
+            .find(|world| world.world_index == world_index)
     }
 
     /// Add a system to the world
@@ -550,7 +615,7 @@ impl World {
 
     /// Create a new entity and return its identifier
     pub fn create_entity(&mut self) -> Entity {
-        let entity = Entity(self.next_entity_id);
+        let entity = Entity::new(self.world_index, self.next_entity_id);
         self.next_entity_id += 1;
         self.entities.push(entity);
         entity
@@ -702,11 +767,11 @@ mod tests {
         let mut world = World::new();
 
         let entity1 = world.create_entity();
-        assert_eq!(entity1, Entity(0));
+        assert_eq!(entity1, Entity::new(0, 0)); // world 0, entity 0
         assert_eq!(world.entity_count(), 1);
 
         let entity2 = world.create_entity();
-        assert_eq!(entity2, Entity(1));
+        assert_eq!(entity2, Entity::new(0, 1)); // world 0, entity 1
         assert_eq!(world.entity_count(), 2);
     }
 
@@ -973,5 +1038,42 @@ mod tests {
         assert_eq!(velocity1.dy, -1.0); // -0.5 * 2.0
         assert_eq!(velocity2.dx, 2.0); // 1.0 * 2.0
         assert_eq!(velocity2.dy, 2.0); // 1.0 * 2.0
+    }
+
+    #[test]
+    fn test_multi_world_entity_identification() {
+        let mut main_world = World::new();
+
+        // Create entities in main world (index 0)
+        let main_entity1 = main_world.create_entity();
+        let main_entity2 = main_world.create_entity();
+
+        // Create a child world
+        let child_world_index = main_world.create_child_world();
+        assert_eq!(child_world_index, 1);
+
+        // Verify main world index before borrowing child world
+        assert_eq!(main_world.world_index(), 0);
+
+        // Create entities in child world
+        let (child_entity1, child_entity2, child_world_idx) = {
+            let child_world = main_world.get_child_world_mut(child_world_index).unwrap();
+            let entity1 = child_world.create_entity();
+            let entity2 = child_world.create_entity();
+            let world_idx = child_world.world_index();
+            (entity1, entity2, world_idx)
+        };
+
+        // Verify entity identification
+        assert_eq!(main_entity1, Entity::new(0, 0)); // world 0, entity 0
+        assert_eq!(main_entity2, Entity::new(0, 1)); // world 0, entity 1
+        assert_eq!(child_entity1, Entity::new(1, 0)); // world 1, entity 0
+        assert_eq!(child_entity2, Entity::new(1, 1)); // world 1, entity 1
+
+        // Verify world indices
+        assert_eq!(child_world_idx, 1);
+
+        // Entities from different worlds should not be equal even with same entity index
+        assert_ne!(main_entity1, child_entity1);
     }
 }

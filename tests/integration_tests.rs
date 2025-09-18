@@ -22,9 +22,9 @@ fn integration_test_world_functionality() {
     let entity2 = world.create_entity();
     let entity3 = world.create_entity();
 
-    assert_eq!(entity1, Entity(0));
-    assert_eq!(entity2, Entity(1));
-    assert_eq!(entity3, Entity(2));
+    assert_eq!(entity1, Entity::new(0, 0)); // world 0, entity 0
+    assert_eq!(entity2, Entity::new(0, 1)); // world 0, entity 1
+    assert_eq!(entity3, Entity::new(0, 2)); // world 0, entity 2
     assert_eq!(world.entity_count(), 3);
 }
 
