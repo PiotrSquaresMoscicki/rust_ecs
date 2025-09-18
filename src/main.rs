@@ -197,41 +197,41 @@ fn main() {
 
 fn demo_derive_macro() {
     println!("\n--- Derive Macro Demo ---");
-    
+
     // Create instances of the Temperature component that uses #[derive(Diffable)]
     let temp1 = Temperature {
         celsius: 20.0,
         pressure: 1013.25,
     };
-    
+
     let temp2 = Temperature {
-        celsius: 25.0,  // Changed temperature
+        celsius: 25.0, // Changed temperature
         pressure: 1013.25,
     };
-    
+
     let temp3 = Temperature {
         celsius: 25.0,
-        pressure: 1015.0,  // Changed pressure
+        pressure: 1015.0, // Changed pressure
     };
-    
+
     println!("Original temperature: {:?}", temp1);
     println!("Temperature with changed celsius: {:?}", temp2);
     println!("Temperature with changed pressure: {:?}", temp3);
-    
+
     // Test diffing - this uses the automatically generated diff implementation
     if let Some(diff) = temp1.diff(&temp2) {
         println!("Diff (temp1 -> temp2): {:?}", diff);
     }
-    
+
     if let Some(diff) = temp2.diff(&temp3) {
         println!("Diff (temp2 -> temp3): {:?}", diff);
     }
-    
+
     // No diff when comparing identical values
     if temp1.diff(&temp1).is_none() {
         println!("No diff when comparing identical temperatures (as expected)");
     }
-    
+
     println!("✅ Derive macro working perfectly! Components automatically implement Diffable with #[derive(Diffable)]");
 }
 
@@ -249,7 +249,13 @@ fn demo_diffable_functionality() {
     // Add components using standard methods - tracking happens automatically
     world.add_component(entity1, Position { x: 0.0, y: 0.0 });
     world.add_component(entity1, Velocity { dx: 1.0, dy: 0.5 });
-    world.add_component(entity1, Health { current: 100, max: 100 });
+    world.add_component(
+        entity1,
+        Health {
+            current: 100,
+            max: 100,
+        },
+    );
 
     world.add_component(entity2, Position { x: 10.0, y: 5.0 });
     world.add_component(entity2, Velocity { dx: -0.5, dy: 0.0 });
@@ -291,11 +297,11 @@ fn demo_diffable_functionality() {
                 system_diff.component_changes().len(),
                 system_diff.world_operations().len()
             );
-            
+
             for change in system_diff.component_changes() {
                 println!("      {:?}", change);
             }
-            
+
             for operation in system_diff.world_operations() {
                 println!("      {:?}", operation);
             }
@@ -305,4 +311,3 @@ fn demo_diffable_functionality() {
     println!("\nDemonstrated: Transparent change tracking without manual diff methods!");
     println!("Developers just use standard ECS methods - all tracking happens automatically.");
 }
-

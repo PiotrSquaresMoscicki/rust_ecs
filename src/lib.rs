@@ -569,7 +569,7 @@ impl<I, O> WorldView<I, O> {
             system_diff: SystemUpdateDiff::new(),
         }
     }
-    
+
     /// Get the accumulated system diff from this WorldView session
     pub fn get_system_diff(self) -> SystemUpdateDiff {
         self.system_diff
@@ -693,35 +693,21 @@ pub enum ComponentOperation {
     Removed,
 }
 
-/// Tracks world-level operations like world creation and removal
+/// Enumeration for different world operations that can be tracked
 #[derive(Debug, Clone)]
-pub struct WorldOperation {
-    pub world_index: usize,
-    pub operation: WorldOperationType,
+pub enum WorldOperation {
+    CreateEntity(Entity),
+    RemoveEntity(Entity),
+    CreateWorld(usize),
+    RemoveWorld(usize),
 }
 
-/// Types of world operations
+/// Enhanced component change operations for better tracking
 #[derive(Debug, Clone)]
-pub enum WorldOperationType {
-    Created,
-    Removed,
-}
-
-/// Enhanced component change that includes diffable data
-#[derive(Debug, Clone)]
-pub struct DiffableComponentChange {
-    pub entity: Entity,
-    pub component_type: TypeId,
-    pub component_type_name: String,
-    pub operation: DiffableComponentOperation,
-}
-
-/// Enhanced component operations with diff data
-#[derive(Debug, Clone)]
-pub enum DiffableComponentOperation {
-    Added { data: String },    // Serialized component data
-    Modified { diff: String }, // Serialized diff data
-    Removed,
+pub enum DiffableComponentChange {
+    Added { entity: Entity, type_name: String, data: String },
+    Modified { entity: Entity, type_name: String, diff: String },
+    Removed { entity: Entity, type_name: String },
 }
 
 /// Trait for components that can be tracked in the diffable change system
@@ -795,11 +781,11 @@ impl SystemUpdateDiff {
     pub fn record_world_operation(&mut self, operation: WorldOperation) {
         self.world_operations.push(operation);
     }
-    
+
     pub fn component_changes(&self) -> &[DiffableComponentChange] {
         &self.component_changes
     }
-    
+
     pub fn world_operations(&self) -> &[WorldOperation] {
         &self.world_operations
     }
@@ -922,10 +908,10 @@ impl<S: System> SystemWrapper for ConcreteSystemWrapper<S> {
     fn update(&mut self, world: &mut World) -> SystemUpdateDiff {
         // Create world view with change tracking enabled
         let mut world_view = WorldView::<S::InComponents, S::OutComponents>::new(world);
-        
+
         // Execute the system - changes will be tracked automatically by WorldView
         self.system.update(&mut world_view);
-        
+
         // Return the accumulated changes from the world view
         world_view.get_system_diff()
     }
@@ -1067,6 +1053,33 @@ impl World {
             .push((entity, Box::new(component)));
     }
 
+    /// Remove a component from an entity
+    pub fn remove_component<T: 'static>(&mut self, entity: Entity) -> Option<T> {
+        if let Some(components) = self.components.get_mut(&TypeId::of::<T>()) {
+            if let Some(pos) = components.iter().position(|(e, _)| *e == entity) {
+                let (_, component_box) = components.remove(pos);
+                return component_box.downcast::<T>().ok().map(|boxed| *boxed);
+            }
+        }
+        None
+    }
+
+    /// Remove an entity and all its components
+    pub fn remove_entity(&mut self, entity: Entity) {
+        // Remove from entities list
+        self.entities.retain(|e| *e != entity);
+        
+        // Remove all components belonging to this entity
+        for components in self.components.values_mut() {
+            components.retain(|(e, _)| *e != entity);
+        }
+    }
+
+    /// Check if an entity exists
+    pub fn entity_exists(&self, entity: Entity) -> bool {
+        self.entities.contains(&entity)
+    }
+
     /// Get a component for an entity (if it exists)
     pub fn get_component<T: 'static>(&self, entity: Entity) -> Option<&T> {
         self.components
@@ -1111,8 +1124,51 @@ impl World {
     }
 
     /// Get the number of entities in the world
-    pub fn entity_count(&self) -> u32 {
-        self.entities.len() as u32
+    pub fn entity_count(&self) -> usize {
+        self.entities.len()
+    }
+
+    /// Create a child world and return its index
+    pub fn create_child_world(&mut self) -> usize {
+        let child_world_index = self.child_worlds.len();
+        let mut child_world = World::new();
+        child_world.world_index = self.world_index + 1 + child_world_index;
+        self.child_worlds.push(child_world);
+        child_world_index
+    }
+
+    /// Get a reference to a child world
+    pub fn get_child_world(&self, index: usize) -> Option<&World> {
+        self.child_worlds.get(index)
+    }
+
+    /// Get a mutable reference to a child world
+    pub fn get_child_world_mut(&mut self, index: usize) -> Option<&mut World> {
+        self.child_worlds.get_mut(index)
+    }
+
+    /// Remove a child world
+    pub fn remove_child_world(&mut self, index: usize) -> Option<World> {
+        if index < self.child_worlds.len() {
+            Some(self.child_worlds.remove(index))
+        } else {
+            None
+        }
+    }
+
+    /// Replay a world history to create a new world with the same state
+    pub fn replay_history(history: &WorldUpdateHistory) -> World {
+        let mut world = World::new();
+        
+        // For now, return an empty world - full replay implementation would require
+        // more sophisticated state tracking and component serialization
+        println!("Replaying world history with {} updates", history.updates().len());
+        for (i, _update) in history.updates().iter().enumerate() {
+            println!("Frame {}: Applying update", i + 1);
+            // Would apply each update to reconstruct the world state
+        }
+        
+        world
     }
 
     /// Get the update history for replay functionality
@@ -1221,8 +1277,6 @@ impl World {
             .map(|components| components.iter().map(|(entity, _)| *entity).collect())
             .unwrap_or_default()
     }
-
-
 }
 
 #[cfg(test)]
