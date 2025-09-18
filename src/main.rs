@@ -195,7 +195,7 @@ fn main() {
 }
 
 fn demo_diffable_functionality() {
-    println!("\n--- Diffable Component Tracking Demo ---");
+    println!("\n--- Transparent Diff Tracking Demo ---");
 
     let mut world = World::new();
 
@@ -205,40 +205,38 @@ fn demo_diffable_functionality() {
 
     println!("Created entities: {:?}, {:?}", entity1, entity2);
 
-    // Add diffable components with tracking
-    let initial_pos = Position { x: 0.0, y: 0.0 };
-    let initial_health = Health {
-        current: 100,
-        max: 100,
-    };
+    // Add components using standard methods - tracking happens automatically
+    world.add_component(entity1, Position { x: 0.0, y: 0.0 });
+    world.add_component(entity1, Velocity { dx: 1.0, dy: 0.5 });
+    world.add_component(entity1, Health { current: 100, max: 100 });
 
-    world.add_diffable_component(entity1, initial_pos);
-    world.add_diffable_component(entity1, initial_health);
+    world.add_component(entity2, Position { x: 10.0, y: 5.0 });
+    world.add_component(entity2, Velocity { dx: -0.5, dy: 0.0 });
 
-    println!("Added initial components with tracking");
+    println!("Added components using standard ECS methods");
 
-    // Update components to show diff tracking
-    let new_pos = Position { x: 5.0, y: 3.0 };
-    let damaged_health = Health {
-        current: 75,
-        max: 100,
-    };
+    // Add a movement system that will automatically track changes
+    world.add_system(MovementSystem);
+    world.initialize_systems();
 
-    world.update_diffable_component(entity1, new_pos);
-    world.update_diffable_component(entity1, damaged_health);
+    println!("Added system - changes will be tracked automatically during updates");
 
-    println!("Updated components - changes tracked in world history");
+    // Run updates - all component changes will be tracked transparently
+    for frame in 1..=3 {
+        println!("Frame {}", frame);
+        world.update();
+    }
 
-    // Create and remove a child world
+    // Create and remove a child world to show world operation tracking
     let child_world_index = world.create_child_world();
     println!("Created child world: {}", child_world_index);
 
     world.remove_child_world(child_world_index);
     println!("Removed child world: {}", child_world_index);
 
-    // Display world update history
+    // Display world update history - shows all automatically tracked changes
     let history = world.get_update_history();
-    println!("\nWorld Update History:");
+    println!("\nWorld Update History (Automatically Tracked):");
     for (i, update) in history.updates().iter().enumerate() {
         println!(
             "  Update {}: {} system diffs",
@@ -249,45 +247,21 @@ fn demo_diffable_functionality() {
             println!(
                 "    System {}: {} component changes, {} world operations",
                 j,
-                system_diff.component_changes.len(),
-                system_diff.world_operations.len()
+                system_diff.component_changes().len(),
+                system_diff.world_operations().len()
             );
-
-            for change in &system_diff.component_changes {
-                match &change.operation {
-                    rust_ecs::DiffableComponentOperation::Added { data } => {
-                        println!(
-                            "      Added {} to {:?}: {}",
-                            change.component_type_name, change.entity, data
-                        );
-                    }
-                    rust_ecs::DiffableComponentOperation::Modified { diff } => {
-                        println!(
-                            "      Modified {} on {:?}: {}",
-                            change.component_type_name, change.entity, diff
-                        );
-                    }
-                    rust_ecs::DiffableComponentOperation::Removed => {
-                        println!(
-                            "      Removed {} from {:?}",
-                            change.component_type_name, change.entity
-                        );
-                    }
-                }
+            
+            for change in system_diff.component_changes() {
+                println!("      {:?}", change);
             }
-
-            for operation in &system_diff.world_operations {
-                match operation.operation {
-                    rust_ecs::WorldOperationType::Created => {
-                        println!("      Created world {}", operation.world_index);
-                    }
-                    rust_ecs::WorldOperationType::Removed => {
-                        println!("      Removed world {}", operation.world_index);
-                    }
-                }
+            
+            for operation in system_diff.world_operations() {
+                println!("      {:?}", operation);
             }
         }
     }
 
-    println!("\nDiffable tracking allows complete reproduction of all world changes!");
+    println!("\nDemonstrated: Transparent change tracking without manual diff methods!");
+    println!("Developers just use standard ECS methods - all tracking happens automatically.");
 }
+

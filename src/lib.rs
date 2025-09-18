@@ -559,6 +559,7 @@ pub struct WorldView<InComponents, OutComponents> {
     world: *mut World,
     _input_phantom: std::marker::PhantomData<InComponents>,
     _output_phantom: std::marker::PhantomData<OutComponents>,
+    system_diff: SystemUpdateDiff,
 }
 
 impl<I, O> WorldView<I, O> {
@@ -568,7 +569,13 @@ impl<I, O> WorldView<I, O> {
             world: world as *mut World,
             _input_phantom: std::marker::PhantomData,
             _output_phantom: std::marker::PhantomData,
+            system_diff: SystemUpdateDiff::new(),
         }
+    }
+    
+    /// Get the accumulated system diff from this WorldView session
+    pub fn get_system_diff(self) -> SystemUpdateDiff {
+        self.system_diff
     }
 
     /// Get a reference to the underlying world (unsafe due to raw pointer)
@@ -791,6 +798,14 @@ impl SystemUpdateDiff {
     pub fn record_world_operation(&mut self, operation: WorldOperation) {
         self.world_operations.push(operation);
     }
+    
+    pub fn component_changes(&self) -> &[DiffableComponentChange] {
+        &self.component_changes
+    }
+    
+    pub fn world_operations(&self) -> &[WorldOperation] {
+        &self.world_operations
+    }
 }
 
 /// Enhanced system deinitialization diff tracking with diffable components
@@ -908,9 +923,14 @@ impl<S: System> SystemWrapper for ConcreteSystemWrapper<S> {
     }
 
     fn update(&mut self, world: &mut World) -> SystemUpdateDiff {
+        // Create world view with change tracking enabled
         let mut world_view = WorldView::<S::InComponents, S::OutComponents>::new(world);
+        
+        // Execute the system - changes will be tracked automatically by WorldView
         self.system.update(&mut world_view);
-        SystemUpdateDiff::new()
+        
+        // Return the accumulated changes from the world view
+        world_view.get_system_diff()
     }
 
     fn deinitialize(&mut self, world: &mut World) -> SystemDeinitDiff {
@@ -1205,93 +1225,7 @@ impl World {
             .unwrap_or_default()
     }
 
-    /// Add a diffable component to an entity with full change tracking
-    pub fn add_diffable_component<T: DiffableComponent>(&mut self, entity: Entity, component: T) {
-        // Record the addition in the update history
-        let change = DiffableComponentChange {
-            entity,
-            component_type: TypeId::of::<T>(),
-            component_type_name: T::type_name().to_string(),
-            operation: DiffableComponentOperation::Added {
-                data: component.serialize(),
-            },
-        };
 
-        let mut world_diff = WorldUpdateDiff::new();
-        let mut system_diff = SystemUpdateDiff::new();
-        system_diff.record_component_change(change);
-        world_diff.record(system_diff);
-        self.world_update_history.record(world_diff);
-
-        // Add the component
-        self.components
-            .entry(TypeId::of::<T>())
-            .or_default()
-            .push((entity, Box::new(component)));
-    }
-
-    /// Update a diffable component with change tracking
-    pub fn update_diffable_component<T: DiffableComponent>(
-        &mut self,
-        entity: Entity,
-        new_component: T,
-    ) -> bool {
-        if let Some(components) = self.components.get_mut(&TypeId::of::<T>()) {
-            if let Some((_, component_box)) = components.iter_mut().find(|(e, _)| *e == entity) {
-                if let Some(old_component) = component_box.downcast_mut::<T>() {
-                    // Calculate diff
-                    if let Some(diff) = old_component.diff(&new_component) {
-                        // Record the modification in the update history
-                        let change = DiffableComponentChange {
-                            entity,
-                            component_type: TypeId::of::<T>(),
-                            component_type_name: T::type_name().to_string(),
-                            operation: DiffableComponentOperation::Modified {
-                                diff: T::diff_to_string(&diff),
-                            },
-                        };
-
-                        let mut world_diff = WorldUpdateDiff::new();
-                        let mut system_diff = SystemUpdateDiff::new();
-                        system_diff.record_component_change(change);
-                        world_diff.record(system_diff);
-                        self.world_update_history.record(world_diff);
-
-                        // Apply the diff
-                        old_component.apply_diff(&diff);
-                        return true;
-                    }
-                }
-            }
-        }
-        false
-    }
-
-    /// Remove a diffable component with change tracking
-    pub fn remove_diffable_component<T: DiffableComponent>(&mut self, entity: Entity) -> bool {
-        if let Some(components) = self.components.get_mut(&TypeId::of::<T>()) {
-            if let Some(pos) = components.iter().position(|(e, _)| *e == entity) {
-                components.remove(pos);
-
-                // Record the removal in the update history
-                let change = DiffableComponentChange {
-                    entity,
-                    component_type: TypeId::of::<T>(),
-                    component_type_name: T::type_name().to_string(),
-                    operation: DiffableComponentOperation::Removed,
-                };
-
-                let mut world_diff = WorldUpdateDiff::new();
-                let mut system_diff = SystemUpdateDiff::new();
-                system_diff.record_component_change(change);
-                world_diff.record(system_diff);
-                self.world_update_history.record(world_diff);
-
-                return true;
-            }
-        }
-        false
-    }
 }
 
 #[cfg(test)]
