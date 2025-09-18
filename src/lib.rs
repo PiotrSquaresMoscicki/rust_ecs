@@ -21,18 +21,18 @@ pub struct Entity(pub usize);
 /// Systems declare their input and output components for change tracking.
 pub trait System {
     /// Components that the system will read from without modifying them
-    type InputComponents;
+    type InComponents;
     /// Components that the system will read from and write to
-    type OutputComponents;
+    type OutComponents;
 
     /// Called once before the first update to initialize system state
-    fn initialize(&mut self, world: &mut WorldView<Self::InputComponents, Self::OutputComponents>);
+    fn initialize(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>);
     
     /// Called every frame to update the system
-    fn update(&mut self, world: &mut WorldView<Self::InputComponents, Self::OutputComponents>);
+    fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>);
     
     /// Called when the system is being removed or the world is shutting down
-    fn deinitialize(&mut self, world: &mut WorldView<Self::InputComponents, Self::OutputComponents>);
+    fn deinitialize(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>);
 }
 
 /// A wrapper for output (mutable) component access in queries
@@ -214,10 +214,10 @@ where
 }
 
 /// WorldView provides controlled access to world data for systems
-pub struct WorldView<InputComponents, OutputComponents> {
+pub struct WorldView<InComponents, OutComponents> {
     world: *mut World,
-    _input_phantom: std::marker::PhantomData<InputComponents>,
-    _output_phantom: std::marker::PhantomData<OutputComponents>,
+    _input_phantom: std::marker::PhantomData<InComponents>,
+    _output_phantom: std::marker::PhantomData<OutComponents>,
 }
 
 impl<I, O> WorldView<I, O> {
@@ -458,19 +458,19 @@ impl<S: System> ConcreteSystemWrapper<S> {
 
 impl<S: System> SystemWrapper for ConcreteSystemWrapper<S> {
     fn initialize(&mut self, world: &mut World) -> SystemInitDiff {
-        let mut world_view = WorldView::<S::InputComponents, S::OutputComponents>::new(world);
+        let mut world_view = WorldView::<S::InComponents, S::OutComponents>::new(world);
         self.system.initialize(&mut world_view);
         SystemInitDiff::new()
     }
 
     fn update(&mut self, world: &mut World) -> SystemUpdateDiff {
-        let mut world_view = WorldView::<S::InputComponents, S::OutputComponents>::new(world);
+        let mut world_view = WorldView::<S::InComponents, S::OutComponents>::new(world);
         self.system.update(&mut world_view);
         SystemUpdateDiff::new()
     }
 
     fn deinitialize(&mut self, world: &mut World) -> SystemDeinitDiff {
-        let mut world_view = WorldView::<S::InputComponents, S::OutputComponents>::new(world);
+        let mut world_view = WorldView::<S::InComponents, S::OutComponents>::new(world);
         self.system.deinitialize(&mut world_view);
         SystemDeinitDiff::new()
     }
@@ -679,18 +679,18 @@ mod tests {
     struct TestSystem;
 
     impl System for TestSystem {
-        type InputComponents = ();
-        type OutputComponents = ();
+        type InComponents = ();
+        type OutComponents = ();
 
-        fn initialize(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+        fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
             // Test system initialization
         }
 
-        fn update(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+        fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
             // Test system update
         }
 
-        fn deinitialize(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+        fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
             // Test system deinitialization
         }
     }

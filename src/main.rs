@@ -23,14 +23,14 @@ struct Health {
 struct MovementSystem;
 
 impl System for MovementSystem {
-    type InputComponents = (Velocity,);
-    type OutputComponents = (Position,);
+    type InComponents = (Velocity,);
+    type OutComponents = (Position,);
 
-    fn initialize(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+    fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("MovementSystem initialized");
     }
 
-    fn update(&mut self, world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+    fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("MovementSystem updating entities with position and velocity");
         
         // Use the new multi-component query to get entities with both Position and Velocity
@@ -50,7 +50,7 @@ impl System for MovementSystem {
         }
     }
 
-    fn deinitialize(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+    fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("MovementSystem deinitialized");
     }
 }
@@ -59,14 +59,14 @@ impl System for MovementSystem {
 struct HealthSystem;
 
 impl System for HealthSystem {
-    type InputComponents = ();
-    type OutputComponents = (Health,);
+    type InComponents = ();
+    type OutComponents = (Health,);
 
-    fn initialize(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+    fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("HealthSystem initialized");
     }
 
-    fn update(&mut self, world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+    fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("HealthSystem regenerating health for entities");
         
         // Query all entities with health
@@ -78,7 +78,7 @@ impl System for HealthSystem {
         }
     }
 
-    fn deinitialize(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+    fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("HealthSystem deinitialized");
     }
 }
