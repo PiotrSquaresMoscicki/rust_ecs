@@ -35,13 +35,13 @@ pub trait System {
     fn deinitialize(&mut self, world: &mut WorldView<Self::InputComponents, Self::OutputComponents>);
 }
 
-/// A wrapper for mutable component access in queries
-pub struct Mut<T>(pub T);
+/// A wrapper for output (mutable) component access in queries
+pub struct Out<T>(pub T);
 
-impl<T> Mut<T> {
-    /// Create a new Mut wrapper
+impl<T> Out<T> {
+    /// Create a new Out wrapper
     pub fn new(value: T) -> Self {
-        Mut(value)
+        Out(value)
     }
     
     /// Get the inner value
@@ -55,7 +55,7 @@ impl<T> Mut<T> {
     }
 }
 
-impl<T> std::ops::Deref for Mut<T> {
+impl<T> std::ops::Deref for Out<T> {
     type Target = T;
     
     fn deref(&self) -> &Self::Target {
@@ -63,7 +63,7 @@ impl<T> std::ops::Deref for Mut<T> {
     }
 }
 
-impl<T> std::ops::DerefMut for Mut<T> {
+impl<T> std::ops::DerefMut for Out<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -111,11 +111,11 @@ pub trait MixedQueryComponent<'a> {
     fn get_mixed_component(world: &'a mut World, entity: Entity) -> Option<Self::Item>;
 }
 
-/// A wrapper to explicitly mark immutable component access
-pub struct Immutable<T>(std::marker::PhantomData<T>);
+/// A wrapper to explicitly mark input (immutable) component access
+pub struct In<T>(std::marker::PhantomData<T>);
 
-/// Implementation for immutable component access in mixed queries
-impl<'a, T: 'static> MixedQueryComponent<'a> for Immutable<T> {
+/// Implementation for input (immutable) component access in mixed queries
+impl<'a, T: 'static> MixedQueryComponent<'a> for In<T> {
     type Item = &'a T;
     
     fn get_mixed_component(world: &'a mut World, entity: Entity) -> Option<Self::Item> {
@@ -136,8 +136,8 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for Immutable<T> {
     }
 }
 
-/// Implementation for mutable component access in mixed queries
-impl<'a, T: 'static> MixedQueryComponent<'a> for Mut<T> {
+/// Implementation for output (mutable) component access in mixed queries
+impl<'a, T: 'static> MixedQueryComponent<'a> for Out<T> {
     type Item = &'a mut T;
     
     fn get_mixed_component(world: &'a mut World, entity: Entity) -> Option<Self::Item> {
@@ -320,8 +320,8 @@ impl<I, O> WorldView<I, O> {
         }
     }
 
-    /// Query entities with multiple components, using Mut<T> for mutable access and T for immutable access
-    /// Example: world_view.query_components::<(Position, Mut<Velocity>)>()
+    /// Query entities with multiple components, using Out<T> for mutable access and In<T> for immutable access
+    /// Example: world_view.query_components::<(In<Position>, Out<Velocity>)>()
     pub fn query_components<Q>(&mut self) -> Vec<(Entity, <Q as MixedMultiQuery<'_>>::Item)>
     where
         for<'a> Q: MixedMultiQuery<'a>,
@@ -860,7 +860,7 @@ mod tests {
         world_view.add_component(entity3, Velocity { dx: 1.0, dy: 1.0 });
         
         // Query for entities with both Position and Velocity (both immutable)
-        let results = world_view.query_components::<(Immutable<Position>, Immutable<Velocity>)>();
+        let results = world_view.query_components::<(In<Position>, In<Velocity>)>();
         
         // Only entity1 should be returned
         assert_eq!(results.len(), 1);
@@ -887,7 +887,7 @@ mod tests {
         world_view.add_component(entity2, Velocity { dx: 1.0, dy: 1.0 });
         
         // Query for entities with Position (immutable) and Velocity (mutable)
-        let mut results = world_view.query_components::<(Immutable<Position>, Mut<Velocity>)>();
+        let mut results = world_view.query_components::<(In<Position>, Out<Velocity>)>();
         
         // Both entities should be returned
         assert_eq!(results.len(), 2);

@@ -1,4 +1,4 @@
-use rust_ecs::{World, System, WorldView, Entity, Mut, Immutable};
+use rust_ecs::{World, System, WorldView, Entity, Out, In};
 
 // Example components
 #[derive(Debug)]
@@ -34,8 +34,8 @@ impl System for MovementSystem {
         println!("MovementSystem updating entities with position and velocity");
         
         // Use the new multi-component query to get entities with both Position and Velocity
-        // Position is immutable, Velocity is mutable
-        let mut results = world.query_components::<(Immutable<Position>, Mut<Velocity>)>();
+        // Position is immutable (In), Velocity is mutable (Out)
+        let mut results = world.query_components::<(In<Position>, Out<Velocity>)>();
         
         for (entity, (position, velocity)) in &mut results {
             // Calculate new position based on velocity (but we can't modify position here)
