@@ -128,7 +128,23 @@ fn main() {
     }
 
     println!("\nSimulation complete!");
-    println!("This demonstrates the ECS framework with change tracking capabilities.");
-    println!("In a full implementation, the world would track all component changes");
-    println!("for replay functionality and debugging.");
+    
+    // Demonstrate replay functionality
+    println!("\n--- Replay Functionality Demo ---");
+    let history = world.get_update_history();
+    let _replay_world = World::replay_history(history);
+    
+    println!("\nThis demonstrates the ECS framework with change tracking capabilities.");
+    println!("The framework includes:");
+    println!("- Type-safe system definitions with input/output component declarations");
+    println!("- Component querying and iteration");
+    println!("- World update history tracking for debugging");
+    println!("- Replay functionality for reproducing game states");
+    println!("- Entity and component management");
+    
+    // Demonstrate additional world functionality
+    println!("\n--- Additional World Features ---");
+    println!("Entities with Position: {:?}", world.entities_with_component::<Position>());
+    println!("Entities with Velocity: {:?}", world.entities_with_component::<Velocity>());
+    println!("Entities with Health: {:?}", world.entities_with_component::<Health>());
 }

@@ -146,39 +146,73 @@ impl<I, O> WorldView<I, O> {
     }
 }
 
+/// Tracks a specific component change
+#[derive(Debug, Clone)]
+pub struct ComponentChange {
+    pub entity: Entity,
+    pub component_type: TypeId,
+    pub operation: ComponentOperation,
+}
+
+/// Types of component operations
+#[derive(Debug, Clone)]
+pub enum ComponentOperation {
+    Added,
+    Modified,
+    Removed,
+}
+
 /// Placeholder for system initialization diff tracking
 #[derive(Debug)]
 pub struct SystemInitDiff {
-    // Will contain details about component changes during initialization
+    pub component_changes: Vec<ComponentChange>,
 }
 
 impl SystemInitDiff {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            component_changes: Vec::new(),
+        }
+    }
+
+    pub fn record_component_change(&mut self, change: ComponentChange) {
+        self.component_changes.push(change);
     }
 }
 
 /// Placeholder for system update diff tracking
 #[derive(Debug)]
 pub struct SystemUpdateDiff {
-    // Will contain details about component changes during update
+    pub component_changes: Vec<ComponentChange>,
 }
 
 impl SystemUpdateDiff {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            component_changes: Vec::new(),
+        }
+    }
+
+    pub fn record_component_change(&mut self, change: ComponentChange) {
+        self.component_changes.push(change);
     }
 }
 
 /// Placeholder for system deinitialization diff tracking
 #[derive(Debug)]
 pub struct SystemDeinitDiff {
-    // Will contain details about component changes during deinitialization
+    pub component_changes: Vec<ComponentChange>,
 }
 
 impl SystemDeinitDiff {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            component_changes: Vec::new(),
+        }
+    }
+
+    pub fn record_component_change(&mut self, change: ComponentChange) {
+        self.component_changes.push(change);
     }
 }
 
@@ -347,6 +381,63 @@ impl World {
     pub fn entity_count(&self) -> u32 {
         self.entities.len() as u32
     }
+
+    /// Get the update history for replay functionality
+    pub fn get_update_history(&self) -> &WorldUpdateHistory {
+        &self.world_update_history
+    }
+
+    /// Apply a recorded world update diff for replay
+    pub fn apply_update_diff(&mut self, diff: &WorldUpdateDiff) {
+        // In a complete implementation, this would replay all component changes
+        // For now, we just demonstrate the structure
+        println!("Applying world update diff with {} system updates", diff.system_diffs.len());
+        for (i, system_diff) in diff.system_diffs.iter().enumerate() {
+            println!("  System {}: {} component changes", i, system_diff.component_changes.len());
+        }
+    }
+
+    /// Replay the entire world history in a new world
+    pub fn replay_history(history: &WorldUpdateHistory) -> World {
+        let mut new_world = World::new();
+        
+        println!("Replaying world history with {} updates", history.updates.len());
+        for (frame, update) in history.updates.iter().enumerate() {
+            println!("Frame {}: Applying update", frame + 1);
+            new_world.apply_update_diff(update);
+        }
+        
+        new_world
+    }
+
+    /// Remove an entity and all its components
+    pub fn remove_entity(&mut self, entity: Entity) -> bool {
+        if let Some(pos) = self.entities.iter().position(|e| *e == entity) {
+            self.entities.remove(pos);
+            
+            // Remove all components for this entity
+            for components in self.components.values_mut() {
+                components.retain(|(e, _)| *e != entity);
+            }
+            
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Check if an entity exists
+    pub fn entity_exists(&self, entity: Entity) -> bool {
+        self.entities.contains(&entity)
+    }
+
+    /// Get all entities that have a specific component type
+    pub fn entities_with_component<T: 'static>(&self) -> Vec<Entity> {
+        self.components
+            .get(&TypeId::of::<T>())
+            .map(|components| components.iter().map(|(entity, _)| *entity).collect())
+            .unwrap_or_default()
+    }
 }
 
 #[cfg(test)]
@@ -499,5 +590,67 @@ mod tests {
         // Verify the change
         let pos1 = world_view.get_component::<Position>(entity1);
         assert_eq!(pos1.unwrap().x, 10.0);
+    }
+
+    #[test]
+    fn test_entity_removal() {
+        let mut world = World::new();
+        let entity1 = world.create_entity();
+        let entity2 = world.create_entity();
+        
+        world.add_component(entity1, Position { x: 1.0, y: 2.0 });
+        world.add_component(entity2, Position { x: 3.0, y: 4.0 });
+        
+        assert_eq!(world.entity_count(), 2);
+        assert!(world.entity_exists(entity1));
+        assert!(world.entity_exists(entity2));
+        
+        // Remove entity1
+        assert!(world.remove_entity(entity1));
+        assert_eq!(world.entity_count(), 1);
+        assert!(!world.entity_exists(entity1));
+        assert!(world.entity_exists(entity2));
+        
+        // Try to remove entity1 again
+        assert!(!world.remove_entity(entity1));
+        assert_eq!(world.entity_count(), 1);
+    }
+
+    #[test]
+    fn test_entities_with_component() {
+        let mut world = World::new();
+        let entity1 = world.create_entity();
+        let entity2 = world.create_entity();
+        let entity3 = world.create_entity();
+        
+        world.add_component(entity1, Position { x: 1.0, y: 2.0 });
+        world.add_component(entity1, Velocity { dx: 0.5, dy: -0.5 });
+        world.add_component(entity2, Position { x: 3.0, y: 4.0 });
+        world.add_component(entity3, Velocity { dx: 1.0, dy: 1.0 });
+        
+        let pos_entities = world.entities_with_component::<Position>();
+        let vel_entities = world.entities_with_component::<Velocity>();
+        
+        assert_eq!(pos_entities.len(), 2);
+        assert!(pos_entities.contains(&entity1));
+        assert!(pos_entities.contains(&entity2));
+        
+        assert_eq!(vel_entities.len(), 2);
+        assert!(vel_entities.contains(&entity1));
+        assert!(vel_entities.contains(&entity3));
+    }
+
+    #[test]
+    fn test_update_history() {
+        let mut world = World::new();
+        world.add_system(TestSystem);
+        world.initialize_systems();
+        
+        // Run a few updates
+        world.update();
+        world.update();
+        
+        let history = world.get_update_history();
+        assert_eq!(history.updates.len(), 2);
     }
 }
