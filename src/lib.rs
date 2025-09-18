@@ -36,7 +36,182 @@ pub trait System {
 }
 
 /// A wrapper for mutable component access in queries
-pub struct Mut<T>(T);
+pub struct Mut<T>(pub T);
+
+impl<T> Mut<T> {
+    /// Create a new Mut wrapper
+    pub fn new(value: T) -> Self {
+        Mut(value)
+    }
+    
+    /// Get the inner value
+    pub fn get(&self) -> &T {
+        &self.0
+    }
+    
+    /// Get a mutable reference to the inner value
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T> std::ops::Deref for Mut<T> {
+    type Target = T;
+    
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> std::ops::DerefMut for Mut<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+/// Trait for components that can be queried
+pub trait QueryComponent<'a> {
+    type Item;
+    
+    /// Extract the component from the world for a specific entity
+    fn get_component(world: &'a World, entity: Entity) -> Option<Self::Item>;
+}
+
+/// Implementation for immutable component access
+impl<'a, T: 'static> QueryComponent<'a> for T {
+    type Item = &'a T;
+    
+    fn get_component(world: &'a World, entity: Entity) -> Option<Self::Item> {
+        world.components
+            .get(&TypeId::of::<T>())?
+            .iter()
+            .find_map(|(e, component)| {
+                if *e == entity {
+                    component.downcast_ref::<T>()
+                } else {
+                    None
+                }
+            })
+    }
+}
+
+/// Trait for multi-component queries with mixed mutable/immutable access
+pub trait MixedMultiQuery<'a> {
+    type Item;
+    
+    /// Get all entities that have all the required components with mixed access
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)>;
+}
+
+/// Trait for components that can be queried with mixed access patterns
+pub trait MixedQueryComponent<'a> {
+    type Item;
+    
+    /// Extract the component from the world for a specific entity with appropriate access
+    fn get_mixed_component(world: &'a mut World, entity: Entity) -> Option<Self::Item>;
+}
+
+/// A wrapper to explicitly mark immutable component access
+pub struct Immutable<T>(std::marker::PhantomData<T>);
+
+/// Implementation for immutable component access in mixed queries
+impl<'a, T: 'static> MixedQueryComponent<'a> for Immutable<T> {
+    type Item = &'a T;
+    
+    fn get_mixed_component(world: &'a mut World, entity: Entity) -> Option<Self::Item> {
+        // For immutable access, we can safely convert the mutable reference
+        unsafe {
+            let world_ref = &*(world as *const World);
+            world_ref.components
+                .get(&TypeId::of::<T>())?
+                .iter()
+                .find_map(|(e, component)| {
+                    if *e == entity {
+                        component.downcast_ref::<T>()
+                    } else {
+                        None
+                    }
+                })
+        }
+    }
+}
+
+/// Implementation for mutable component access in mixed queries
+impl<'a, T: 'static> MixedQueryComponent<'a> for Mut<T> {
+    type Item = &'a mut T;
+    
+    fn get_mixed_component(world: &'a mut World, entity: Entity) -> Option<Self::Item> {
+        world.components
+            .get_mut(&TypeId::of::<T>())?
+            .iter_mut()
+            .find_map(|(e, component)| {
+                if *e == entity {
+                    component.downcast_mut::<T>()
+                } else {
+                    None
+                }
+            })
+    }
+}
+
+
+// Concrete implementations for 2 components
+impl<'a, A, B> MixedMultiQuery<'a> for (A, B)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item);
+    
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+        
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                
+                if let (Some(a), Some(b)) = (a, b) {
+                    results.push((entity, (a, b)));
+                }
+            }
+        }
+        
+        results
+    }
+}
+
+// Concrete implementations for 3 components
+impl<'a, A, B, C> MixedMultiQuery<'a> for (A, B, C)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item);
+    
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+        
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                
+                if let (Some(a), Some(b), Some(c)) = (a, b, c) {
+                    results.push((entity, (a, b, c)));
+                }
+            }
+        }
+        
+        results
+    }
+}
 
 /// WorldView provides controlled access to world data for systems
 pub struct WorldView<InputComponents, OutputComponents> {
@@ -142,6 +317,17 @@ impl<I, O> WorldView<I, O> {
             }
             
             results
+        }
+    }
+
+    /// Query entities with multiple components, using Mut<T> for mutable access and T for immutable access
+    /// Example: world_view.query_components::<(Position, Mut<Velocity>)>()
+    pub fn query_components<Q>(&mut self) -> Vec<(Entity, <Q as MixedMultiQuery<'_>>::Item)>
+    where
+        for<'a> Q: MixedMultiQuery<'a>,
+    {
+        unsafe {
+            Q::query_mixed(self.world_mut())
         }
     }
 }
@@ -652,5 +838,75 @@ mod tests {
         
         let history = world.get_update_history();
         assert_eq!(history.updates.len(), 2);
+    }
+
+    #[test]
+    fn test_multi_component_query() {
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        
+        let entity1 = world_view.create_entity();
+        let entity2 = world_view.create_entity();
+        let entity3 = world_view.create_entity();
+        
+        // Entity1 has both Position and Velocity
+        world_view.add_component(entity1, Position { x: 1.0, y: 2.0 });
+        world_view.add_component(entity1, Velocity { dx: 0.5, dy: -0.5 });
+        
+        // Entity2 has only Position
+        world_view.add_component(entity2, Position { x: 3.0, y: 4.0 });
+        
+        // Entity3 has only Velocity
+        world_view.add_component(entity3, Velocity { dx: 1.0, dy: 1.0 });
+        
+        // Query for entities with both Position and Velocity (both immutable)
+        let results = world_view.query_components::<(Immutable<Position>, Immutable<Velocity>)>();
+        
+        // Only entity1 should be returned
+        assert_eq!(results.len(), 1);
+        let (entity, (position, velocity)) = &results[0];
+        assert_eq!(*entity, entity1);
+        assert_eq!(position.x, 1.0);
+        assert_eq!(position.y, 2.0);
+        assert_eq!(velocity.dx, 0.5);
+        assert_eq!(velocity.dy, -0.5);
+    }
+
+    #[test]
+    fn test_multi_component_query_mut() {
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        
+        let entity1 = world_view.create_entity();
+        let entity2 = world_view.create_entity();
+        
+        // Both entities have Position and Velocity
+        world_view.add_component(entity1, Position { x: 1.0, y: 2.0 });
+        world_view.add_component(entity1, Velocity { dx: 0.5, dy: -0.5 });
+        world_view.add_component(entity2, Position { x: 3.0, y: 4.0 });
+        world_view.add_component(entity2, Velocity { dx: 1.0, dy: 1.0 });
+        
+        // Query for entities with Position (immutable) and Velocity (mutable)
+        let mut results = world_view.query_components::<(Immutable<Position>, Mut<Velocity>)>();
+        
+        // Both entities should be returned
+        assert_eq!(results.len(), 2);
+        
+        // Modify velocities
+        for (_entity, (position, velocity)) in &mut results {
+            velocity.dx *= 2.0;
+            velocity.dy *= 2.0;
+            println!("Position: ({}, {}), Modified velocity: ({}, {})", 
+                     position.x, position.y, velocity.dx, velocity.dy);
+        }
+        
+        // Verify changes were applied
+        let velocity1 = world_view.get_component::<Velocity>(entity1).unwrap();
+        let velocity2 = world_view.get_component::<Velocity>(entity2).unwrap();
+        
+        assert_eq!(velocity1.dx, 1.0); // 0.5 * 2.0
+        assert_eq!(velocity1.dy, -1.0); // -0.5 * 2.0
+        assert_eq!(velocity2.dx, 2.0); // 1.0 * 2.0
+        assert_eq!(velocity2.dy, 2.0); // 1.0 * 2.0
     }
 }

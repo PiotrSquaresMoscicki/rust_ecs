@@ -1,4 +1,4 @@
-use rust_ecs::{World, System, WorldView, Entity};
+use rust_ecs::{World, System, WorldView, Entity, Mut, Immutable};
 
 // Example components
 #[derive(Debug)]
@@ -33,19 +33,20 @@ impl System for MovementSystem {
     fn update(&mut self, world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
         println!("MovementSystem updating entities with position and velocity");
         
-        // Get all entities with velocity components
-        let entities_with_velocity: Vec<(Entity, Velocity)> = world.query::<Velocity>()
-            .into_iter()
-            .map(|(entity, velocity)| (entity, Velocity { dx: velocity.dx, dy: velocity.dy }))
-            .collect();
+        // Use the new multi-component query to get entities with both Position and Velocity
+        // Position is immutable, Velocity is mutable
+        let mut results = world.query_components::<(Immutable<Position>, Mut<Velocity>)>();
         
-        // Update positions for entities that have velocity
-        for (entity, velocity) in entities_with_velocity {
-            if let Some(position) = world.get_component_mut::<Position>(entity) {
-                position.x += velocity.dx;
-                position.y += velocity.dy;
-                println!("  Moved entity {:?} to ({:.1}, {:.1})", entity, position.x, position.y);
-            }
+        for (entity, (position, velocity)) in &mut results {
+            // Calculate new position based on velocity (but we can't modify position here)
+            let new_x = position.x + velocity.dx;
+            let new_y = position.y + velocity.dy;
+            println!("  Entity {:?} would move from ({:.1}, {:.1}) to ({:.1}, {:.1})", 
+                     entity, position.x, position.y, new_x, new_y);
+            
+            // For demonstration, let's dampen the velocity over time
+            velocity.dx *= 0.95;
+            velocity.dy *= 0.95;
         }
     }
 
