@@ -19,18 +19,14 @@ Code and pseudocode samples
 ```
 // system trait
 pub trait System {
-    // Dependencies is a tuple of system types in number from zero to 64
-    // Dependencies are other systems that must be updated before this system
-    type Dependencies;
-
     // Input components are components that the system will read from without modifying them
     type InputComponents;
     // Output components are components that the system will read from and write to
     type OutputComponents;
 
-    fn initialize(&mut self, world: &mut World);
-    fn update(&mut self, world: &mut World);
-    fn denitialize(&mut self, world: &mut World);
+    fn initialize(&mut self, world: &mut WorldView<InputComponents, OutputComponents>);
+    fn update(&mut self, world: &mut WorldView<InputComponents, OutputComponents>);
+    fn denitialize(&mut self, world: &mut WorldView<InputComponents, OutputComponents>);
 }
 
 // since world contains systems of different types we need a SystemWrapper that will
@@ -47,8 +43,11 @@ impl<S: System> SystemWrapper<S> {
         // create a snapshot of the system state
         // ...
 
+        // create world view based on input and output components
+        let mut world_view = WorldView::new::<S::InputComponents, S::OutputComponents>(world)
+
         // call initialize
-        self.system.initialize(world);
+        self.system.initialize(world_view);
 
         // diff the snapshot with current state and record changes
         // ...
@@ -63,8 +62,11 @@ impl<S: System> SystemWrapper<S> {
         // create a snapshot of the system state
         // ...
 
+        // create world view based on input and output components
+        let mut world_view = WorldView::new::<S::InputComponents, S::OutputComponents>(world)
+
         // call update
-        self.system.update(world);
+        self.system.update(world_view);
 
         // diff the snapshot with current state and record changes
         // ...
@@ -79,8 +81,11 @@ impl<S: System> SystemWrapper<S> {
         // create a snapshot of the system state
         // ...
 
+        // create world view based on input and output components
+        let mut world_view = WorldView::new::<S::InputComponents, S::OutputComponents>(world)
+
         // call denitialize
-        self.system.denitialize(world);
+        self.system.denitialize(world_view);
 
         // diff the snapshot with current state and record changes
         // ...
@@ -89,33 +94,43 @@ impl<S: System> SystemWrapper<S> {
     }
 }
 
+// world wrapper is there to make sure the system in its update function gets mutable references
+// only to components defined as output components and non mutable references for components that 
+// are defined as input or output components
+struct WorldView<InputComponents, OutputComponents> {
+    world: World;
+}
+
+impl WorldView<InputComponents, OutoutComponents> {
+    fn iterator<Cmp1, Cmp2, Mut<Cmp3>, ...>() -> EntityIterator<Cmp1, Cmp2, Mut<Cmp3>, ...> {
+        // Mut<> generic struct defines which components should be borrowed mutably
+    }
+}
+
 // sample system implementation
 struct SampleSystem;
+
 impl System for SampleSystem {
-    type Dependencies = (OtherSystem,);
-    type Iterators = (
-        // EntIt is a marker type for clarity of reading - to make it easier to count how many iterators we're using 
-        // and what components are used by each iterator 
-        EntIt<Mut<ComponentA>, ComponentB>,
-        EntIt<ComponentC>,
-    );
+    type InputComponents = (Component1, Component2);
+    type OutputComponents = (Component3, Component4, Component5);
 
-    fn update(&mut self, &mut iterators: Self::Iterators) {
-        let (mut iter_a_b, iter_c) = iterators;
-
-        while let Some((entity, &mut comp_a, &comp_b)) = iter_a_b.next() {
-            // process entity with ComponentA and ComponentB
-            // comp_a is mutable
-            // comp_b is immutable
+    fn initialize(&mut self, world: &mut WorldView<InputComponents, OutputComponents>) {}
+    
+    fn update(&mut self, world: &mut WorldView<InputComponents, OutputComponents>) {
+        for (cmp1, &mut cmp3, &mut cmp4) 
+            in world.iterator::<Component1, , Mut<Component3>, Mut<Component4>>() 
+        {
+            // do something with cmp1, cmp3, cmp4
         }
 
-        while let Some((&entity, &comp_c)) = iter_c.next() {
-            // process entity with ComponentC
-            // comp_c is immutable
+        for (cmp2, &mut cmp5) 
+            in world.iterator::<Component2, Mut<Component5>>() 
+        {
+            // do something with cmp2, cmp5
         }
     }
 
-    fn on_component
+    fn denitialize(&mut self, world: &mut WorldView<InputComponents, OutputComponents>) {}
 }
 
 // An Entity is just a unique identifier.
@@ -193,11 +208,6 @@ impl World {
 
 
         self.world_update_history.record(world_update_diff);
-    }
-
-    // get_components should return an iterator over entities that have all specified components
-    fn get_components<C1, C2, C3, ...>(&self) -> EntityIterator<C1, C2, C3, ...> {
-        // get components recursively (include components from child worlds)
     }
 }
 
