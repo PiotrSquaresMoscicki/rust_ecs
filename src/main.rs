@@ -7,7 +7,7 @@ struct Position {
     y: f32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Velocity {
     dx: f32,
     dy: f32,
@@ -30,10 +30,23 @@ impl System for MovementSystem {
         println!("MovementSystem initialized");
     }
 
-    fn update(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+    fn update(&mut self, world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
         println!("MovementSystem updating entities with position and velocity");
-        // In a complete implementation, this would iterate over entities with Position and Velocity
-        // and update positions based on velocity
+        
+        // Get all entities with velocity components
+        let entities_with_velocity: Vec<(Entity, Velocity)> = world.query::<Velocity>()
+            .into_iter()
+            .map(|(entity, velocity)| (entity, Velocity { dx: velocity.dx, dy: velocity.dy }))
+            .collect();
+        
+        // Update positions for entities that have velocity
+        for (entity, velocity) in entities_with_velocity {
+            if let Some(position) = world.get_component_mut::<Position>(entity) {
+                position.x += velocity.dx;
+                position.y += velocity.dy;
+                println!("  Moved entity {:?} to ({:.1}, {:.1})", entity, position.x, position.y);
+            }
+        }
     }
 
     fn deinitialize(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
@@ -52,10 +65,16 @@ impl System for HealthSystem {
         println!("HealthSystem initialized");
     }
 
-    fn update(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
+    fn update(&mut self, world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
         println!("HealthSystem regenerating health for entities");
-        // In a complete implementation, this would iterate over entities with Health
-        // and regenerate health over time
+        
+        // Query all entities with health
+        for (entity, health) in world.query_mut::<Health>() {
+            if health.current < health.max {
+                health.current = (health.current + 1).min(health.max);
+                println!("  Regenerated health for entity {:?}: {}/{}", entity, health.current, health.max);
+            }
+        }
     }
 
     fn deinitialize(&mut self, _world: &mut WorldView<Self::InputComponents, Self::OutputComponents>) {
@@ -81,14 +100,14 @@ fn main() {
     // Add components to entities
     world.add_component(player, Position { x: 0.0, y: 0.0 });
     world.add_component(player, Velocity { dx: 1.0, dy: 0.0 });
-    world.add_component(player, Health { current: 100, max: 100 });
+    world.add_component(player, Health { current: 90, max: 100 }); // Slightly damaged
 
     world.add_component(enemy1, Position { x: 10.0, y: 5.0 });
     world.add_component(enemy1, Velocity { dx: -0.5, dy: 0.0 });
-    world.add_component(enemy1, Health { current: 50, max: 50 });
+    world.add_component(enemy1, Health { current: 25, max: 50 }); // Heavily damaged
 
     world.add_component(enemy2, Position { x: -5.0, y: 10.0 });
-    world.add_component(enemy2, Health { current: 30, max: 30 });
+    world.add_component(enemy2, Health { current: 1, max: 30 }); // Almost dead
 
     println!("Added components to entities");
 

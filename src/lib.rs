@@ -54,6 +54,96 @@ impl<I, O> WorldView<I, O> {
             _output_phantom: std::marker::PhantomData,
         }
     }
+
+    /// Get a reference to the underlying world (unsafe due to raw pointer)
+    unsafe fn world(&self) -> &World {
+        &*self.world
+    }
+
+    /// Get a mutable reference to the underlying world (unsafe due to raw pointer)
+    unsafe fn world_mut(&mut self) -> &mut World {
+        &mut *self.world
+    }
+
+    /// Create a new entity
+    pub fn create_entity(&mut self) -> Entity {
+        unsafe { self.world_mut().create_entity() }
+    }
+
+    /// Add a component to an entity
+    pub fn add_component<T: 'static>(&mut self, entity: Entity, component: T) {
+        unsafe { self.world_mut().add_component(entity, component) }
+    }
+
+    /// Get a component for an entity (if it exists)
+    pub fn get_component<T: 'static>(&self, entity: Entity) -> Option<&T> {
+        unsafe {
+            let world = self.world();
+            world.components
+                .get(&TypeId::of::<T>())?
+                .iter()
+                .find_map(|(e, component)| {
+                    if *e == entity {
+                        component.downcast_ref::<T>()
+                    } else {
+                        None
+                    }
+                })
+        }
+    }
+
+    /// Get a mutable component for an entity (if it exists)
+    pub fn get_component_mut<T: 'static>(&mut self, entity: Entity) -> Option<&mut T> {
+        unsafe {
+            let world = self.world_mut();
+            world.components
+                .get_mut(&TypeId::of::<T>())?
+                .iter_mut()
+                .find_map(|(e, component)| {
+                    if *e == entity {
+                        component.downcast_mut::<T>()
+                    } else {
+                        None
+                    }
+                })
+        }
+    }
+
+    /// Query entities that have all specified components
+    pub fn query<T: 'static>(&self) -> Vec<(Entity, &T)> {
+        unsafe {
+            let world = self.world();
+            let mut results = Vec::new();
+            
+            if let Some(components) = world.components.get(&TypeId::of::<T>()) {
+                for (entity, component) in components {
+                    if let Some(comp_ref) = component.downcast_ref::<T>() {
+                        results.push((*entity, comp_ref));
+                    }
+                }
+            }
+            
+            results
+        }
+    }
+
+    /// Query entities with mutable access to components
+    pub fn query_mut<T: 'static>(&mut self) -> Vec<(Entity, &mut T)> {
+        unsafe {
+            let world = self.world_mut();
+            let mut results = Vec::new();
+            
+            if let Some(components) = world.components.get_mut(&TypeId::of::<T>()) {
+                for (entity, component) in components {
+                    if let Some(comp_ref) = component.downcast_mut::<T>() {
+                        results.push((*entity, comp_ref));
+                    }
+                }
+            }
+            
+            results
+        }
+    }
 }
 
 /// Placeholder for system initialization diff tracking
@@ -210,6 +300,20 @@ impl World {
             .push((entity, Box::new(component)));
     }
 
+    /// Get a component for an entity (if it exists)
+    pub fn get_component<T: 'static>(&self, entity: Entity) -> Option<&T> {
+        self.components
+            .get(&TypeId::of::<T>())?
+            .iter()
+            .find_map(|(e, component)| {
+                if *e == entity {
+                    component.downcast_ref::<T>()
+                } else {
+                    None
+                }
+            })
+    }
+
     /// Initialize all systems (called once before the first update)
     pub fn initialize_systems(&mut self) {
         // We need to work around the borrowing issue by taking ownership temporarily
@@ -279,7 +383,7 @@ mod tests {
     #[derive(Debug, PartialEq)]
     struct Position { x: f32, y: f32 }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     struct Velocity { dx: f32, dy: f32 }
 
     #[test]
@@ -342,5 +446,58 @@ mod tests {
         // Should not panic when updating world
         world.update();
         assert_eq!(world.entity_count(), 0);
+    }
+
+    #[test]
+    fn test_component_querying() {
+        let mut world = World::new();
+        let entity1 = world.create_entity();
+        let entity2 = world.create_entity();
+        
+        // Add different components to different entities
+        world.add_component(entity1, Position { x: 1.0, y: 2.0 });
+        world.add_component(entity1, Velocity { dx: 0.5, dy: -0.5 });
+        world.add_component(entity2, Position { x: 3.0, y: 4.0 });
+        
+        // Test getting component directly
+        let pos1 = world.get_component::<Position>(entity1);
+        assert!(pos1.is_some());
+        assert_eq!(pos1.unwrap().x, 1.0);
+        assert_eq!(pos1.unwrap().y, 2.0);
+        
+        // Test getting component that doesn't exist
+        let vel2 = world.get_component::<Velocity>(entity2);
+        assert!(vel2.is_none());
+    }
+
+    #[test]
+    fn test_worldview_querying() {
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        
+        let entity1 = world_view.create_entity();
+        let entity2 = world_view.create_entity();
+        
+        world_view.add_component(entity1, Position { x: 1.0, y: 2.0 });
+        world_view.add_component(entity2, Position { x: 3.0, y: 4.0 });
+        
+        // Test querying all positions
+        let positions = world_view.query::<Position>();
+        assert_eq!(positions.len(), 2);
+        
+        // Test mutable querying
+        let mut positions_mut = world_view.query_mut::<Position>();
+        assert_eq!(positions_mut.len(), 2);
+        
+        // Modify a position
+        for (entity, position) in &mut positions_mut {
+            if *entity == entity1 {
+                position.x = 10.0;
+            }
+        }
+        
+        // Verify the change
+        let pos1 = world_view.get_component::<Position>(entity1);
+        assert_eq!(pos1.unwrap().x, 10.0);
     }
 }
