@@ -1,6 +1,6 @@
 //! Integration tests for the rust_ecs library.
 
-use rust_ecs::{add, World};
+use rust_ecs::{add, World, Entity};
 
 #[test]
 fn integration_test_add_function() {
@@ -22,9 +22,9 @@ fn integration_test_world_functionality() {
     let entity2 = world.create_entity();
     let entity3 = world.create_entity();
 
-    assert_eq!(entity1, 0);
-    assert_eq!(entity2, 1);
-    assert_eq!(entity3, 2);
+    assert_eq!(entity1, Entity(0));
+    assert_eq!(entity2, Entity(1));
+    assert_eq!(entity3, Entity(2));
     assert_eq!(world.entity_count(), 3);
 }
 
