@@ -1,6 +1,6 @@
 //! Integration tests for the rust_ecs library.
 
-use rust_ecs::{add, World, Entity};
+use rust_ecs::{add, Entity, World};
 
 #[test]
 fn integration_test_add_function() {

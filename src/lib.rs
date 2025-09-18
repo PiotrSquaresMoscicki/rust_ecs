@@ -27,10 +27,10 @@ pub trait System {
 
     /// Called once before the first update to initialize system state
     fn initialize(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>);
-    
+
     /// Called every frame to update the system
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>);
-    
+
     /// Called when the system is being removed or the world is shutting down
     fn deinitialize(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>);
 }
@@ -43,12 +43,12 @@ impl<T> Out<T> {
     pub fn new(value: T) -> Self {
         Out(value)
     }
-    
+
     /// Get the inner value
     pub fn get(&self) -> &T {
         &self.0
     }
-    
+
     /// Get a mutable reference to the inner value
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.0
@@ -57,7 +57,7 @@ impl<T> Out<T> {
 
 impl<T> std::ops::Deref for Out<T> {
     type Target = T;
-    
+
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -72,7 +72,7 @@ impl<T> std::ops::DerefMut for Out<T> {
 /// Trait for components that can be queried
 pub trait QueryComponent<'a> {
     type Item;
-    
+
     /// Extract the component from the world for a specific entity
     fn get_component(world: &'a World, entity: Entity) -> Option<Self::Item>;
 }
@@ -80,9 +80,10 @@ pub trait QueryComponent<'a> {
 /// Implementation for immutable component access
 impl<'a, T: 'static> QueryComponent<'a> for T {
     type Item = &'a T;
-    
+
     fn get_component(world: &'a World, entity: Entity) -> Option<Self::Item> {
-        world.components
+        world
+            .components
             .get(&TypeId::of::<T>())?
             .iter()
             .find_map(|(e, component)| {
@@ -98,7 +99,7 @@ impl<'a, T: 'static> QueryComponent<'a> for T {
 /// Trait for multi-component queries with mixed mutable/immutable access
 pub trait MixedMultiQuery<'a> {
     type Item;
-    
+
     /// Get all entities that have all the required components with mixed access
     fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)>;
 }
@@ -106,7 +107,7 @@ pub trait MixedMultiQuery<'a> {
 /// Trait for components that can be queried with mixed access patterns
 pub trait MixedQueryComponent<'a> {
     type Item;
-    
+
     /// Extract the component from the world for a specific entity with appropriate access
     fn get_mixed_component(world: &'a mut World, entity: Entity) -> Option<Self::Item>;
 }
@@ -117,12 +118,13 @@ pub struct In<T>(std::marker::PhantomData<T>);
 /// Implementation for input (immutable) component access in mixed queries
 impl<'a, T: 'static> MixedQueryComponent<'a> for In<T> {
     type Item = &'a T;
-    
+
     fn get_mixed_component(world: &'a mut World, entity: Entity) -> Option<Self::Item> {
         // For immutable access, we can safely convert the mutable reference
         unsafe {
             let world_ref = &*(world as *const World);
-            world_ref.components
+            world_ref
+                .components
                 .get(&TypeId::of::<T>())?
                 .iter()
                 .find_map(|(e, component)| {
@@ -139,9 +141,10 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for In<T> {
 /// Implementation for output (mutable) component access in mixed queries
 impl<'a, T: 'static> MixedQueryComponent<'a> for Out<T> {
     type Item = &'a mut T;
-    
+
     fn get_mixed_component(world: &'a mut World, entity: Entity) -> Option<Self::Item> {
-        world.components
+        world
+            .components
             .get_mut(&TypeId::of::<T>())?
             .iter_mut()
             .find_map(|(e, component)| {
@@ -154,7 +157,6 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for Out<T> {
     }
 }
 
-
 // Concrete implementations for 2 components
 impl<'a, A, B> MixedMultiQuery<'a> for (A, B)
 where
@@ -162,23 +164,23 @@ where
     B: MixedQueryComponent<'a> + 'static,
 {
     type Item = (A::Item, B::Item);
-    
+
     fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
         let mut results = Vec::new();
         let entities: Vec<Entity> = world.entities.clone();
-        
+
         for entity in entities {
             unsafe {
                 let world_ptr = world as *mut World;
                 let a = A::get_mixed_component(&mut *world_ptr, entity);
                 let b = B::get_mixed_component(&mut *world_ptr, entity);
-                
+
                 if let (Some(a), Some(b)) = (a, b) {
                     results.push((entity, (a, b)));
                 }
             }
         }
-        
+
         results
     }
 }
@@ -191,24 +193,24 @@ where
     C: MixedQueryComponent<'a> + 'static,
 {
     type Item = (A::Item, B::Item, C::Item);
-    
+
     fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
         let mut results = Vec::new();
         let entities: Vec<Entity> = world.entities.clone();
-        
+
         for entity in entities {
             unsafe {
                 let world_ptr = world as *mut World;
                 let a = A::get_mixed_component(&mut *world_ptr, entity);
                 let b = B::get_mixed_component(&mut *world_ptr, entity);
                 let c = C::get_mixed_component(&mut *world_ptr, entity);
-                
+
                 if let (Some(a), Some(b), Some(c)) = (a, b, c) {
                     results.push((entity, (a, b, c)));
                 }
             }
         }
-        
+
         results
     }
 }
@@ -254,7 +256,8 @@ impl<I, O> WorldView<I, O> {
     pub fn get_component<T: 'static>(&self, entity: Entity) -> Option<&T> {
         unsafe {
             let world = self.world();
-            world.components
+            world
+                .components
                 .get(&TypeId::of::<T>())?
                 .iter()
                 .find_map(|(e, component)| {
@@ -271,7 +274,8 @@ impl<I, O> WorldView<I, O> {
     pub fn get_component_mut<T: 'static>(&mut self, entity: Entity) -> Option<&mut T> {
         unsafe {
             let world = self.world_mut();
-            world.components
+            world
+                .components
                 .get_mut(&TypeId::of::<T>())?
                 .iter_mut()
                 .find_map(|(e, component)| {
@@ -289,7 +293,7 @@ impl<I, O> WorldView<I, O> {
         unsafe {
             let world = self.world();
             let mut results = Vec::new();
-            
+
             if let Some(components) = world.components.get(&TypeId::of::<T>()) {
                 for (entity, component) in components {
                     if let Some(comp_ref) = component.downcast_ref::<T>() {
@@ -297,7 +301,7 @@ impl<I, O> WorldView<I, O> {
                     }
                 }
             }
-            
+
             results
         }
     }
@@ -307,7 +311,7 @@ impl<I, O> WorldView<I, O> {
         unsafe {
             let world = self.world_mut();
             let mut results = Vec::new();
-            
+
             if let Some(components) = world.components.get_mut(&TypeId::of::<T>()) {
                 for (entity, component) in components {
                     if let Some(comp_ref) = component.downcast_mut::<T>() {
@@ -315,7 +319,7 @@ impl<I, O> WorldView<I, O> {
                     }
                 }
             }
-            
+
             results
         }
     }
@@ -326,9 +330,7 @@ impl<I, O> WorldView<I, O> {
     where
         for<'a> Q: MixedMultiQuery<'a>,
     {
-        unsafe {
-            Q::query_mixed(self.world_mut())
-        }
+        unsafe { Q::query_mixed(self.world_mut()) }
     }
 }
 
@@ -354,6 +356,12 @@ pub struct SystemInitDiff {
     pub component_changes: Vec<ComponentChange>,
 }
 
+impl Default for SystemInitDiff {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SystemInitDiff {
     pub fn new() -> Self {
         Self {
@@ -370,6 +378,12 @@ impl SystemInitDiff {
 #[derive(Debug)]
 pub struct SystemUpdateDiff {
     pub component_changes: Vec<ComponentChange>,
+}
+
+impl Default for SystemUpdateDiff {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SystemUpdateDiff {
@@ -390,6 +404,12 @@ pub struct SystemDeinitDiff {
     pub component_changes: Vec<ComponentChange>,
 }
 
+impl Default for SystemDeinitDiff {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SystemDeinitDiff {
     pub fn new() -> Self {
         Self {
@@ -406,6 +426,12 @@ impl SystemDeinitDiff {
 #[derive(Debug)]
 pub struct WorldUpdateDiff {
     system_diffs: Vec<SystemUpdateDiff>,
+}
+
+impl Default for WorldUpdateDiff {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl WorldUpdateDiff {
@@ -426,6 +452,12 @@ pub struct WorldUpdateHistory {
     updates: Vec<WorldUpdateDiff>,
 }
 
+impl Default for WorldUpdateHistory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WorldUpdateHistory {
     pub fn new() -> Self {
         Self {
@@ -442,6 +474,7 @@ impl WorldUpdateHistory {
 trait SystemWrapper {
     fn initialize(&mut self, world: &mut World) -> SystemInitDiff;
     fn update(&mut self, world: &mut World) -> SystemUpdateDiff;
+    #[allow(dead_code)]
     fn deinitialize(&mut self, world: &mut World) -> SystemDeinitDiff;
 }
 
@@ -476,14 +509,24 @@ impl<S: System> SystemWrapper for ConcreteSystemWrapper<S> {
     }
 }
 
+/// Type alias for component storage to reduce complexity
+type ComponentStorage = HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>;
+
 /// The main World struct that manages entities, components, and systems
 pub struct World {
     entities: Vec<Entity>,
-    components: HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>,
+    components: ComponentStorage,
     systems: Vec<Box<dyn SystemWrapper>>,
     next_entity_id: usize,
+    #[allow(dead_code)]
     child_worlds: Vec<World>,
     world_update_history: WorldUpdateHistory,
+}
+
+impl Default for World {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl World {
@@ -501,7 +544,8 @@ impl World {
 
     /// Add a system to the world
     pub fn add_system<S: System + 'static>(&mut self, system: S) {
-        self.systems.push(Box::new(ConcreteSystemWrapper::new(system)));
+        self.systems
+            .push(Box::new(ConcreteSystemWrapper::new(system)));
     }
 
     /// Create a new entity and return its identifier
@@ -516,7 +560,7 @@ impl World {
     pub fn add_component<T: 'static>(&mut self, entity: Entity, component: T) {
         self.components
             .entry(TypeId::of::<T>())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push((entity, Box::new(component)));
     }
 
@@ -538,27 +582,27 @@ impl World {
     pub fn initialize_systems(&mut self) {
         // We need to work around the borrowing issue by taking ownership temporarily
         let mut systems = std::mem::take(&mut self.systems);
-        
+
         for system in &mut systems {
             let _diff = system.initialize(self);
             // TODO: Record diff in world update history
         }
-        
+
         self.systems = systems;
     }
 
     /// Update all systems for one frame
     pub fn update(&mut self) {
         let mut world_update_diff = WorldUpdateDiff::new();
-        
+
         // We need to work around the borrowing issue by taking ownership temporarily
         let mut systems = std::mem::take(&mut self.systems);
-        
+
         for system in &mut systems {
             let system_diff = system.update(self);
             world_update_diff.record(system_diff);
         }
-        
+
         self.systems = systems;
         self.world_update_history.record(world_update_diff);
     }
@@ -577,22 +621,32 @@ impl World {
     pub fn apply_update_diff(&mut self, diff: &WorldUpdateDiff) {
         // In a complete implementation, this would replay all component changes
         // For now, we just demonstrate the structure
-        println!("Applying world update diff with {} system updates", diff.system_diffs.len());
+        println!(
+            "Applying world update diff with {} system updates",
+            diff.system_diffs.len()
+        );
         for (i, system_diff) in diff.system_diffs.iter().enumerate() {
-            println!("  System {}: {} component changes", i, system_diff.component_changes.len());
+            println!(
+                "  System {}: {} component changes",
+                i,
+                system_diff.component_changes.len()
+            );
         }
     }
 
     /// Replay the entire world history in a new world
     pub fn replay_history(history: &WorldUpdateHistory) -> World {
         let mut new_world = World::new();
-        
-        println!("Replaying world history with {} updates", history.updates.len());
+
+        println!(
+            "Replaying world history with {} updates",
+            history.updates.len()
+        );
         for (frame, update) in history.updates.iter().enumerate() {
             println!("Frame {}: Applying update", frame + 1);
             new_world.apply_update_diff(update);
         }
-        
+
         new_world
     }
 
@@ -600,12 +654,12 @@ impl World {
     pub fn remove_entity(&mut self, entity: Entity) -> bool {
         if let Some(pos) = self.entities.iter().position(|e| *e == entity) {
             self.entities.remove(pos);
-            
+
             // Remove all components for this entity
             for components in self.components.values_mut() {
                 components.retain(|(e, _)| *e != entity);
             }
-            
+
             true
         } else {
             false
@@ -658,19 +712,25 @@ mod tests {
 
     // Example components for testing
     #[derive(Debug, PartialEq)]
-    struct Position { x: f32, y: f32 }
+    struct Position {
+        x: f32,
+        y: f32,
+    }
 
     #[derive(Debug, PartialEq, Clone)]
-    struct Velocity { dx: f32, dy: f32 }
+    struct Velocity {
+        dx: f32,
+        dy: f32,
+    }
 
     #[test]
     fn test_component_addition() {
         let mut world = World::new();
         let entity = world.create_entity();
-        
+
         world.add_component(entity, Position { x: 1.0, y: 2.0 });
         world.add_component(entity, Velocity { dx: 0.5, dy: -0.5 });
-        
+
         // Components are added successfully if no panic occurs
         assert_eq!(world.entity_count(), 1);
     }
@@ -690,7 +750,10 @@ mod tests {
             // Test system update
         }
 
-        fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
+        fn deinitialize(
+            &mut self,
+            _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+        ) {
             // Test system deinitialization
         }
     }
@@ -699,7 +762,7 @@ mod tests {
     fn test_system_addition() {
         let mut world = World::new();
         world.add_system(TestSystem);
-        
+
         // System added successfully if no panic occurs
         assert_eq!(world.entity_count(), 0);
     }
@@ -708,7 +771,7 @@ mod tests {
     fn test_system_initialization() {
         let mut world = World::new();
         world.add_system(TestSystem);
-        
+
         // Should not panic when initializing systems
         world.initialize_systems();
         assert_eq!(world.entity_count(), 0);
@@ -719,7 +782,7 @@ mod tests {
         let mut world = World::new();
         world.add_system(TestSystem);
         world.initialize_systems();
-        
+
         // Should not panic when updating world
         world.update();
         assert_eq!(world.entity_count(), 0);
@@ -730,18 +793,18 @@ mod tests {
         let mut world = World::new();
         let entity1 = world.create_entity();
         let entity2 = world.create_entity();
-        
+
         // Add different components to different entities
         world.add_component(entity1, Position { x: 1.0, y: 2.0 });
         world.add_component(entity1, Velocity { dx: 0.5, dy: -0.5 });
         world.add_component(entity2, Position { x: 3.0, y: 4.0 });
-        
+
         // Test getting component directly
         let pos1 = world.get_component::<Position>(entity1);
         assert!(pos1.is_some());
         assert_eq!(pos1.unwrap().x, 1.0);
         assert_eq!(pos1.unwrap().y, 2.0);
-        
+
         // Test getting component that doesn't exist
         let vel2 = world.get_component::<Velocity>(entity2);
         assert!(vel2.is_none());
@@ -751,28 +814,28 @@ mod tests {
     fn test_worldview_querying() {
         let mut world = World::new();
         let mut world_view = WorldView::<(), ()>::new(&mut world);
-        
+
         let entity1 = world_view.create_entity();
         let entity2 = world_view.create_entity();
-        
+
         world_view.add_component(entity1, Position { x: 1.0, y: 2.0 });
         world_view.add_component(entity2, Position { x: 3.0, y: 4.0 });
-        
+
         // Test querying all positions
         let positions = world_view.query::<Position>();
         assert_eq!(positions.len(), 2);
-        
+
         // Test mutable querying
         let mut positions_mut = world_view.query_mut::<Position>();
         assert_eq!(positions_mut.len(), 2);
-        
+
         // Modify a position
         for (entity, position) in &mut positions_mut {
             if *entity == entity1 {
                 position.x = 10.0;
             }
         }
-        
+
         // Verify the change
         let pos1 = world_view.get_component::<Position>(entity1);
         assert_eq!(pos1.unwrap().x, 10.0);
@@ -783,20 +846,20 @@ mod tests {
         let mut world = World::new();
         let entity1 = world.create_entity();
         let entity2 = world.create_entity();
-        
+
         world.add_component(entity1, Position { x: 1.0, y: 2.0 });
         world.add_component(entity2, Position { x: 3.0, y: 4.0 });
-        
+
         assert_eq!(world.entity_count(), 2);
         assert!(world.entity_exists(entity1));
         assert!(world.entity_exists(entity2));
-        
+
         // Remove entity1
         assert!(world.remove_entity(entity1));
         assert_eq!(world.entity_count(), 1);
         assert!(!world.entity_exists(entity1));
         assert!(world.entity_exists(entity2));
-        
+
         // Try to remove entity1 again
         assert!(!world.remove_entity(entity1));
         assert_eq!(world.entity_count(), 1);
@@ -808,19 +871,19 @@ mod tests {
         let entity1 = world.create_entity();
         let entity2 = world.create_entity();
         let entity3 = world.create_entity();
-        
+
         world.add_component(entity1, Position { x: 1.0, y: 2.0 });
         world.add_component(entity1, Velocity { dx: 0.5, dy: -0.5 });
         world.add_component(entity2, Position { x: 3.0, y: 4.0 });
         world.add_component(entity3, Velocity { dx: 1.0, dy: 1.0 });
-        
+
         let pos_entities = world.entities_with_component::<Position>();
         let vel_entities = world.entities_with_component::<Velocity>();
-        
+
         assert_eq!(pos_entities.len(), 2);
         assert!(pos_entities.contains(&entity1));
         assert!(pos_entities.contains(&entity2));
-        
+
         assert_eq!(vel_entities.len(), 2);
         assert!(vel_entities.contains(&entity1));
         assert!(vel_entities.contains(&entity3));
@@ -831,11 +894,11 @@ mod tests {
         let mut world = World::new();
         world.add_system(TestSystem);
         world.initialize_systems();
-        
+
         // Run a few updates
         world.update();
         world.update();
-        
+
         let history = world.get_update_history();
         assert_eq!(history.updates.len(), 2);
     }
@@ -844,24 +907,24 @@ mod tests {
     fn test_multi_component_query() {
         let mut world = World::new();
         let mut world_view = WorldView::<(), ()>::new(&mut world);
-        
+
         let entity1 = world_view.create_entity();
         let entity2 = world_view.create_entity();
         let entity3 = world_view.create_entity();
-        
+
         // Entity1 has both Position and Velocity
         world_view.add_component(entity1, Position { x: 1.0, y: 2.0 });
         world_view.add_component(entity1, Velocity { dx: 0.5, dy: -0.5 });
-        
+
         // Entity2 has only Position
         world_view.add_component(entity2, Position { x: 3.0, y: 4.0 });
-        
+
         // Entity3 has only Velocity
         world_view.add_component(entity3, Velocity { dx: 1.0, dy: 1.0 });
-        
+
         // Query for entities with both Position and Velocity (both immutable)
         let results = world_view.query_components::<(In<Position>, In<Velocity>)>();
-        
+
         // Only entity1 should be returned
         assert_eq!(results.len(), 1);
         let (entity, (position, velocity)) = &results[0];
@@ -876,34 +939,36 @@ mod tests {
     fn test_multi_component_query_mut() {
         let mut world = World::new();
         let mut world_view = WorldView::<(), ()>::new(&mut world);
-        
+
         let entity1 = world_view.create_entity();
         let entity2 = world_view.create_entity();
-        
+
         // Both entities have Position and Velocity
         world_view.add_component(entity1, Position { x: 1.0, y: 2.0 });
         world_view.add_component(entity1, Velocity { dx: 0.5, dy: -0.5 });
         world_view.add_component(entity2, Position { x: 3.0, y: 4.0 });
         world_view.add_component(entity2, Velocity { dx: 1.0, dy: 1.0 });
-        
+
         // Query for entities with Position (immutable) and Velocity (mutable)
         let mut results = world_view.query_components::<(In<Position>, Out<Velocity>)>();
-        
+
         // Both entities should be returned
         assert_eq!(results.len(), 2);
-        
+
         // Modify velocities
         for (_entity, (position, velocity)) in &mut results {
             velocity.dx *= 2.0;
             velocity.dy *= 2.0;
-            println!("Position: ({}, {}), Modified velocity: ({}, {})", 
-                     position.x, position.y, velocity.dx, velocity.dy);
+            println!(
+                "Position: ({}, {}), Modified velocity: ({}, {})",
+                position.x, position.y, velocity.dx, velocity.dy
+            );
         }
-        
+
         // Verify changes were applied
         let velocity1 = world_view.get_component::<Velocity>(entity1).unwrap();
         let velocity2 = world_view.get_component::<Velocity>(entity2).unwrap();
-        
+
         assert_eq!(velocity1.dx, 1.0); // 0.5 * 2.0
         assert_eq!(velocity1.dy, -1.0); // -0.5 * 2.0
         assert_eq!(velocity2.dx, 2.0); // 1.0 * 2.0

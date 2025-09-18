@@ -1,4 +1,4 @@
-use rust_ecs::{World, System, WorldView, Entity, Out, In};
+use rust_ecs::{In, Out, System, World, WorldView};
 
 // Example components
 #[derive(Debug)]
@@ -32,18 +32,20 @@ impl System for MovementSystem {
 
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("MovementSystem updating entities with position and velocity");
-        
+
         // Use the new multi-component query to get entities with both Position and Velocity
         // Position is immutable (In), Velocity is mutable (Out)
         let mut results = world.query_components::<(In<Position>, Out<Velocity>)>();
-        
+
         for (entity, (position, velocity)) in &mut results {
             // Calculate new position based on velocity (but we can't modify position here)
             let new_x = position.x + velocity.dx;
             let new_y = position.y + velocity.dy;
-            println!("  Entity {:?} would move from ({:.1}, {:.1}) to ({:.1}, {:.1})", 
-                     entity, position.x, position.y, new_x, new_y);
-            
+            println!(
+                "  Entity {:?} would move from ({:.1}, {:.1}) to ({:.1}, {:.1})",
+                entity, position.x, position.y, new_x, new_y
+            );
+
             // For demonstration, let's dampen the velocity over time
             velocity.dx *= 0.95;
             velocity.dy *= 0.95;
@@ -68,12 +70,15 @@ impl System for HealthSystem {
 
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("HealthSystem regenerating health for entities");
-        
+
         // Query all entities with health
         for (entity, health) in world.query_mut::<Health>() {
             if health.current < health.max {
                 health.current = (health.current + 1).min(health.max);
-                println!("  Regenerated health for entity {:?}: {}/{}", entity, health.current, health.max);
+                println!(
+                    "  Regenerated health for entity {:?}: {}/{}",
+                    entity, health.current, health.max
+                );
             }
         }
     }
@@ -95,20 +100,38 @@ fn main() {
     let player = world.create_entity();
     let enemy1 = world.create_entity();
     let enemy2 = world.create_entity();
-    
+
     println!("Created {} entities", world.entity_count());
 
     // Add components to entities
     world.add_component(player, Position { x: 0.0, y: 0.0 });
     world.add_component(player, Velocity { dx: 1.0, dy: 0.0 });
-    world.add_component(player, Health { current: 90, max: 100 }); // Slightly damaged
+    world.add_component(
+        player,
+        Health {
+            current: 90,
+            max: 100,
+        },
+    ); // Slightly damaged
 
     world.add_component(enemy1, Position { x: 10.0, y: 5.0 });
     world.add_component(enemy1, Velocity { dx: -0.5, dy: 0.0 });
-    world.add_component(enemy1, Health { current: 25, max: 50 }); // Heavily damaged
+    world.add_component(
+        enemy1,
+        Health {
+            current: 25,
+            max: 50,
+        },
+    ); // Heavily damaged
 
     world.add_component(enemy2, Position { x: -5.0, y: 10.0 });
-    world.add_component(enemy2, Health { current: 1, max: 30 }); // Almost dead
+    world.add_component(
+        enemy2,
+        Health {
+            current: 1,
+            max: 30,
+        },
+    ); // Almost dead
 
     println!("Added components to entities");
 
@@ -129,12 +152,12 @@ fn main() {
     }
 
     println!("\nSimulation complete!");
-    
+
     // Demonstrate replay functionality
     println!("\n--- Replay Functionality Demo ---");
     let history = world.get_update_history();
     let _replay_world = World::replay_history(history);
-    
+
     println!("\nThis demonstrates the ECS framework with change tracking capabilities.");
     println!("The framework includes:");
     println!("- Type-safe system definitions with input/output component declarations");
@@ -142,10 +165,19 @@ fn main() {
     println!("- World update history tracking for debugging");
     println!("- Replay functionality for reproducing game states");
     println!("- Entity and component management");
-    
+
     // Demonstrate additional world functionality
     println!("\n--- Additional World Features ---");
-    println!("Entities with Position: {:?}", world.entities_with_component::<Position>());
-    println!("Entities with Velocity: {:?}", world.entities_with_component::<Velocity>());
-    println!("Entities with Health: {:?}", world.entities_with_component::<Health>());
+    println!(
+        "Entities with Position: {:?}",
+        world.entities_with_component::<Position>()
+    );
+    println!(
+        "Entities with Velocity: {:?}",
+        world.entities_with_component::<Velocity>()
+    );
+    println!(
+        "Entities with Health: {:?}",
+        world.entities_with_component::<Health>()
+    );
 }
