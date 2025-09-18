@@ -705,9 +705,20 @@ pub enum WorldOperation {
 /// Enhanced component change operations for better tracking
 #[derive(Debug, Clone)]
 pub enum DiffableComponentChange {
-    Added { entity: Entity, type_name: String, data: String },
-    Modified { entity: Entity, type_name: String, diff: String },
-    Removed { entity: Entity, type_name: String },
+    Added {
+        entity: Entity,
+        type_name: String,
+        data: String,
+    },
+    Modified {
+        entity: Entity,
+        type_name: String,
+        diff: String,
+    },
+    Removed {
+        entity: Entity,
+        type_name: String,
+    },
 }
 
 /// Trait for components that can be tracked in the diffable change system
@@ -981,10 +992,7 @@ impl World {
         // Record world creation operation
         let mut world_diff = WorldUpdateDiff::new();
         let mut system_diff = SystemUpdateDiff::new();
-        system_diff.record_world_operation(WorldOperation {
-            world_index: child_world_index,
-            operation: WorldOperationType::Created,
-        });
+        system_diff.record_world_operation(WorldOperation::CreateWorld(child_world_index));
         world_diff.record(system_diff);
         self.world_update_history.record(world_diff);
 
@@ -1004,10 +1012,7 @@ impl World {
             // Record world removal operation
             let mut world_diff = WorldUpdateDiff::new();
             let mut system_diff = SystemUpdateDiff::new();
-            system_diff.record_world_operation(WorldOperation {
-                world_index,
-                operation: WorldOperationType::Removed,
-            });
+            system_diff.record_world_operation(WorldOperation::RemoveWorld(world_index));
             world_diff.record(system_diff);
             self.world_update_history.record(world_diff);
 
@@ -1065,14 +1070,19 @@ impl World {
     }
 
     /// Remove an entity and all its components
-    pub fn remove_entity(&mut self, entity: Entity) {
+    pub fn remove_entity(&mut self, entity: Entity) -> bool {
+        let initial_count = self.entities.len();
+
         // Remove from entities list
         self.entities.retain(|e| *e != entity);
-        
+
         // Remove all components belonging to this entity
         for components in self.components.values_mut() {
             components.retain(|(e, _)| *e != entity);
         }
+
+        // Return whether entity was actually removed
+        self.entities.len() < initial_count
     }
 
     /// Check if an entity exists
@@ -1128,69 +1138,27 @@ impl World {
         self.entities.len()
     }
 
-    /// Create a child world and return its index
-    pub fn create_child_world(&mut self) -> usize {
-        let child_world_index = self.child_worlds.len();
-        let mut child_world = World::new();
-        child_world.world_index = self.world_index + 1 + child_world_index;
-        self.child_worlds.push(child_world);
-        child_world_index
-    }
-
-    /// Get a reference to a child world
-    pub fn get_child_world(&self, index: usize) -> Option<&World> {
-        self.child_worlds.get(index)
-    }
-
-    /// Get a mutable reference to a child world
-    pub fn get_child_world_mut(&mut self, index: usize) -> Option<&mut World> {
-        self.child_worlds.get_mut(index)
-    }
-
-    /// Remove a child world
-    pub fn remove_child_world(&mut self, index: usize) -> Option<World> {
-        if index < self.child_worlds.len() {
-            Some(self.child_worlds.remove(index))
-        } else {
-            None
-        }
-    }
-
     /// Replay a world history to create a new world with the same state
     pub fn replay_history(history: &WorldUpdateHistory) -> World {
-        let mut world = World::new();
-        
+        let world = World::new();
+
         // For now, return an empty world - full replay implementation would require
         // more sophisticated state tracking and component serialization
-        println!("Replaying world history with {} updates", history.updates().len());
+        println!(
+            "Replaying world history with {} updates",
+            history.updates().len()
+        );
         for (i, _update) in history.updates().iter().enumerate() {
             println!("Frame {}: Applying update", i + 1);
             // Would apply each update to reconstruct the world state
         }
-        
+
         world
     }
 
     /// Get the update history for replay functionality
     pub fn get_update_history(&self) -> &WorldUpdateHistory {
         &self.world_update_history
-    }
-
-    /// Create a new world and replay all changes from the given history
-    pub fn replay_history(history: &WorldUpdateHistory) -> World {
-        let mut replay_world = World::new();
-
-        println!(
-            "Replaying world history with {} updates",
-            history.updates().len()
-        );
-
-        for (frame, update) in history.updates().iter().enumerate() {
-            println!("Frame {}: Applying update", frame + 1);
-            replay_world.apply_update_diff(update);
-        }
-
-        replay_world
     }
 
     /// Apply a recorded world update diff for replay
@@ -1204,19 +1172,25 @@ impl World {
             println!(
                 "  System {}: {} component changes",
                 system_idx,
-                system_diff.component_changes.len()
+                system_diff.component_changes().len()
             );
 
             // Apply world operations
-            for operation in &system_diff.world_operations {
-                match operation.operation {
-                    WorldOperationType::Created => {
+            for operation in system_diff.world_operations() {
+                match operation {
+                    WorldOperation::CreateWorld(world_index) => {
                         // In a full replay, we would recreate the child world
-                        println!("    Would recreate child world {}", operation.world_index);
+                        println!("    Would recreate child world {}", world_index);
                     }
-                    WorldOperationType::Removed => {
+                    WorldOperation::RemoveWorld(world_index) => {
                         // In a full replay, we would remove the child world
-                        println!("    Would remove child world {}", operation.world_index);
+                        println!("    Would remove child world {}", world_index);
+                    }
+                    WorldOperation::CreateEntity(entity) => {
+                        println!("    Would create entity {:?}", entity);
+                    }
+                    WorldOperation::RemoveEntity(entity) => {
+                        println!("    Would remove entity {:?}", entity);
                     }
                 }
             }
@@ -1224,50 +1198,31 @@ impl World {
             // Apply component changes
             // Note: In a complete implementation, this would deserialize and apply
             // the actual component data and diffs. For this demo, we just log them.
-            for change in &system_diff.component_changes {
-                match &change.operation {
-                    DiffableComponentOperation::Added { data } => {
-                        println!(
-                            "    Would add {} to {:?}: {}",
-                            change.component_type_name, change.entity, data
-                        );
+            for change in system_diff.component_changes() {
+                match change {
+                    DiffableComponentChange::Added {
+                        entity,
+                        type_name,
+                        data,
+                    } => {
+                        println!("    Would add {} to {:?}: {}", type_name, entity, data);
                     }
-                    DiffableComponentOperation::Modified { diff } => {
+                    DiffableComponentChange::Modified {
+                        entity,
+                        type_name,
+                        diff,
+                    } => {
                         println!(
                             "    Would apply diff to {} on {:?}: {}",
-                            change.component_type_name, change.entity, diff
+                            type_name, entity, diff
                         );
                     }
-                    DiffableComponentOperation::Removed => {
-                        println!(
-                            "    Would remove {} from {:?}",
-                            change.component_type_name, change.entity
-                        );
+                    DiffableComponentChange::Removed { entity, type_name } => {
+                        println!("    Would remove {} from {:?}", type_name, entity);
                     }
                 }
             }
         }
-    }
-
-    /// Remove an entity and all its components
-    pub fn remove_entity(&mut self, entity: Entity) -> bool {
-        if let Some(pos) = self.entities.iter().position(|e| *e == entity) {
-            self.entities.remove(pos);
-
-            // Remove all components for this entity
-            for components in self.components.values_mut() {
-                components.retain(|(e, _)| *e != entity);
-            }
-
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Check if an entity exists
-    pub fn entity_exists(&self, entity: Entity) -> bool {
-        self.entities.contains(&entity)
     }
 
     /// Get all entities that have a specific component type
