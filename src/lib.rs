@@ -7,6 +7,9 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
+// Re-export the derive macro from the derive crate
+pub use rust_ecs_derive::Diffable;
+
 /// A dummy function to demonstrate the library.
 /// Returns the sum of two numbers.
 pub fn add(a: i32, b: i32) -> i32 {
@@ -322,7 +325,7 @@ pub enum HashMapChange<V: Diffable + std::fmt::Debug> {
 
 /// An Entity is a unique identifier consisting of world index and entity index.
 /// This allows entities to be uniquely identified across multiple worlds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Diffable)]
 pub struct Entity {
     /// Index of the world this entity belongs to
     pub world_index: usize,
@@ -349,12 +352,6 @@ impl Entity {
         self.entity_index
     }
 }
-
-// Implement Diffable for Entity using the macro
-impl_diffable!(Entity {
-    world_index: usize,
-    entity_index: usize,
-});
 
 /// The System trait defines the contract for all systems in the ECS.
 /// Systems declare their input and output components for change tracking.

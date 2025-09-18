@@ -1,32 +1,30 @@
-use rust_ecs::{impl_diffable, Diffable, DiffableComponent, In, Out, System, World, WorldView};
+use rust_ecs::{Diffable, DiffableComponent, In, Out, System, World, WorldView};
 
-// Example components with Diffable implementation
-#[derive(Debug)]
+// Example components with Diffable implementation using derive macro
+#[derive(Debug, Diffable)]
 struct Position {
     x: f32,
     y: f32,
 }
 
-impl_diffable!(Position { x: f32, y: f32 });
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Diffable)]
 struct Velocity {
     dx: f32,
     dy: f32,
 }
 
-impl_diffable!(Velocity { dx: f32, dy: f32 });
-
-#[derive(Debug)]
+#[derive(Debug, Diffable)]
 struct Health {
     current: i32,
     max: i32,
 }
 
-impl_diffable!(Health {
-    current: i32,
-    max: i32,
-});
+// Demo component to show derive macro in action
+#[derive(Debug, Diffable)]
+struct Temperature {
+    celsius: f32,
+    pressure: f32,
+}
 
 // Example system that moves entities based on their velocity
 struct MovementSystem;
@@ -190,8 +188,51 @@ fn main() {
         world.entities_with_component::<Health>()
     );
 
-    // Demonstrate diffable functionality
+    // Demonstrate diffable functionality and derive macro
     demo_diffable_functionality();
+
+    // Demonstrate the derive macro specifically
+    demo_derive_macro();
+}
+
+fn demo_derive_macro() {
+    println!("\n--- Derive Macro Demo ---");
+    
+    // Create instances of the Temperature component that uses #[derive(Diffable)]
+    let temp1 = Temperature {
+        celsius: 20.0,
+        pressure: 1013.25,
+    };
+    
+    let temp2 = Temperature {
+        celsius: 25.0,  // Changed temperature
+        pressure: 1013.25,
+    };
+    
+    let temp3 = Temperature {
+        celsius: 25.0,
+        pressure: 1015.0,  // Changed pressure
+    };
+    
+    println!("Original temperature: {:?}", temp1);
+    println!("Temperature with changed celsius: {:?}", temp2);
+    println!("Temperature with changed pressure: {:?}", temp3);
+    
+    // Test diffing - this uses the automatically generated diff implementation
+    if let Some(diff) = temp1.diff(&temp2) {
+        println!("Diff (temp1 -> temp2): {:?}", diff);
+    }
+    
+    if let Some(diff) = temp2.diff(&temp3) {
+        println!("Diff (temp2 -> temp3): {:?}", diff);
+    }
+    
+    // No diff when comparing identical values
+    if temp1.diff(&temp1).is_none() {
+        println!("No diff when comparing identical temperatures (as expected)");
+    }
+    
+    println!("✅ Derive macro working perfectly! Components automatically implement Diffable with #[derive(Diffable)]");
 }
 
 fn demo_diffable_functionality() {
