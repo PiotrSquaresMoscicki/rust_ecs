@@ -657,8 +657,25 @@ mod tests {
 
 /// A world that operates on component copies for replay mode
 fn run_replay_with_existing_systems(world: &mut World, replay_log_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Replay mode: Using existing systems with component copies");
+    println!("Replay mode: Parsing and applying actual replay data");
     println!("Log path: {}", replay_log_path);
+    
+    // Parse the replay log file
+    let replay_history = match World::parse_replay_log_file(replay_log_path) {
+        Ok(history) => {
+            println!("Successfully parsed replay log with {} updates", history.len());
+            history
+        }
+        Err(e) => {
+            eprintln!("Failed to parse replay log: {}", e);
+            return Err(e);
+        }
+    };
+
+    if replay_history.is_empty() {
+        println!("No replay data found in log file");
+        return Ok(());
+    }
     
     // Set up Ctrl+C handler for graceful shutdown
     let running = Arc::new(AtomicBool::new(true));
@@ -669,29 +686,25 @@ fn run_replay_with_existing_systems(world: &mut World, replay_log_path: &str) ->
         r.store(false, Ordering::SeqCst);
     }).expect("Error setting Ctrl-C handler");
 
-    // For demo purposes, simulate replay with system-level snapshot/restore approach
-    // Enable replay mode - this will make each system use snapshot/restore individually
-    world.enable_replay_mode();
-    
-    let mut frame = 0;
-    let max_frames = 20;
-    
-    while running.load(Ordering::SeqCst) && frame < max_frames {
-        // In the new system-level approach, each system handles its own snapshot/restore
-        // The World.update() method now calls update_with_replay for each system when replay_mode is enabled
-        world.update();
+    // Apply each update from the replay
+    let updates = replay_history.updates();
+    for (frame_idx, update) in updates.iter().enumerate() {
+        if !running.load(Ordering::SeqCst) {
+            break;
+        }
+
+        println!("=== Replay Frame {} ===", frame_idx + 1);
         
-        frame += 1;
-        thread::sleep(Duration::from_millis(500)); // 2 FPS
+        // Apply the recorded world update
+        world.apply_update_diff(update);
+        
+        // For now, just print the frame number - rendering would require specific system access
+        println!("Applied replay frame {}", frame_idx + 1);
+
+        thread::sleep(Duration::from_millis(500)); // 2 FPS for visualization
     }
 
-    // Disable replay mode when done
-    world.disable_replay_mode();
-
-    if frame >= max_frames {
-        println!("Demo replay completed - {} frames played", frame);
-    }
-
+    println!("Replay completed - {} frames applied", updates.len());
     Ok(())
 }
 

@@ -2123,16 +2123,9 @@ impl World {
         self.replay_logger.as_ref().map(|logger| logger.update_count())
     }
 
-    /// Force flush the replay logger (useful for periodic saves)
-    pub fn flush_replay_log(&mut self) -> Result<(), std::io::Error> {
-        if let Some(ref mut _logger) = self.replay_logger {
-            // Access the internal writer and flush it
-            // Note: This is a simplified approach - in a real implementation,
-            // we'd expose a flush method on AutoReplayLogger
-            Ok(())
-        } else {
-            Ok(())
-        }
+    /// Parse a replay log file and return the parsed history
+    pub fn parse_replay_log_file(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn std::error::Error>> {
+        replay_analysis::parse_replay_log(file_path)
     }
 
     /// Apply a recorded world update diff for replay
@@ -2953,6 +2946,166 @@ pub mod replay_analysis {
         std::fs::read_to_string(file_path)
             .map(|content| content.lines().map(|line| line.to_string()).collect())
     }
+
+    /// Parse a replay log file into WorldUpdateHistory
+    pub fn parse_replay_log(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn std::error::Error>> {
+        let lines = read_replay_log(file_path)?;
+        let mut history = WorldUpdateHistory::new();
+        let mut current_update: Option<WorldUpdateDiff> = None;
+        let mut current_system: Option<SystemUpdateDiff> = None;
+        let mut line_number = 0;
+
+        for line in lines {
+            line_number += 1;
+            let line = line.trim();
+            
+            // Skip comments and empty lines
+            if line.starts_with('#') || line.is_empty() {
+                continue;
+            }
+
+            if line.starts_with("UPDATE ") {
+                // Save previous update if exists
+                if let Some(update) = current_update.take() {
+                    history.record(update);
+                }
+                current_update = Some(WorldUpdateDiff::new());
+            } else if line.starts_with("SYSTEMS: ") {
+                // Just metadata, continue
+            } else if line.starts_with("  SYSTEM ") {
+                // Save previous system if exists
+                if let Some(system) = current_system.take() {
+                    if let Some(ref mut update) = current_update {
+                        update.record(system);
+                    }
+                }
+                current_system = Some(SystemUpdateDiff::new());
+            } else if line.starts_with("    COMPONENT_CHANGES: ") {
+                // Component changes section header
+            } else if line.starts_with("      ADD ") {
+                // Parse component addition: "ADD Entity(world_id, entity_id) ComponentType data"
+                if let Some(change) = parse_component_add(&line[10..]) {
+                    if let Some(ref mut system) = current_system {
+                        system.record_component_change(change);
+                    }
+                }
+            } else if line.starts_with("      MOD ") {
+                // Parse component modification: "MOD Entity(world_id, entity_id) ComponentType diff"
+                if let Some(change) = parse_component_mod(&line[10..]) {
+                    if let Some(ref mut system) = current_system {
+                        system.record_component_change(change);
+                    }
+                }
+            } else if line.starts_with("      REM ") {
+                // Parse component removal: "REM Entity(world_id, entity_id) ComponentType"
+                if let Some(change) = parse_component_rem(&line[10..]) {
+                    if let Some(ref mut system) = current_system {
+                        system.record_component_change(change);
+                    }
+                }
+            } else if line.starts_with("    WORLD_OPERATIONS: ") {
+                // World operations section header
+            } else if line.starts_with("      CREATE_ENTITY ") {
+                // Parse entity creation: "CREATE_ENTITY Entity(world_id, entity_id)"
+                if let Some(entity) = parse_entity(&line[20..]) {
+                    if let Some(ref mut system) = current_system {
+                        system.record_world_operation(WorldOperation::CreateEntity(entity));
+                    }
+                }
+            } else if line.starts_with("      REMOVE_ENTITY ") {
+                // Parse entity removal: "REMOVE_ENTITY Entity(world_id, entity_id)"
+                if let Some(entity) = parse_entity(&line[20..]) {
+                    if let Some(ref mut system) = current_system {
+                        system.record_world_operation(WorldOperation::RemoveEntity(entity));
+                    }
+                }
+            } else if line.starts_with("      CREATE_WORLD ") {
+                // Parse world creation: "CREATE_WORLD world_id"
+                if let Ok(world_id) = line[19..].parse::<usize>() {
+                    if let Some(ref mut system) = current_system {
+                        system.record_world_operation(WorldOperation::CreateWorld(world_id));
+                    }
+                }
+            } else if line.starts_with("      REMOVE_WORLD ") {
+                // Parse world removal: "REMOVE_WORLD world_id"
+                if let Ok(world_id) = line[19..].parse::<usize>() {
+                    if let Some(ref mut system) = current_system {
+                        system.record_world_operation(WorldOperation::RemoveWorld(world_id));
+                    }
+                }
+            }
+        }
+
+        // Save any remaining data
+        if let Some(system) = current_system {
+            if let Some(ref mut update) = current_update {
+                update.record(system);
+            }
+        }
+        if let Some(update) = current_update {
+            history.record(update);
+        }
+
+        Ok(history)
+    }
+}
+
+/// Parse entity from string like "Entity(0, 123)"
+fn parse_entity(input: &str) -> Option<Entity> {
+    if input.starts_with("Entity(") && input.ends_with(')') {
+        let content = &input[7..input.len()-1];
+        let parts: Vec<&str> = content.split(", ").collect();
+        if parts.len() == 2 {
+            if let (Ok(world_index), Ok(entity_index)) = (parts[0].parse::<usize>(), parts[1].parse::<usize>()) {
+                return Some(Entity { world_index, entity_index });
+            }
+        }
+    }
+    None
+}
+
+/// Parse component addition from string like "Entity(0, 123) Position Position { x: 1.0, y: 2.0 }"
+fn parse_component_add(input: &str) -> Option<DiffComponentChange> {
+    let parts: Vec<&str> = input.splitn(3, ' ').collect();
+    if parts.len() >= 3 {
+        if let Some(entity) = parse_entity(parts[0]) {
+            let type_name = parts[1].to_string();
+            let data = if parts.len() > 2 { parts[2].to_string() } else { String::new() };
+            return Some(DiffComponentChange::Added { entity, type_name, data });
+        }
+    }
+    None
+}
+
+/// Parse component modification from string like "Entity(0, 123) Position PositionDiff { x: Some(1.0), y: None }"
+fn parse_component_mod(input: &str) -> Option<DiffComponentChange> {
+    let parts: Vec<&str> = input.splitn(3, ' ').collect();
+    if parts.len() >= 3 {
+        if let Some(entity) = parse_entity(parts[0]) {
+            let type_name = parts[1].to_string();
+            let diff = if parts.len() > 2 { parts[2].to_string() } else { String::new() };
+            return Some(DiffComponentChange::Modified { entity, type_name, diff });
+        }
+    }
+    None
+}
+
+/// Parse component removal from string like "Entity(0, 123) Position"
+fn parse_component_rem(input: &str) -> Option<DiffComponentChange> {
+    let parts: Vec<&str> = input.splitn(2, ' ').collect();
+    if parts.len() >= 2 {
+        if let Some(entity) = parse_entity(parts[0]) {
+            let type_name = parts[1].to_string();
+            return Some(DiffComponentChange::Removed { entity, type_name });
+        }
+    }
+    None
+}
+
+/// Helper function for reading replay log files
+fn read_replay_log(file_path: &str) -> Result<Vec<String>, std::io::Error> {
+    std::fs::read_to_string(file_path)
+        .map(|content| content.lines().map(|line| line.to_string()).collect())
 }
 
 // Game module - declared after ReplayLogConfig
