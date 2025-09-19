@@ -79,7 +79,7 @@ impl System for HealthSystem {
         println!("HealthSystem regenerating health for entities");
 
         // Query all entities with health
-        for (entity, health) in world.query_mut::<Health>() {
+        for (entity, health) in world.query_components::<(Out<Health>,)>() {
             if health.current < health.max {
                 health.current = (health.current + 1).min(health.max);
                 println!(

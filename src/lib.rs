@@ -493,6 +493,32 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for Out<T> {
     }
 }
 
+// Concrete implementations for 1 component
+impl<'a, A> MixedMultiQuery<'a> for (A,)
+where
+    A: MixedQueryComponent<'a> + 'static,
+{
+    type Item = A::Item;
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+
+                if let Some(a) = a {
+                    results.push((entity, a));
+                }
+            }
+        }
+
+        results
+    }
+}
+
 // Concrete implementations for 2 components
 impl<'a, A, B> MixedMultiQuery<'a> for (A, B)
 where
@@ -628,42 +654,6 @@ impl<I, O> WorldView<I, O> {
                         None
                     }
                 })
-        }
-    }
-
-    /// Query entities that have all specified components
-    pub fn query<T: 'static>(&self) -> Vec<(Entity, &T)> {
-        unsafe {
-            let world = self.world();
-            let mut results = Vec::new();
-
-            if let Some(components) = world.components.get(&TypeId::of::<T>()) {
-                for (entity, component) in components {
-                    if let Some(comp_ref) = component.downcast_ref::<T>() {
-                        results.push((*entity, comp_ref));
-                    }
-                }
-            }
-
-            results
-        }
-    }
-
-    /// Query entities with mutable access to components
-    pub fn query_mut<T: 'static>(&mut self) -> Vec<(Entity, &mut T)> {
-        unsafe {
-            let world = self.world_mut();
-            let mut results = Vec::new();
-
-            if let Some(components) = world.components.get_mut(&TypeId::of::<T>()) {
-                for (entity, component) in components {
-                    if let Some(comp_ref) = component.downcast_mut::<T>() {
-                        results.push((*entity, comp_ref));
-                    }
-                }
-            }
-
-            results
         }
     }
 
@@ -1375,12 +1365,12 @@ mod tests {
         world_view.add_component(entity1, Position { x: 1.0, y: 2.0 });
         world_view.add_component(entity2, Position { x: 3.0, y: 4.0 });
 
-        // Test querying all positions
-        let positions = world_view.query::<Position>();
+        // Test querying all positions (immutable)
+        let positions = world_view.query_components::<(In<Position>,)>();
         assert_eq!(positions.len(), 2);
 
         // Test mutable querying
-        let mut positions_mut = world_view.query_mut::<Position>();
+        let mut positions_mut = world_view.query_components::<(Out<Position>,)>();
         assert_eq!(positions_mut.len(), 2);
 
         // Modify a position
