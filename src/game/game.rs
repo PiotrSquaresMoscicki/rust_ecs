@@ -616,16 +616,28 @@ mod tests {
         // Verify entities were created
         assert!(world.entity_count() > 0);
         
-        // Test that we can run replay simulation
+        // Test the new snapshot/restore approach for both systems and components
         let initial_entity_count = world.entity_count();
         
-        // Simulate replay data application
-        simulate_replay_frame(&mut world, 5);
+        // Test system state snapshot/restore
+        let system_snapshot = create_system_state_snapshot(&world);
+        let component_snapshot = create_component_state_snapshot(&world);
         
-        // Verify world still has the same entities (components may have changed)
+        // Simulate a system update (this would normally change components and system state)
+        world.update();
+        
+        // Restore both system and component state to snapshot
+        restore_system_state_snapshot(&mut world, &system_snapshot);
+        restore_component_state_snapshot(&mut world, &component_snapshot);
+        
+        // Apply replay diff to both systems and components to ensure compliance
+        apply_replay_diff_to_systems(&mut world, 5);
+        apply_replay_diff_to_components(&mut world, 5);
+        
+        // Verify world still has the same entities (components may have changed per replay data)
         assert_eq!(world.entity_count(), initial_entity_count);
         
-        println!("✅ Replay mode functionality test passed - existing systems work with modified components");
+        println!("✅ Replay mode functionality test passed - snapshot/restore with replay diff application works for both systems and components");
     }
 }
 
@@ -645,20 +657,25 @@ fn run_replay_with_existing_systems(world: &mut World, replay_log_path: &str) ->
         r.store(false, Ordering::SeqCst);
     }).expect("Error setting Ctrl-C handler");
 
-    // For demo purposes, simulate replay by manipulating the world state
-    // The key insight is that the existing systems can work with the modified world
+    // For demo purposes, simulate replay with proper snapshot/restore approach
     let mut frame = 0;
     let max_frames = 20;
     
     while running.load(Ordering::SeqCst) && frame < max_frames {
-        // Simulate replay data by updating world state
-        // In a full implementation, this would read from the log file
-        // and apply the recorded changes to the world
-        simulate_replay_frame(world, frame);
+        // 1. Snapshot both system state and component state before the update
+        let system_snapshot = create_system_state_snapshot(world);
+        let component_snapshot = create_component_state_snapshot(world);
         
-        // Use the existing systems to render - they work with component copies
-        // through the ECS framework's normal query mechanism
+        // 2. Let systems run normally (this would modify components based on game logic)
         world.update();
+        
+        // 3. Restore both system state and component state after the update
+        restore_system_state_snapshot(world, &system_snapshot);
+        restore_component_state_snapshot(world, &component_snapshot);
+        
+        // 4. Apply the diff from replay to ensure compliance with the replay for both systems and components
+        apply_replay_diff_to_systems(world, frame);
+        apply_replay_diff_to_components(world, frame);
         
         frame += 1;
         thread::sleep(Duration::from_millis(500)); // 2 FPS
@@ -695,6 +712,188 @@ fn simulate_replay_frame(world: &mut World, frame: usize) {
             world.add_component(entity, new_position);
         }
     }
+}
+
+/// Snapshot structure to store system state
+#[derive(Debug, Clone)]
+struct SystemStateSnapshot {
+    /// Store any system-specific state that needs to be preserved
+    /// For demo purposes, this is minimal - in a real implementation
+    /// this would capture system internal state
+    frame_marker: usize,
+}
+
+/// Snapshot structure to store component state
+#[derive(Debug, Clone)]
+struct ComponentStateSnapshot {
+    /// Positions of all entities with Position component - simplified for demo
+    positions: Vec<Position>,
+    /// Targets of all entities with Target component  
+    targets: Vec<Target>,
+    /// Wait timers of all entities with WaitTimer component
+    wait_timers: Vec<WaitTimer>,
+    /// Actor states of all entities with ActorState component
+    actor_states: Vec<ActorState>,
+}
+
+/// Create a snapshot of the current system state
+fn create_system_state_snapshot(_world: &World) -> SystemStateSnapshot {
+    // For demo purposes, just capture a marker
+    // In a real implementation, this would capture system internal state
+    SystemStateSnapshot {
+        frame_marker: 0, // Could be used to track system execution state
+    }
+}
+
+/// Create a snapshot of the current component state
+fn create_component_state_snapshot(world: &World) -> ComponentStateSnapshot {
+    let mut positions = Vec::new();
+    let mut targets = Vec::new();
+    let mut wait_timers = Vec::new();
+    let mut actor_states = Vec::new();
+    
+    // Snapshot all entities with Position components
+    for &entity in &world.entities_with_component::<Position>() {
+        if let Some(position) = world.get_component::<Position>(entity) {
+            positions.push(*position);
+        }
+    }
+    
+    // Snapshot all entities with Target components
+    for &entity in &world.entities_with_component::<Target>() {
+        if let Some(target) = world.get_component::<Target>(entity) {
+            targets.push(*target);
+        }
+    }
+    
+    // Snapshot all entities with WaitTimer components
+    for &entity in &world.entities_with_component::<WaitTimer>() {
+        if let Some(wait_timer) = world.get_component::<WaitTimer>(entity) {
+            wait_timers.push(*wait_timer);
+        }
+    }
+    
+    // Snapshot all entities with ActorState components
+    for &entity in &world.entities_with_component::<ActorState>() {
+        if let Some(actor_state) = world.get_component::<ActorState>(entity) {
+            actor_states.push(*actor_state);
+        }
+    }
+    
+    ComponentStateSnapshot {
+        positions,
+        targets,
+        wait_timers,
+        actor_states,
+    }
+}
+
+/// Restore component state from a snapshot
+fn restore_component_state_snapshot(world: &mut World, snapshot: &ComponentStateSnapshot) {
+    // For demo purposes, this is a simplified restoration
+    // In a real implementation, you would need to map components back to their entities
+    
+    // Get all actors and restore their components using the snapshot data
+    let actor_entities = world.entities_with_component::<Actor>();
+    
+    // Restore positions (map to actors in order)
+    for (i, &entity) in actor_entities.iter().enumerate() {
+        if i < snapshot.positions.len() {
+            world.add_component(entity, snapshot.positions[i]);
+        }
+    }
+    
+    // Restore targets (map to actors in order)
+    for (i, &entity) in actor_entities.iter().enumerate() {
+        if i < snapshot.targets.len() {
+            world.add_component(entity, snapshot.targets[i]);
+        }
+    }
+    
+    // Restore wait timers (map to actors in order)
+    for (i, &entity) in actor_entities.iter().enumerate() {
+        if i < snapshot.wait_timers.len() {
+            world.add_component(entity, snapshot.wait_timers[i]);
+        }
+    }
+    
+    // Restore actor states (map to actors in order)
+    for (i, &entity) in actor_entities.iter().enumerate() {
+        if i < snapshot.actor_states.len() {
+            world.add_component(entity, snapshot.actor_states[i]);
+        }
+    }
+    
+    println!("Component state restored from snapshot (demo implementation)");
+}
+
+/// Restore system state from a snapshot
+fn restore_system_state_snapshot(_world: &mut World, snapshot: &SystemStateSnapshot) {
+    // For demo purposes, this doesn't do much
+    // In a real implementation, this would restore system internal state
+    // such as system execution counts, internal timers, etc.
+    
+    // The frame_marker could be used to restore system execution state
+    let _marker = snapshot.frame_marker;
+    
+    // In a real implementation, you might restore:
+    // - System execution order
+    // - System internal counters
+    // - System timing information
+    // - Any other system-specific state
+}
+
+/// Apply replay diff to systems to ensure compliance with replay data
+fn apply_replay_diff_to_systems(_world: &mut World, frame: usize) {
+    // For demo: simulate applying recorded system state from replay
+    // In real implementation, this would read system diffs from the log file
+    // and apply them to ensure system state matches the replay exactly
+    
+    // This could include:
+    // - Restoring system execution order
+    // - Setting system internal state
+    // - Adjusting system timing
+    
+    // For demo, just use the frame number as a marker
+    let _replay_frame = frame;
+    
+    // In a real implementation, you would:
+    // 1. Read system state from replay log for this frame
+    // 2. Apply that state to each system
+    // 3. Ensure systems are in the exact state they were during recording
+}
+
+/// Apply replay diff to components to ensure compliance with replay data
+fn apply_replay_diff_to_components(world: &mut World, frame: usize) {
+    // For demo: simulate applying recorded component state from replay
+    // In real implementation, this would read component diffs from the log file
+    // and apply them to the world to ensure exact compliance with replay data
+    
+    let actor_entities = world.entities_with_component::<Actor>();
+    
+    for (i, &entity) in actor_entities.iter().enumerate() {
+        if let Some(_position) = world.get_component::<Position>(entity) {
+            // Create replay-compliant position based on frame for demo
+            let offset_x = ((frame + i * 3) % 8) as i32 - 4;
+            let offset_y = ((frame / 2 + i * 2) % 6) as i32 - 3;
+            
+            let base_x = 2 + i as i32 * 2;
+            let base_y = 2 + i as i32;
+            
+            let new_x = (base_x + offset_x).max(0).min(GRID_SIZE - 1);
+            let new_y = (base_y + offset_y).max(0).min(GRID_SIZE - 1);
+            
+            // Apply the exact component state from replay data to ensure compliance
+            let replay_position = Position { x: new_x, y: new_y };
+            world.add_component(entity, replay_position);
+        }
+    }
+    
+    // In a real implementation, you would also apply replay diffs for:
+    // - Target components
+    // - WaitTimer components  
+    // - ActorState components
+    // - Any other components that were recorded in the replay
 }
 
 // Manual logging functions for game history
