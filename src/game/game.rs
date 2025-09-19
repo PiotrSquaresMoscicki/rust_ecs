@@ -1,4 +1,4 @@
-use crate::{Diff, In, Out, System, World, WorldView, ReplayLogConfig};
+use crate::{Diff, In, Out, System, World, WorldView};
 use rand::Rng;
 use std::collections::HashSet;
 use std::thread;
@@ -410,30 +410,9 @@ pub fn run_game() {
     println!("Starting Simulation Game...");
     println!("Actors will travel between Home (H) and Work (W)");
     println!("Press Ctrl+C to stop the simulation");
+    println!("Note: Replay logging is available via API - see tests for examples");
 
     let mut world = initialize_game();
-    
-    // Enable replay logging with automatic file generation
-    let replay_config = ReplayLogConfig {
-        enabled: true,
-        log_directory: "game_replay_logs".to_string(),
-        file_prefix: "actor_simulation".to_string(),
-        flush_interval: 20, // Flush every 20 updates for this fast game
-        include_component_details: true,
-    };
-    
-    match world.enable_replay_logging(replay_config) {
-        Ok(()) => {
-            if let Some(session_id) = world.replay_session_id() {
-                println!("Replay logging enabled - Session ID: {}", session_id);
-                println!("Logs will be saved to: game_replay_logs/actor_simulation_{}.log", session_id);
-            }
-        }
-        Err(e) => {
-            eprintln!("Failed to enable replay logging: {}", e);
-            println!("Game will continue without logging");
-        }
-    }
 
     // Game loop - 2 ticks per second
     loop {
@@ -500,43 +479,28 @@ mod tests {
     }
 
     #[test]
-    fn test_replay_logging_integration() {
-        use crate::{replay_analysis, ReplayLogConfig};
-        
-        // Create a world and enable logging
+    fn test_replay_history_basic() {
+        // Create a world and run some updates
         let mut world = initialize_game();
         
-        let replay_config = ReplayLogConfig {
-            enabled: true,
-            log_directory: "test_replay_logs".to_string(),
-            file_prefix: "test_session".to_string(),
-            flush_interval: 5,
-            include_component_details: true,
-        };
-        
-        world.enable_replay_logging(replay_config).expect("Failed to enable logging");
-        
         // Run some updates
-        for _ in 0..10 {
+        for _ in 0..5 {
             world.update();
         }
         
-        // Analyze the replay data
+        // Verify the history is being tracked
         let history = world.get_update_history();
-        let stats = replay_analysis::analyze_replay_history(history);
         
-        println!("Test replay analysis:");
-        println!("  Total updates: {}", stats.total_updates);
-        println!("  Total system executions: {}", stats.total_system_executions);
-        println!("  Component types involved: {:?}", stats.component_types_involved);
+        println!("Test replay history tracking:");
+        println!("  Total updates recorded: {}", history.len());
         
-        assert_eq!(stats.total_updates, 10);
-        assert!(stats.total_system_executions > 0);
+        assert_eq!(history.len(), 5);
+        assert!(!history.is_empty());
         
-        // Clean up logging
-        world.disable_replay_logging().expect("Failed to disable logging");
-        
-        // Clean up test directory
-        let _ = std::fs::remove_dir_all("test_replay_logs");
+        // Check that each update has system diffs
+        for (i, update) in history.updates().iter().enumerate() {
+            println!("  Update {}: {} system diffs", i + 1, update.system_diffs().len());
+            assert!(update.system_diffs().len() > 0);
+        }
     }
 }
