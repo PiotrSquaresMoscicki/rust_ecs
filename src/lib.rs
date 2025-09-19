@@ -2083,6 +2083,23 @@ impl World {
         Ok(())
     }
 
+    /// Enable replay logging with basic parameters (convenience method)
+    pub fn enable_replay_logging_simple(
+        &mut self, 
+        log_directory: &str, 
+        file_prefix: &str, 
+        flush_interval: usize
+    ) -> Result<(), std::io::Error> {
+        let config = ReplayLogConfig {
+            enabled: true,
+            log_directory: log_directory.to_string(),
+            file_prefix: file_prefix.to_string(),
+            flush_interval,
+            include_component_details: true,
+        };
+        self.enable_replay_logging(config)
+    }
+
     /// Disable replay logging and finalize the current log file
     pub fn disable_replay_logging(&mut self) -> Result<(), std::io::Error> {
         if let Some(mut logger) = self.replay_logger.take() {

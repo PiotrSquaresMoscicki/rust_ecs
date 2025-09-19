@@ -393,8 +393,13 @@ fn run_game_normal() {
 
     let mut world = initialize_game();
 
-    // For now, simplify the replay logging to avoid compilation issues
-    // This would be improved in a full implementation
+    // Enable replay logging for full recording
+    if let Err(e) = world.enable_replay_logging_simple("game_logs", "simulation_game", 10) {
+        eprintln!("Warning: Failed to enable replay logging: {}", e);
+        println!("Continuing without replay logging...");
+    } else {
+        println!("Replay logging enabled. Session will be saved to game_logs/");
+    }
     
     // Set up Ctrl+C handler for graceful shutdown
     let running = Arc::new(AtomicBool::new(true));
@@ -413,6 +418,16 @@ fn run_game_normal() {
         update_count += 1;
         
         thread::sleep(Duration::from_millis(500)); // 2 FPS
+    }
+
+    // Disable replay logging and finalize the log file
+    if let Err(e) = world.disable_replay_logging() {
+        eprintln!("Warning: Failed to finalize replay logging: {}", e);
+    } else {
+        if let Some(session_id) = world.replay_session_id() {
+            println!("Replay log saved. Session ID: {}", session_id);
+            println!("To replay this session, run: cargo run game game_logs/simulation_game_{}.log", session_id);
+        }
     }
 
     println!("Game completed after {} updates", update_count);
