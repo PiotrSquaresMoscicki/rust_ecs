@@ -1,12 +1,12 @@
 use crate::{Diff, In, Out, System, World, WorldView};
 use rand::Rng;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::fs::{File, OpenOptions};
 use std::io::{Write, BufWriter};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 // Grid constants
 const GRID_SIZE: i32 = 10;
@@ -358,30 +358,48 @@ pub fn initialize_game() -> World {
 }
 
 pub fn run_game() {
+    run_game_normal();
+}
+
+pub fn run_game_replay(replay_log_path: &str) {
+    println!("Starting Simulation Game in Replay Mode...");
+    println!("Loading replay data from: {}", replay_log_path);
+    
+    match load_and_replay_game(replay_log_path) {
+        Ok(()) => {
+            println!("Replay completed successfully");
+        }
+        Err(e) => {
+            eprintln!("Replay failed: {}", e);
+        }
+    }
+}
+
+fn run_game_normal() {
     println!("Starting Simulation Game...");
     println!("Actors will travel between Home (H) and Work (W)");
     println!("Press Ctrl+C to stop the simulation");
 
     let mut world = initialize_game();
 
-    // Set up manual history logging to file
-    let session_id = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-    let log_directory = "game_logs";
-    let log_file_path = format!("{}/simulation_game_{}.log", log_directory, session_id);
-
-    // Create log directory and file
-    let mut log_file = match setup_logging(&log_directory, &log_file_path, session_id) {
-        Ok(file) => Some(file),
-        Err(e) => {
-            eprintln!("Warning: Failed to setup history logging: {}", e);
-            println!("Game will continue without file logging");
-            None
-        }
+    // Enable detailed replay logging using the ECS framework's AutoReplayLogger
+    let replay_config = crate::ReplayLogConfig {
+        enabled: true,
+        log_directory: "game_replay_logs".to_string(),
+        file_prefix: "detailed_game_replay".to_string(),
+        flush_interval: 10,
+        include_component_details: true,
     };
+
+    match world.enable_replay_logging(replay_config) {
+        Ok(()) => {
+            println!("Detailed replay logging enabled");
+        }
+        Err(e) => {
+            eprintln!("Warning: Failed to enable replay logging: {}", e);
+            println!("Game will continue without detailed logging");
+        }
+    }
 
     // Set up Ctrl+C handler for graceful shutdown
     let running = Arc::new(AtomicBool::new(true));
@@ -399,17 +417,10 @@ pub fn run_game() {
         world.update();
         update_count += 1;
         
-        // Log game state to file
-        if let Some(ref mut file) = log_file {
-            if let Err(e) = log_game_update(file, update_count, &world) {
-                eprintln!("Warning: Failed to write to log file: {}", e);
-            }
-            
-            // Flush logs periodically for real-time monitoring
-            if update_count % 10 == 0 {
-                if let Err(e) = file.flush() {
-                    eprintln!("Warning: Failed to flush log file: {}", e);
-                }
+        // Flush logs periodically for real-time monitoring
+        if update_count % 10 == 0 {
+            if let Err(e) = world.flush_replay_log() {
+                eprintln!("Warning: Failed to flush replay log: {}", e);
             }
         }
         
@@ -417,12 +428,12 @@ pub fn run_game() {
     }
 
     // Graceful shutdown - finalize logging
-    if let Some(mut file) = log_file {
-        println!("Finalizing history logs...");
-        if let Err(e) = finalize_logging(&mut file, update_count) {
-            eprintln!("Warning: Failed to finalize log file: {}", e);
-        } else {
-            println!("Game session logged successfully to {}", log_file_path);
+    println!("Finalizing replay logs...");
+    if let Err(e) = world.disable_replay_logging() {
+        eprintln!("Warning: Failed to finalize replay logging: {}", e);
+    } else {
+        if let Some(session_id) = world.replay_session_id() {
+            println!("Game session replay data saved to game_replay_logs/detailed_game_replay_{}.log", session_id);
         }
     }
 }
@@ -613,6 +624,413 @@ mod tests {
             }
         }
     }
+}
+
+// Replay functionality
+
+/// Structure representing a parsed replay update from log file
+#[derive(Debug, Clone)]
+pub struct ReplayUpdate {
+    pub update_number: u32,
+    pub component_changes: Vec<ReplayComponentChange>,
+    pub world_operations: Vec<ReplayWorldOperation>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReplayComponentChange {
+    pub entity_id: u32,
+    pub entity_world: u32,
+    pub component_type: String,
+    pub change_type: ReplayChangeType,
+    pub data: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum ReplayChangeType {
+    Add,
+    Modify,
+    Remove,
+}
+
+#[derive(Debug, Clone)]
+pub enum ReplayWorldOperation {
+    CreateEntity { entity_id: u32, world_id: u32 },
+    RemoveEntity { entity_id: u32, world_id: u32 },
+    CreateWorld { world_id: u32 },
+    RemoveWorld { world_id: u32 },
+}
+
+/// A world that operates on component copies for replay mode
+pub struct ReplayWorld {
+    /// Stores component snapshots for entities at each frame
+    frame_snapshots: Vec<FrameSnapshot>,
+    current_frame: usize,
+    entities: Vec<crate::Entity>,
+    /// Component data stored as parsed replay data
+    component_data: HashMap<crate::Entity, HashMap<String, String>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FrameSnapshot {
+    pub entities: Vec<crate::Entity>,
+    pub component_data: HashMap<crate::Entity, HashMap<String, String>>,
+}
+
+impl ReplayWorld {
+    pub fn new() -> Self {
+        Self {
+            frame_snapshots: Vec::new(),
+            current_frame: 0,
+            entities: Vec::new(),
+            component_data: HashMap::new(),
+        }
+    }
+
+    pub fn add_frame_snapshot(&mut self, snapshot: FrameSnapshot) {
+        self.frame_snapshots.push(snapshot);
+    }
+
+    pub fn set_current_frame(&mut self, frame: usize) {
+        if frame < self.frame_snapshots.len() {
+            self.current_frame = frame;
+            // Load the frame snapshot
+            let snapshot = &self.frame_snapshots[frame];
+            self.entities = snapshot.entities.clone();
+            self.component_data = snapshot.component_data.clone();
+        }
+    }
+
+    pub fn get_current_frame(&self) -> usize {
+        self.current_frame
+    }
+
+    pub fn total_frames(&self) -> usize {
+        self.frame_snapshots.len()
+    }
+
+    /// Get component data for visualization
+    pub fn get_component_data(&self, entity: crate::Entity, component_type: &str) -> Option<&String> {
+        self.component_data.get(&entity)?.get(component_type)
+    }
+
+    /// Get all entities that have a specific component type
+    pub fn entities_with_component(&self, component_type: &str) -> Vec<crate::Entity> {
+        self.entities.iter()
+            .filter(|entity| {
+                self.component_data.get(entity)
+                    .map(|components| components.contains_key(component_type))
+                    .unwrap_or(false)
+            })
+            .copied()
+            .collect()
+    }
+}
+
+fn load_and_replay_game(replay_log_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // Parse the replay log file
+    let replay_updates = parse_replay_log(replay_log_path)?;
+    
+    if replay_updates.is_empty() {
+        return Err("No replay data found in log file".into());
+    }
+
+    println!("Loaded {} replay updates", replay_updates.len());
+
+    // Initialize replay world with initial game state
+    let mut replay_world = create_initial_replay_world();
+    
+    // Create frame snapshots for each update
+    for update in &replay_updates {
+        apply_replay_update_to_world(&mut replay_world, update);
+        
+        // Create snapshot of current state
+        let snapshot = FrameSnapshot {
+            entities: replay_world.entities.clone(),
+            component_data: replay_world.component_data.clone(),
+        };
+        replay_world.add_frame_snapshot(snapshot);
+    }
+
+    println!("Replay world prepared with {} frames", replay_world.total_frames());
+    
+    // Set up systems for replay rendering
+    let mut render_system = ReplayRenderSystem;
+    
+    // Set up Ctrl+C handler for graceful shutdown
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    
+    ctrlc::set_handler(move || {
+        println!("\nReceived Ctrl+C, stopping replay...");
+        r.store(false, Ordering::SeqCst);
+    }).expect("Error setting Ctrl-C handler");
+
+    // Replay loop - 2 FPS
+    let mut frame = 0;
+    while running.load(Ordering::SeqCst) && frame < replay_world.total_frames() {
+        replay_world.set_current_frame(frame);
+        
+        // Render the current frame
+        render_system.render_frame(&replay_world, frame);
+        
+        frame += 1;
+        thread::sleep(Duration::from_millis(500)); // 2 FPS
+    }
+
+    if frame >= replay_world.total_frames() {
+        println!("Replay completed - {} frames played", frame);
+    }
+
+    Ok(())
+}
+
+fn parse_replay_log(file_path: &str) -> Result<Vec<ReplayUpdate>, Box<dyn std::error::Error>> {
+    let content = std::fs::read_to_string(file_path)?;
+    let mut replay_updates = Vec::new();
+    let mut current_update: Option<ReplayUpdate> = None;
+    
+    for line in content.lines() {
+        let line = line.trim();
+        
+        if line.starts_with("UPDATE ") {
+            // Save previous update if it exists
+            if let Some(update) = current_update.take() {
+                replay_updates.push(update);
+            }
+            
+            // Parse update number
+            if let Some(update_num_str) = line.strip_prefix("UPDATE ") {
+                if let Ok(update_num) = update_num_str.parse::<u32>() {
+                    current_update = Some(ReplayUpdate {
+                        update_number: update_num,
+                        component_changes: Vec::new(),
+                        world_operations: Vec::new(),
+                    });
+                }
+            }
+        } else if line.starts_with("      ADD ") {
+            // Parse component addition: "      ADD Entity(0, 1) rust_ecs::Position Position { x: 1, y: 1 }"
+            if let Some(ref mut update) = current_update {
+                if let Some(change) = parse_component_change(line, ReplayChangeType::Add) {
+                    update.component_changes.push(change);
+                }
+            }
+        } else if line.starts_with("      MOD ") {
+            // Parse component modification
+            if let Some(ref mut update) = current_update {
+                if let Some(change) = parse_component_change(line, ReplayChangeType::Modify) {
+                    update.component_changes.push(change);
+                }
+            }
+        } else if line.starts_with("      REM ") {
+            // Parse component removal
+            if let Some(ref mut update) = current_update {
+                if let Some(change) = parse_component_change(line, ReplayChangeType::Remove) {
+                    update.component_changes.push(change);
+                }
+            }
+        } else if line.starts_with("      CREATE_ENTITY ") {
+            // Parse entity creation
+            if let Some(ref mut update) = current_update {
+                if let Some(operation) = parse_world_operation(line) {
+                    update.world_operations.push(operation);
+                }
+            }
+        }
+    }
+    
+    // Save the last update if it exists
+    if let Some(update) = current_update {
+        replay_updates.push(update);
+    }
+    
+    Ok(replay_updates)
+}
+
+fn parse_component_change(line: &str, change_type: ReplayChangeType) -> Option<ReplayComponentChange> {
+    let prefix = match change_type {
+        ReplayChangeType::Add => "      ADD ",
+        ReplayChangeType::Modify => "      MOD ",
+        ReplayChangeType::Remove => "      REM ",
+    };
+    
+    let line = line.strip_prefix(prefix)?;
+    let parts: Vec<&str> = line.splitn(3, ' ').collect();
+    
+    if parts.len() >= 2 {
+        // Parse entity: "Entity(world, id)"
+        let entity_str = parts[0];
+        let (entity_world, entity_id) = parse_entity_string(entity_str)?;
+        
+        let component_type = parts[1].to_string();
+        let data = if parts.len() > 2 { parts[2].to_string() } else { String::new() };
+        
+        Some(ReplayComponentChange {
+            entity_id,
+            entity_world,
+            component_type,
+            change_type,
+            data,
+        })
+    } else {
+        None
+    }
+}
+
+fn parse_entity_string(entity_str: &str) -> Option<(u32, u32)> {
+    // Parse "Entity(world, id)" format
+    if let Some(inner) = entity_str.strip_prefix("Entity(").and_then(|s| s.strip_suffix(")")) {
+        let parts: Vec<&str> = inner.split(", ").collect();
+        if parts.len() == 2 {
+            if let (Ok(world), Ok(id)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
+                return Some((world, id));
+            }
+        }
+    }
+    None
+}
+
+fn parse_world_operation(line: &str) -> Option<ReplayWorldOperation> {
+    if let Some(entity_str) = line.strip_prefix("      CREATE_ENTITY ") {
+        if let Some((world_id, entity_id)) = parse_entity_string(entity_str) {
+            return Some(ReplayWorldOperation::CreateEntity { entity_id, world_id });
+        }
+    } else if let Some(entity_str) = line.strip_prefix("      REMOVE_ENTITY ") {
+        if let Some((world_id, entity_id)) = parse_entity_string(entity_str) {
+            return Some(ReplayWorldOperation::RemoveEntity { entity_id, world_id });
+        }
+    }
+    None
+}
+
+fn create_initial_replay_world() -> ReplayWorld {
+    let mut replay_world = ReplayWorld::new();
+    
+    // Create initial entities based on the game setup
+    // We'll create them as the replay data is processed
+    
+    replay_world
+}
+
+fn apply_replay_update_to_world(replay_world: &mut ReplayWorld, update: &ReplayUpdate) {
+    // Process world operations first
+    for operation in &update.world_operations {
+        match operation {
+            ReplayWorldOperation::CreateEntity { entity_id, world_id } => {
+                let entity = crate::Entity::new(*world_id as usize, *entity_id as usize);
+                if !replay_world.entities.contains(&entity) {
+                    replay_world.entities.push(entity);
+                    replay_world.component_data.insert(entity, HashMap::new());
+                }
+            }
+            ReplayWorldOperation::RemoveEntity { entity_id, world_id } => {
+                let entity = crate::Entity::new(*world_id as usize, *entity_id as usize);
+                replay_world.entities.retain(|e| *e != entity);
+                replay_world.component_data.remove(&entity);
+            }
+            _ => {} // Handle other operations if needed
+        }
+    }
+    
+    // Process component changes
+    for change in &update.component_changes {
+        let entity = crate::Entity::new(change.entity_world as usize, change.entity_id as usize);
+        
+        // Ensure entity exists
+        if !replay_world.entities.contains(&entity) {
+            replay_world.entities.push(entity);
+            replay_world.component_data.insert(entity, HashMap::new());
+        }
+        
+        let entity_components = replay_world.component_data.get_mut(&entity).unwrap();
+        
+        match change.change_type {
+            ReplayChangeType::Add | ReplayChangeType::Modify => {
+                entity_components.insert(change.component_type.clone(), change.data.clone());
+            }
+            ReplayChangeType::Remove => {
+                entity_components.remove(&change.component_type);
+            }
+        }
+    }
+}
+
+/// Render system for replay mode that operates on component copies
+pub struct ReplayRenderSystem;
+
+impl ReplayRenderSystem {
+    pub fn render_frame(&mut self, replay_world: &ReplayWorld, frame_number: usize) {
+        // Clear screen
+        print!("\x1B[2J\x1B[1;1H");
+
+        // Create grid
+        let mut grid = vec![vec!['.'; GRID_SIZE as usize]; GRID_SIZE as usize];
+
+        // Get entities with Position components
+        let position_entities = replay_world.entities_with_component("rust_ecs::game::game::Position");
+        
+        // Place entities on grid
+        for entity in position_entities {
+            if let Some(pos_data) = replay_world.get_component_data(entity, "rust_ecs::game::game::Position") {
+                if let Some((x, y)) = parse_position_data(pos_data) {
+                    if x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE {
+                        let x_idx = x as usize;
+                        let y_idx = y as usize;
+                        
+                        // Check if this is a home, work, or actor
+                        if replay_world.get_component_data(entity, "rust_ecs::game::game::Home").is_some() {
+                            grid[y_idx][x_idx] = 'H';
+                        } else if replay_world.get_component_data(entity, "rust_ecs::game::game::Work").is_some() {
+                            grid[y_idx][x_idx] = 'W';
+                        } else if replay_world.get_component_data(entity, "rust_ecs::game::game::Actor").is_some() {
+                            // Don't overwrite Home or Work markers
+                            if grid[y_idx][x_idx] == '.' {
+                                grid[y_idx][x_idx] = 'A';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Ensure home and work are always visible at their fixed positions
+        if HOME_POS.0 >= 0 && HOME_POS.0 < GRID_SIZE && HOME_POS.1 >= 0 && HOME_POS.1 < GRID_SIZE {
+            grid[HOME_POS.1 as usize][HOME_POS.0 as usize] = 'H';
+        }
+        if WORK_POS.0 >= 0 && WORK_POS.0 < GRID_SIZE && WORK_POS.1 >= 0 && WORK_POS.1 < GRID_SIZE {
+            grid[WORK_POS.1 as usize][WORK_POS.0 as usize] = 'W';
+        }
+
+        // Print grid
+        println!("Simulation Game REPLAY - Frame {}", frame_number + 1);
+        println!("H = Home, W = Work, A = Actor");
+        println!();
+        for row in &grid {
+            for cell in row {
+                print!("{} ", cell);
+            }
+            println!();
+        }
+        println!();
+    }
+}
+
+fn parse_position_data(data: &str) -> Option<(i32, i32)> {
+    // Parse "Position { x: 1, y: 2 }" format
+    if let Some(inner) = data.strip_prefix("Position { ").and_then(|s| s.strip_suffix(" }")) {
+        let parts: Vec<&str> = inner.split(", ").collect();
+        if parts.len() == 2 {
+            if let (Some(x_str), Some(y_str)) = (
+                parts[0].strip_prefix("x: "),
+                parts[1].strip_prefix("y: ")
+            ) {
+                if let (Ok(x), Ok(y)) = (x_str.parse::<i32>(), y_str.parse::<i32>()) {
+                    return Some((x, y));
+                }
+            }
+        }
+    }
+    None
 }
 
 // Manual logging functions for game history

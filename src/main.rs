@@ -101,9 +101,16 @@ impl System for HealthSystem {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    // Check if "game" argument is provided
+    // Check if "game" argument is provided with optional replay file
     if args.len() > 1 && args[1] == "game" {
-        game::run_game();
+        if args.len() > 2 {
+            // Replay mode: cargo run game <replay_log_path>
+            let replay_path = &args[2];
+            game::run_game_replay(replay_path);
+        } else {
+            // Normal game mode: cargo run game
+            game::run_game();
+        }
         return;
     }
 
