@@ -107,6 +107,12 @@ fn main() {
         return;
     }
 
+    // Check if "replay-demo" argument is provided
+    if args.len() > 1 && args[1] == "replay-demo" {
+        demo_replay_analysis();
+        return;
+    }
+
     // Default behavior - run the ECS framework demo
     run_ecs_demo();
 }
@@ -326,4 +332,68 @@ fn demo_diff_functionality() {
 
     println!("\nDemonstrated: Transparent change tracking without manual diff methods!");
     println!("Developers just use standard ECS methods - all tracking happens automatically.");
+}
+
+/// Demonstrate replay analysis functionality
+fn demo_replay_analysis() {
+    println!("\n=== Replay Analysis Demo ===");
+    
+    // Create a simple world for demonstration
+    let mut world = World::new();
+    
+    // Enable replay logging
+    let replay_config = rust_ecs::ReplayLogConfig {
+        enabled: true,
+        log_directory: "demo_replay_logs".to_string(),
+        file_prefix: "demo_session".to_string(),
+        flush_interval: 5,
+        include_component_details: true,
+    };
+    
+    match world.enable_replay_logging(replay_config) {
+        Ok(()) => {
+            println!("Replay logging enabled for demo");
+        }
+        Err(e) => {
+            eprintln!("Failed to enable logging: {}", e);
+            return;
+        }
+    }
+    
+    // Add some entities and components
+    let entity1 = world.create_entity();
+    let entity2 = world.create_entity();
+    world.add_component(entity1, Position { x: 0.0, y: 0.0 });
+    world.add_component(entity1, Velocity { dx: 1.0, dy: 0.5 });
+    world.add_component(entity2, Position { x: 10.0, y: 10.0 });
+    
+    // Add a movement system
+    world.add_system(MovementSystem);
+    world.initialize_systems();
+    
+    // Run several updates
+    for i in 0..15 {
+        println!("Update {}", i + 1);
+        world.update();
+    }
+    
+    // Analyze the replay data
+    let history = world.get_update_history();
+    rust_ecs::replay_analysis::print_replay_analysis(history);
+    
+    // Find anomalous frames (frames with significantly more activity)
+    let anomalous = rust_ecs::replay_analysis::find_anomalous_frames(history, 2.0);
+    if !anomalous.is_empty() {
+        println!("Anomalous frames (2x average activity): {:?}", anomalous);
+    }
+    
+    // Clean up
+    if let Err(e) = world.disable_replay_logging() {
+        eprintln!("Failed to finalize logging: {}", e);
+    }
+    
+    // Clean up demo directory
+    let _ = std::fs::remove_dir_all("demo_replay_logs");
+    
+    println!("Replay analysis demo completed");
 }

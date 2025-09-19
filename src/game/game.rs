@@ -1,4 +1,4 @@
-use crate::{Diff, In, Out, System, World, WorldView};
+use crate::{Diff, In, Out, System, World, WorldView, ReplayLogConfig};
 use rand::Rng;
 use std::collections::HashSet;
 use std::thread;
@@ -412,6 +412,28 @@ pub fn run_game() {
     println!("Press Ctrl+C to stop the simulation");
 
     let mut world = initialize_game();
+    
+    // Enable replay logging with automatic file generation
+    let replay_config = ReplayLogConfig {
+        enabled: true,
+        log_directory: "game_replay_logs".to_string(),
+        file_prefix: "actor_simulation".to_string(),
+        flush_interval: 20, // Flush every 20 updates for this fast game
+        include_component_details: true,
+    };
+    
+    match world.enable_replay_logging(replay_config) {
+        Ok(()) => {
+            if let Some(session_id) = world.replay_session_id() {
+                println!("Replay logging enabled - Session ID: {}", session_id);
+                println!("Logs will be saved to: game_replay_logs/actor_simulation_{}.log", session_id);
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to enable replay logging: {}", e);
+            println!("Game will continue without logging");
+        }
+    }
 
     // Game loop - 2 ticks per second
     loop {
@@ -475,5 +497,46 @@ mod tests {
         let next = calculate_next_move((0, 0), (2, 2), &obstacles_with_block);
         // Should find alternative path
         assert!(next == (1, 0) || next == (0, 1));
+    }
+
+    #[test]
+    fn test_replay_logging_integration() {
+        use crate::{replay_analysis, ReplayLogConfig};
+        
+        // Create a world and enable logging
+        let mut world = initialize_game();
+        
+        let replay_config = ReplayLogConfig {
+            enabled: true,
+            log_directory: "test_replay_logs".to_string(),
+            file_prefix: "test_session".to_string(),
+            flush_interval: 5,
+            include_component_details: true,
+        };
+        
+        world.enable_replay_logging(replay_config).expect("Failed to enable logging");
+        
+        // Run some updates
+        for _ in 0..10 {
+            world.update();
+        }
+        
+        // Analyze the replay data
+        let history = world.get_update_history();
+        let stats = replay_analysis::analyze_replay_history(history);
+        
+        println!("Test replay analysis:");
+        println!("  Total updates: {}", stats.total_updates);
+        println!("  Total system executions: {}", stats.total_system_executions);
+        println!("  Component types involved: {:?}", stats.component_types_involved);
+        
+        assert_eq!(stats.total_updates, 10);
+        assert!(stats.total_system_executions > 0);
+        
+        // Clean up logging
+        world.disable_replay_logging().expect("Failed to disable logging");
+        
+        // Clean up test directory
+        let _ = std::fs::remove_dir_all("test_replay_logs");
     }
 }
