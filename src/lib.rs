@@ -599,6 +599,578 @@ where
     }
 }
 
+// Concrete implementations for 4 components
+impl<'a, A, B, C, D> MixedMultiQuery<'a> for (A, B, C, D)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d)) = (a, b, c, d) {
+                    results.push((entity, (a, b, c, d)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 5 components
+impl<'a, A, B, C, D, E> MixedMultiQuery<'a> for (A, B, C, D, E)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e)) = (a, b, c, d, e) {
+                    results.push((entity, (a, b, c, d, e)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 6 components
+impl<'a, A, B, C, D, E, F> MixedMultiQuery<'a> for (A, B, C, D, E, F)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f)) = (a, b, c, d, e, f) {
+                    results.push((entity, (a, b, c, d, e, f)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 7 components
+impl<'a, A, B, C, D, E, F, G> MixedMultiQuery<'a> for (A, B, C, D, E, F, G)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+    G: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item, G::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+                let g = G::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g)) = (a, b, c, d, e, f, g) {
+                    results.push((entity, (a, b, c, d, e, f, g)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 8 components
+impl<'a, A, B, C, D, E, F, G, H> MixedMultiQuery<'a> for (A, B, C, D, E, F, G, H)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+    G: MixedQueryComponent<'a> + 'static,
+    H: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item, G::Item, H::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+                let g = G::get_mixed_component(&mut *world_ptr, entity);
+                let h = H::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h)) = (a, b, c, d, e, f, g, h) {
+                    results.push((entity, (a, b, c, d, e, f, g, h)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 9 components
+impl<'a, A, B, C, D, E, F, G, H, I> MixedMultiQuery<'a> for (A, B, C, D, E, F, G, H, I)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+    G: MixedQueryComponent<'a> + 'static,
+    H: MixedQueryComponent<'a> + 'static,
+    I: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item, G::Item, H::Item, I::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+                let g = G::get_mixed_component(&mut *world_ptr, entity);
+                let h = H::get_mixed_component(&mut *world_ptr, entity);
+                let i = I::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h), Some(i)) = (a, b, c, d, e, f, g, h, i) {
+                    results.push((entity, (a, b, c, d, e, f, g, h, i)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 10 components
+impl<'a, A, B, C, D, E, F, G, H, I, J> MixedMultiQuery<'a> for (A, B, C, D, E, F, G, H, I, J)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+    G: MixedQueryComponent<'a> + 'static,
+    H: MixedQueryComponent<'a> + 'static,
+    I: MixedQueryComponent<'a> + 'static,
+    J: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item, G::Item, H::Item, I::Item, J::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+                let g = G::get_mixed_component(&mut *world_ptr, entity);
+                let h = H::get_mixed_component(&mut *world_ptr, entity);
+                let i = I::get_mixed_component(&mut *world_ptr, entity);
+                let j = J::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h), Some(i), Some(j)) = (a, b, c, d, e, f, g, h, i, j) {
+                    results.push((entity, (a, b, c, d, e, f, g, h, i, j)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 11 components
+impl<'a, A, B, C, D, E, F, G, H, I, J, K> MixedMultiQuery<'a> for (A, B, C, D, E, F, G, H, I, J, K)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+    G: MixedQueryComponent<'a> + 'static,
+    H: MixedQueryComponent<'a> + 'static,
+    I: MixedQueryComponent<'a> + 'static,
+    J: MixedQueryComponent<'a> + 'static,
+    K: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item, G::Item, H::Item, I::Item, J::Item, K::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+                let g = G::get_mixed_component(&mut *world_ptr, entity);
+                let h = H::get_mixed_component(&mut *world_ptr, entity);
+                let i = I::get_mixed_component(&mut *world_ptr, entity);
+                let j = J::get_mixed_component(&mut *world_ptr, entity);
+                let k = K::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h), Some(i), Some(j), Some(k)) = (a, b, c, d, e, f, g, h, i, j, k) {
+                    results.push((entity, (a, b, c, d, e, f, g, h, i, j, k)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 12 components
+impl<'a, A, B, C, D, E, F, G, H, I, J, K, L> MixedMultiQuery<'a> for (A, B, C, D, E, F, G, H, I, J, K, L)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+    G: MixedQueryComponent<'a> + 'static,
+    H: MixedQueryComponent<'a> + 'static,
+    I: MixedQueryComponent<'a> + 'static,
+    J: MixedQueryComponent<'a> + 'static,
+    K: MixedQueryComponent<'a> + 'static,
+    L: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item, G::Item, H::Item, I::Item, J::Item, K::Item, L::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+                let g = G::get_mixed_component(&mut *world_ptr, entity);
+                let h = H::get_mixed_component(&mut *world_ptr, entity);
+                let i = I::get_mixed_component(&mut *world_ptr, entity);
+                let j = J::get_mixed_component(&mut *world_ptr, entity);
+                let k = K::get_mixed_component(&mut *world_ptr, entity);
+                let l = L::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h), Some(i), Some(j), Some(k), Some(l)) = (a, b, c, d, e, f, g, h, i, j, k, l) {
+                    results.push((entity, (a, b, c, d, e, f, g, h, i, j, k, l)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 13 components
+impl<'a, A, B, C, D, E, F, G, H, I, J, K, L, M> MixedMultiQuery<'a> for (A, B, C, D, E, F, G, H, I, J, K, L, M)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+    G: MixedQueryComponent<'a> + 'static,
+    H: MixedQueryComponent<'a> + 'static,
+    I: MixedQueryComponent<'a> + 'static,
+    J: MixedQueryComponent<'a> + 'static,
+    K: MixedQueryComponent<'a> + 'static,
+    L: MixedQueryComponent<'a> + 'static,
+    M: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item, G::Item, H::Item, I::Item, J::Item, K::Item, L::Item, M::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+                let g = G::get_mixed_component(&mut *world_ptr, entity);
+                let h = H::get_mixed_component(&mut *world_ptr, entity);
+                let i = I::get_mixed_component(&mut *world_ptr, entity);
+                let j = J::get_mixed_component(&mut *world_ptr, entity);
+                let k = K::get_mixed_component(&mut *world_ptr, entity);
+                let l = L::get_mixed_component(&mut *world_ptr, entity);
+                let m = M::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h), Some(i), Some(j), Some(k), Some(l), Some(m)) = (a, b, c, d, e, f, g, h, i, j, k, l, m) {
+                    results.push((entity, (a, b, c, d, e, f, g, h, i, j, k, l, m)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 14 components
+impl<'a, A, B, C, D, E, F, G, H, I, J, K, L, M, N> MixedMultiQuery<'a> for (A, B, C, D, E, F, G, H, I, J, K, L, M, N)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+    G: MixedQueryComponent<'a> + 'static,
+    H: MixedQueryComponent<'a> + 'static,
+    I: MixedQueryComponent<'a> + 'static,
+    J: MixedQueryComponent<'a> + 'static,
+    K: MixedQueryComponent<'a> + 'static,
+    L: MixedQueryComponent<'a> + 'static,
+    M: MixedQueryComponent<'a> + 'static,
+    N: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item, G::Item, H::Item, I::Item, J::Item, K::Item, L::Item, M::Item, N::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+                let g = G::get_mixed_component(&mut *world_ptr, entity);
+                let h = H::get_mixed_component(&mut *world_ptr, entity);
+                let i = I::get_mixed_component(&mut *world_ptr, entity);
+                let j = J::get_mixed_component(&mut *world_ptr, entity);
+                let k = K::get_mixed_component(&mut *world_ptr, entity);
+                let l = L::get_mixed_component(&mut *world_ptr, entity);
+                let m = M::get_mixed_component(&mut *world_ptr, entity);
+                let n = N::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h), Some(i), Some(j), Some(k), Some(l), Some(m), Some(n)) = (a, b, c, d, e, f, g, h, i, j, k, l, m, n) {
+                    results.push((entity, (a, b, c, d, e, f, g, h, i, j, k, l, m, n)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 15 components
+impl<'a, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O> MixedMultiQuery<'a> for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+    G: MixedQueryComponent<'a> + 'static,
+    H: MixedQueryComponent<'a> + 'static,
+    I: MixedQueryComponent<'a> + 'static,
+    J: MixedQueryComponent<'a> + 'static,
+    K: MixedQueryComponent<'a> + 'static,
+    L: MixedQueryComponent<'a> + 'static,
+    M: MixedQueryComponent<'a> + 'static,
+    N: MixedQueryComponent<'a> + 'static,
+    O: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item, G::Item, H::Item, I::Item, J::Item, K::Item, L::Item, M::Item, N::Item, O::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+                let g = G::get_mixed_component(&mut *world_ptr, entity);
+                let h = H::get_mixed_component(&mut *world_ptr, entity);
+                let i = I::get_mixed_component(&mut *world_ptr, entity);
+                let j = J::get_mixed_component(&mut *world_ptr, entity);
+                let k = K::get_mixed_component(&mut *world_ptr, entity);
+                let l = L::get_mixed_component(&mut *world_ptr, entity);
+                let m = M::get_mixed_component(&mut *world_ptr, entity);
+                let n = N::get_mixed_component(&mut *world_ptr, entity);
+                let o = O::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h), Some(i), Some(j), Some(k), Some(l), Some(m), Some(n), Some(o)) = (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o) {
+                    results.push((entity, (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
+// Concrete implementations for 16 components
+impl<'a, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P> MixedMultiQuery<'a> for (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)
+where
+    A: MixedQueryComponent<'a> + 'static,
+    B: MixedQueryComponent<'a> + 'static,
+    C: MixedQueryComponent<'a> + 'static,
+    D: MixedQueryComponent<'a> + 'static,
+    E: MixedQueryComponent<'a> + 'static,
+    F: MixedQueryComponent<'a> + 'static,
+    G: MixedQueryComponent<'a> + 'static,
+    H: MixedQueryComponent<'a> + 'static,
+    I: MixedQueryComponent<'a> + 'static,
+    J: MixedQueryComponent<'a> + 'static,
+    K: MixedQueryComponent<'a> + 'static,
+    L: MixedQueryComponent<'a> + 'static,
+    M: MixedQueryComponent<'a> + 'static,
+    N: MixedQueryComponent<'a> + 'static,
+    O: MixedQueryComponent<'a> + 'static,
+    P: MixedQueryComponent<'a> + 'static,
+{
+    type Item = (A::Item, B::Item, C::Item, D::Item, E::Item, F::Item, G::Item, H::Item, I::Item, J::Item, K::Item, L::Item, M::Item, N::Item, O::Item, P::Item);
+
+    fn query_mixed(world: &'a mut World) -> Vec<(Entity, Self::Item)> {
+        let mut results = Vec::new();
+        let entities: Vec<Entity> = world.entities.clone();
+
+        for entity in entities {
+            unsafe {
+                let world_ptr = world as *mut World;
+                let a = A::get_mixed_component(&mut *world_ptr, entity);
+                let b = B::get_mixed_component(&mut *world_ptr, entity);
+                let c = C::get_mixed_component(&mut *world_ptr, entity);
+                let d = D::get_mixed_component(&mut *world_ptr, entity);
+                let e = E::get_mixed_component(&mut *world_ptr, entity);
+                let f = F::get_mixed_component(&mut *world_ptr, entity);
+                let g = G::get_mixed_component(&mut *world_ptr, entity);
+                let h = H::get_mixed_component(&mut *world_ptr, entity);
+                let i = I::get_mixed_component(&mut *world_ptr, entity);
+                let j = J::get_mixed_component(&mut *world_ptr, entity);
+                let k = K::get_mixed_component(&mut *world_ptr, entity);
+                let l = L::get_mixed_component(&mut *world_ptr, entity);
+                let m = M::get_mixed_component(&mut *world_ptr, entity);
+                let n = N::get_mixed_component(&mut *world_ptr, entity);
+                let o = O::get_mixed_component(&mut *world_ptr, entity);
+                let p = P::get_mixed_component(&mut *world_ptr, entity);
+
+                if let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f), Some(g), Some(h), Some(i), Some(j), Some(k), Some(l), Some(m), Some(n), Some(o), Some(p)) = (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p) {
+                    results.push((entity, (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p)));
+                }
+            }
+        }
+
+        results
+    }
+}
+
 /// WorldView provides controlled access to world data for systems
 pub struct WorldView<InComponents, OutComponents> {
     world: *mut World,
@@ -2025,6 +2597,76 @@ mod tests {
         let mut s = s1;
         s.apply_diff(&s1.diff(&s3).unwrap());
         assert_eq!(s, s3);
+    }
+
+    #[test]
+    fn test_extended_multi_component_query() {
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+
+        let entity1 = world_view.create_entity();
+
+        // Define additional test components to test extended queries
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct TestA { value: i32 }
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct TestB { value: i32 }
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct TestC { value: i32 }
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct TestD { value: i32 }
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct TestE { value: i32 }
+
+        // Add multiple components to entity
+        world_view.add_component(entity1, TestA { value: 1 });
+        world_view.add_component(entity1, TestB { value: 2 });
+        world_view.add_component(entity1, TestC { value: 3 });
+        world_view.add_component(entity1, TestD { value: 4 });
+        world_view.add_component(entity1, TestE { value: 5 });
+
+        // Test 4-component query
+        let results4 = world_view.query_components::<(In<TestA>, In<TestB>, In<TestC>, In<TestD>)>();
+        assert_eq!(results4.len(), 1);
+        let (entity, (a, b, c, d)) = &results4[0];
+        assert_eq!(*entity, entity1);
+        assert_eq!(a.value, 1);
+        assert_eq!(b.value, 2);
+        assert_eq!(c.value, 3);
+        assert_eq!(d.value, 4);
+
+        // Test 5-component query
+        let results5 = world_view.query_components::<(In<TestA>, In<TestB>, In<TestC>, In<TestD>, In<TestE>)>();
+        assert_eq!(results5.len(), 1);
+        let (entity, (a, b, c, d, e)) = &results5[0];
+        assert_eq!(*entity, entity1);
+        assert_eq!(a.value, 1);
+        assert_eq!(b.value, 2);
+        assert_eq!(c.value, 3);
+        assert_eq!(d.value, 4);
+        assert_eq!(e.value, 5);
+
+        // Test mixed access (mutable and immutable)
+        let mut results_mixed = world_view.query_components::<(Out<TestA>, In<TestB>, Out<TestC>, In<TestD>, In<TestE>)>();
+        assert_eq!(results_mixed.len(), 1);
+        let (entity, (mut_a, b, mut_c, d, e)) = &mut results_mixed[0];
+        assert_eq!(*entity, entity1);
+        assert_eq!(b.value, 2);
+        assert_eq!(d.value, 4);
+        assert_eq!(e.value, 5);
+        
+        // Modify the mutable components
+        mut_a.value = 10;
+        mut_c.value = 30;
+
+        // Verify modifications were applied
+        let verification = world_view.query_components::<(In<TestA>, In<TestB>, In<TestC>, In<TestD>, In<TestE>)>();
+        let (_, (a, b, c, d, e)) = &verification[0];
+        assert_eq!(a.value, 10); // Modified
+        assert_eq!(b.value, 2);  // Unchanged
+        assert_eq!(c.value, 30); // Modified
+        assert_eq!(d.value, 4);  // Unchanged
+        assert_eq!(e.value, 5);  // Unchanged
     }
 }
 

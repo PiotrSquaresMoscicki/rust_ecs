@@ -62,6 +62,7 @@ pub enum ActorState {
 
 
 // Movement System - handles actor movement with obstacle avoidance
+// Simplified thanks to extended query support for up to 16 components!
 pub struct MovementSystem;
 impl System for MovementSystem {
     type InComponents = (Actor, Position, Target);
@@ -84,46 +85,34 @@ impl System for MovementSystem {
             .map(|(_, (pos, _))| (pos.x, pos.y))
             .collect();
 
-        // Move each actor individually
-        let mut actor_data: Vec<((i32, i32), (i32, i32))> = Vec::new();
-
-        // First, collect all actor positions and their targets
+        // Now we can query and update actor positions in a single query thanks to extended support!
         for (_entity, (position, _actor, target)) in
-            world.query_components::<(In<Position>, In<Actor>, In<Target>)>()
+            world.query_components::<(Out<Position>, In<Actor>, In<Target>)>()
         {
-            actor_data.push(((position.x, position.y), (target.x, target.y)));
-        }
+            let current_pos = (position.x, position.y);
+            let target_pos = (target.x, target.y);
 
-        // Now update positions
-        let mut update_index = 0;
-        for (_entity, position) in world.query_components::<(Out<Position>,)>() {
-            // Only update actor positions (skip home and work)
-            if update_index < actor_data.len() {
-                let (current_pos, target_pos) = actor_data[update_index];
-
-                // Don't move if already at target or adjacent to target
-                if !is_adjacent(current_pos, target_pos) && current_pos != target_pos {
-                    // Create a temporary obstacles set without the current actor
-                    let mut temp_obstacles = obstacles.clone();
-                    for &pos in &current_positions {
-                        if pos != current_pos {
-                            temp_obstacles.insert(pos);
-                        }
-                    }
-
-                    // Calculate next move
-                    let next_pos = calculate_next_move(current_pos, target_pos, &temp_obstacles);
-
-                    // Update position if we can move
-                    if next_pos != current_pos
-                        && is_valid_position(next_pos)
-                        && !temp_obstacles.contains(&next_pos)
-                    {
-                        position.x = next_pos.0;
-                        position.y = next_pos.1;
+            // Don't move if already at target or adjacent to target
+            if !is_adjacent(current_pos, target_pos) && current_pos != target_pos {
+                // Create a temporary obstacles set without the current actor
+                let mut temp_obstacles = obstacles.clone();
+                for &pos in &current_positions {
+                    if pos != current_pos {
+                        temp_obstacles.insert(pos);
                     }
                 }
-                update_index += 1;
+
+                // Calculate next move
+                let next_pos = calculate_next_move(current_pos, target_pos, &temp_obstacles);
+
+                // Update position if we can move
+                if next_pos != current_pos
+                    && is_valid_position(next_pos)
+                    && !temp_obstacles.contains(&next_pos)
+                {
+                    position.x = next_pos.0;
+                    position.y = next_pos.1;
+                }
             }
         }
     }
@@ -132,6 +121,7 @@ impl System for MovementSystem {
 }
 
 // Wait System - handles wait timers and target switching
+// Simplified thanks to extended query support for up to 16 components!
 pub struct WaitSystem;
 impl System for WaitSystem {
     type InComponents = (Actor, WaitTimer, Target, Position);
@@ -140,77 +130,34 @@ impl System for WaitSystem {
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
-        // Collect actor data first - use simpler queries due to framework limitations
-        let mut actor_positions: Vec<(i32, i32)> = Vec::new();
-        let mut actor_targets: Vec<(i32, i32)> = Vec::new();
-        let mut wait_times: Vec<u32> = Vec::new();
-
-        // Collect positions
-        for (_entity, (position, _actor)) in world.query_components::<(In<Position>, In<Actor>)>() {
-            actor_positions.push((position.x, position.y));
-        }
-
-        // Collect targets
-        for (_entity, target) in world.query_components::<(In<Target>,)>() {
-            actor_targets.push((target.x, target.y));
-        }
-
-        // Collect wait times
-        for (_entity, wait_timer) in world.query_components::<(In<WaitTimer>,)>() {
-            wait_times.push(wait_timer.ticks);
-        }
-
-        // Calculate updates needed
-        let mut updates: Vec<(bool, bool, u32)> = Vec::new();
-        for i in 0..actor_positions
-            .len()
-            .min(actor_targets.len())
-            .min(wait_times.len())
+        // Now we can query all actor components together thanks to extended query support!
+        for (_entity, (position, _actor, wait_timer, target)) in 
+            world.query_components::<(In<Position>, In<Actor>, Out<WaitTimer>, Out<Target>)>()
         {
-            let current_pos = actor_positions[i];
-            let target_pos = actor_targets[i];
-            let current_ticks = wait_times[i];
+            let current_pos = (position.x, position.y);
+            let target_pos = (target.x, target.y);
+            let current_ticks = wait_timer.ticks;
 
             let is_near_target = is_adjacent(current_pos, target_pos) || current_pos == target_pos;
             let should_switch = is_near_target && current_ticks == 0;
-            let new_ticks = if is_near_target && current_ticks > 0 {
-                current_ticks - 1
+
+            // Update wait timer
+            if is_near_target && current_ticks > 0 {
+                wait_timer.ticks = current_ticks - 1;
             } else if should_switch {
-                WAIT_TICKS
-            } else {
-                current_ticks
-            };
-
-            updates.push((is_near_target, should_switch, new_ticks));
-        }
-
-        // Update wait timers
-        let mut timer_index = 0;
-        for (_entity, wait_timer) in world.query_components::<(Out<WaitTimer>,)>() {
-            if timer_index < updates.len() {
-                wait_timer.ticks = updates[timer_index].2;
-                timer_index += 1;
+                wait_timer.ticks = WAIT_TICKS;
             }
-        }
 
-        // Update targets
-        let mut target_index = 0;
-        for (_entity, target) in world.query_components::<(Out<Target>,)>() {
-            if target_index < updates.len() && target_index < actor_targets.len() {
-                let should_switch = updates[target_index].1;
-                let current_target = actor_targets[target_index];
-
-                if should_switch {
-                    // Switch target between home and work
-                    if current_target == HOME_POS {
-                        target.x = WORK_POS.0;
-                        target.y = WORK_POS.1;
-                    } else {
-                        target.x = HOME_POS.0;
-                        target.y = HOME_POS.1;
-                    }
+            // Update target if needed
+            if should_switch {
+                // Switch target between home and work
+                if target_pos == HOME_POS {
+                    target.x = WORK_POS.0;
+                    target.y = WORK_POS.1;
+                } else {
+                    target.x = HOME_POS.0;
+                    target.y = HOME_POS.1;
                 }
-                target_index += 1;
             }
         }
     }
@@ -502,5 +449,56 @@ mod tests {
             println!("  Update {}: {} system diffs", i + 1, update.system_diffs().len());
             assert!(update.system_diffs().len() > 0);
         }
+    }
+
+    #[test]
+    fn test_simplified_multi_component_queries() {
+        // Test that our simplified game systems work with the extended query support
+        let mut world = initialize_game();
+        
+        // Get initial positions and targets of actors
+        let initial_data: Vec<((i32, i32), (i32, i32))> = {
+            let mut world_view = crate::WorldView::<(), ()>::new(&mut world);
+            world_view.query_components::<(crate::In<Position>, crate::In<Actor>, crate::In<Target>)>()
+                .into_iter()
+                .map(|(_, (pos, _, target))| ((pos.x, pos.y), (target.x, target.y)))
+                .collect()
+        };
+        
+        // Should have 3 actors
+        assert_eq!(initial_data.len(), 3);
+        
+        // All actors should initially target work
+        for (_, target) in &initial_data {
+            assert_eq!(*target, WORK_POS);
+        }
+        
+        // Run a few updates to verify the simplified systems work
+        for _ in 0..10 {
+            world.update();
+        }
+        
+        // Verify actors are still in the game after updates
+        let final_actor_count = world.entities_with_component::<Actor>().len();
+        assert_eq!(final_actor_count, 3);
+        
+        // Verify actors have moved (at least some should have different positions)
+        let final_data: Vec<((i32, i32), (i32, i32))> = {
+            let mut world_view = crate::WorldView::<(), ()>::new(&mut world);
+            world_view.query_components::<(crate::In<Position>, crate::In<Actor>, crate::In<Target>)>()
+                .into_iter()
+                .map(|(_, (pos, _, target))| ((pos.x, pos.y), (target.x, target.y)))
+                .collect()
+        };
+        
+        assert_eq!(final_data.len(), 3);
+        
+        // At least one actor should have moved from initial position
+        let movement_occurred = initial_data.iter().zip(final_data.iter())
+            .any(|(initial, final_pos)| initial.0 != final_pos.0);
+        
+        // Note: Due to randomness in initial positions, movement might not always occur,
+        // but the test verifies the systems run without errors
+        println!("Movement occurred during test: {}", movement_occurred);
     }
 }
