@@ -100,13 +100,13 @@ impl System for HealthSystem {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    
+
     // Check if "game" argument is provided
     if args.len() > 1 && args[1] == "game" {
         game::run_game();
         return;
     }
-    
+
     // Default behavior - run the ECS framework demo
     run_ecs_demo();
 }

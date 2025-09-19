@@ -1,5 +1,5 @@
-use rand::Rng;
 use crate::{Diff, DiffComponent, In, Out, System, World, WorldView};
+use rand::Rng;
 use std::collections::HashSet;
 use std::thread;
 use std::time::Duration;
@@ -85,7 +85,7 @@ pub struct WaitTimer {
 // Manually implement Diff for WaitTimer since u32 doesn't implement Diff
 impl Diff for WaitTimer {
     type Diff = u32;
-    
+
     fn diff(&self, other: &Self) -> Option<Self::Diff> {
         if self.ticks != other.ticks {
             Some(other.ticks)
@@ -93,7 +93,7 @@ impl Diff for WaitTimer {
             None
         }
     }
-    
+
     fn apply_diff(&mut self, diff: &Self::Diff) {
         self.ticks = *diff;
     }
@@ -101,23 +101,19 @@ impl Diff for WaitTimer {
 
 impl DiffComponent for WaitTimer {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[allow(dead_code)]
 pub enum ActorState {
+    #[default]
     MovingToWork,
     MovingToHome,
     WaitingAtWork,
     WaitingAtHome,
 }
 
-impl Default for ActorState {
-    fn default() -> Self {
-        ActorState::MovingToWork
-    }
-}
-
 impl Diff for ActorState {
     type Diff = ActorState;
-    
+
     fn diff(&self, other: &Self) -> Option<Self::Diff> {
         if self != other {
             Some(*other)
@@ -125,7 +121,7 @@ impl Diff for ActorState {
             None
         }
     }
-    
+
     fn apply_diff(&mut self, diff: &Self::Diff) {
         *self = *diff;
     }
@@ -138,39 +134,41 @@ pub struct MovementSystem;
 impl System for MovementSystem {
     type InComponents = (Actor, Position, Target);
     type OutComponents = (Position,);
-    
+
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-    
+
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         // Collect all obstacle positions first
         let mut obstacles = HashSet::new();
-        
+
         // Add home and work positions as obstacles (don't move into them)
         obstacles.insert(HOME_POS);
         obstacles.insert(WORK_POS);
-        
+
         // Collect all current actor positions to avoid collisions
         let current_positions: Vec<(i32, i32)> = world
             .query_components::<(In<Position>, In<Actor>)>()
             .into_iter()
             .map(|(_, (pos, _))| (pos.x, pos.y))
             .collect();
-        
+
         // Move each actor individually
         let mut actor_data: Vec<((i32, i32), (i32, i32))> = Vec::new();
-        
+
         // First, collect all actor positions and their targets
-        for (_entity, (position, _actor, target)) in world.query_components::<(In<Position>, In<Actor>, In<Target>)>() {
+        for (_entity, (position, _actor, target)) in
+            world.query_components::<(In<Position>, In<Actor>, In<Target>)>()
+        {
             actor_data.push(((position.x, position.y), (target.x, target.y)));
         }
-        
+
         // Now update positions
         let mut update_index = 0;
         for (_entity, position) in world.query_components::<(Out<Position>,)>() {
             // Only update actor positions (skip home and work)
             if update_index < actor_data.len() {
                 let (current_pos, target_pos) = actor_data[update_index];
-                
+
                 // Don't move if already at target or adjacent to target
                 if !is_adjacent(current_pos, target_pos) && current_pos != target_pos {
                     // Create a temporary obstacles set without the current actor
@@ -180,12 +178,15 @@ impl System for MovementSystem {
                             temp_obstacles.insert(pos);
                         }
                     }
-                    
+
                     // Calculate next move
                     let next_pos = calculate_next_move(current_pos, target_pos, &temp_obstacles);
-                    
+
                     // Update position if we can move
-                    if next_pos != current_pos && is_valid_position(next_pos) && !temp_obstacles.contains(&next_pos) {
+                    if next_pos != current_pos
+                        && is_valid_position(next_pos)
+                        && !temp_obstacles.contains(&next_pos)
+                    {
                         position.x = next_pos.0;
                         position.y = next_pos.1;
                     }
@@ -194,7 +195,7 @@ impl System for MovementSystem {
             }
         }
     }
-    
+
     fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 }
 
@@ -203,37 +204,41 @@ pub struct WaitSystem;
 impl System for WaitSystem {
     type InComponents = (Actor, WaitTimer, Target, Position);
     type OutComponents = (WaitTimer, Target);
-    
+
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-    
+
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         // Collect actor data first - use simpler queries due to framework limitations
         let mut actor_positions: Vec<(i32, i32)> = Vec::new();
         let mut actor_targets: Vec<(i32, i32)> = Vec::new();
         let mut wait_times: Vec<u32> = Vec::new();
-        
+
         // Collect positions
         for (_entity, (position, _actor)) in world.query_components::<(In<Position>, In<Actor>)>() {
             actor_positions.push((position.x, position.y));
         }
-        
+
         // Collect targets
         for (_entity, target) in world.query_components::<(In<Target>,)>() {
             actor_targets.push((target.x, target.y));
         }
-        
+
         // Collect wait times
         for (_entity, wait_timer) in world.query_components::<(In<WaitTimer>,)>() {
             wait_times.push(wait_timer.ticks);
         }
-        
+
         // Calculate updates needed
         let mut updates: Vec<(bool, bool, u32)> = Vec::new();
-        for i in 0..actor_positions.len().min(actor_targets.len()).min(wait_times.len()) {
+        for i in 0..actor_positions
+            .len()
+            .min(actor_targets.len())
+            .min(wait_times.len())
+        {
             let current_pos = actor_positions[i];
             let target_pos = actor_targets[i];
             let current_ticks = wait_times[i];
-            
+
             let is_near_target = is_adjacent(current_pos, target_pos) || current_pos == target_pos;
             let should_switch = is_near_target && current_ticks == 0;
             let new_ticks = if is_near_target && current_ticks > 0 {
@@ -243,10 +248,10 @@ impl System for WaitSystem {
             } else {
                 current_ticks
             };
-            
+
             updates.push((is_near_target, should_switch, new_ticks));
         }
-        
+
         // Update wait timers
         let mut timer_index = 0;
         for (_entity, wait_timer) in world.query_components::<(Out<WaitTimer>,)>() {
@@ -255,14 +260,14 @@ impl System for WaitSystem {
                 timer_index += 1;
             }
         }
-        
+
         // Update targets
         let mut target_index = 0;
         for (_entity, target) in world.query_components::<(Out<Target>,)>() {
             if target_index < updates.len() && target_index < actor_targets.len() {
                 let should_switch = updates[target_index].1;
                 let current_target = actor_targets[target_index];
-                
+
                 if should_switch {
                     // Switch target between home and work
                     if current_target == HOME_POS {
@@ -277,7 +282,7 @@ impl System for WaitSystem {
             }
         }
     }
-    
+
     fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 }
 
@@ -286,21 +291,21 @@ pub struct RenderSystem;
 impl System for RenderSystem {
     type InComponents = (Position,);
     type OutComponents = ();
-    
+
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-    
+
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         // Clear screen
         print!("\x1B[2J\x1B[1;1H");
-        
+
         // Create grid
         let mut grid = vec![vec!['.'; GRID_SIZE as usize]; GRID_SIZE as usize];
-        
-        // Place entities on grid 
+
+        // Place entities on grid
         for (_entity, position) in world.query_components::<(In<Position>,)>() {
             let x = position.x as usize;
             let y = position.y as usize;
-            
+
             if x < GRID_SIZE as usize && y < GRID_SIZE as usize {
                 // Check what type of entity this is by position
                 if (position.x, position.y) == HOME_POS {
@@ -315,7 +320,7 @@ impl System for RenderSystem {
                 }
             }
         }
-        
+
         // Ensure home and work are always visible
         if HOME_POS.0 >= 0 && HOME_POS.0 < GRID_SIZE && HOME_POS.1 >= 0 && HOME_POS.1 < GRID_SIZE {
             grid[HOME_POS.1 as usize][HOME_POS.0 as usize] = 'H';
@@ -323,7 +328,7 @@ impl System for RenderSystem {
         if WORK_POS.0 >= 0 && WORK_POS.0 < GRID_SIZE && WORK_POS.1 >= 0 && WORK_POS.1 < GRID_SIZE {
             grid[WORK_POS.1 as usize][WORK_POS.0 as usize] = 'W';
         }
-        
+
         // Print grid
         println!("Simulation Game - Actors traveling between Home and Work");
         println!("H = Home, W = Work, A = Actor");
@@ -336,26 +341,42 @@ impl System for RenderSystem {
         }
         println!();
     }
-    
+
     fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 }
 
 // Helper functions
 
-fn calculate_next_move(current: (i32, i32), target: (i32, i32), obstacles: &HashSet<(i32, i32)>) -> (i32, i32) {
+fn calculate_next_move(
+    current: (i32, i32),
+    target: (i32, i32),
+    obstacles: &HashSet<(i32, i32)>,
+) -> (i32, i32) {
     let (cx, cy) = current;
     let (tx, ty) = target;
-    
+
     // Calculate direction
-    let dx = if tx > cx { 1 } else if tx < cx { -1 } else { 0 };
-    let dy = if ty > cy { 1 } else if ty < cy { -1 } else { 0 };
-    
+    let dx = if tx > cx {
+        1
+    } else if tx < cx {
+        -1
+    } else {
+        0
+    };
+    let dy = if ty > cy {
+        1
+    } else if ty < cy {
+        -1
+    } else {
+        0
+    };
+
     // Try diagonal movement first
     let diagonal = (cx + dx, cy + dy);
     if !obstacles.contains(&diagonal) && is_valid_position(diagonal) {
         return diagonal;
     }
-    
+
     // Try horizontal movement
     if dx != 0 {
         let horizontal = (cx + dx, cy);
@@ -363,7 +384,7 @@ fn calculate_next_move(current: (i32, i32), target: (i32, i32), obstacles: &Hash
             return horizontal;
         }
     }
-    
+
     // Try vertical movement
     if dy != 0 {
         let vertical = (cx, cy + dy);
@@ -371,7 +392,7 @@ fn calculate_next_move(current: (i32, i32), target: (i32, i32), obstacles: &Hash
             return vertical;
         }
     }
-    
+
     // Can't move, stay in place
     current
 }
@@ -391,23 +412,35 @@ fn is_adjacent(pos1: (i32, i32), pos2: (i32, i32)) -> bool {
 pub fn initialize_game() -> World {
     let mut world = World::new();
     let mut rng = rand::thread_rng();
-    
+
     // Create home entity
     let home_entity = world.create_entity();
-    world.add_component(home_entity, Position { x: HOME_POS.0, y: HOME_POS.1 });
+    world.add_component(
+        home_entity,
+        Position {
+            x: HOME_POS.0,
+            y: HOME_POS.1,
+        },
+    );
     world.add_component(home_entity, Home);
     world.add_component(home_entity, Obstacle);
-    
+
     // Create work entity
     let work_entity = world.create_entity();
-    world.add_component(work_entity, Position { x: WORK_POS.0, y: WORK_POS.1 });
+    world.add_component(
+        work_entity,
+        Position {
+            x: WORK_POS.0,
+            y: WORK_POS.1,
+        },
+    );
     world.add_component(work_entity, Work);
     world.add_component(work_entity, Obstacle);
-    
+
     // Create 3 actors at random positions
     for _i in 0..3 {
         let actor_entity = world.create_entity();
-        
+
         // Generate random position that's not home or work
         let mut pos;
         loop {
@@ -416,22 +449,28 @@ pub fn initialize_game() -> World {
                 break;
             }
         }
-        
+
         world.add_component(actor_entity, Position { x: pos.0, y: pos.1 });
         world.add_component(actor_entity, Actor);
-        world.add_component(actor_entity, Target { x: WORK_POS.0, y: WORK_POS.1 }); // Start by going to work
+        world.add_component(
+            actor_entity,
+            Target {
+                x: WORK_POS.0,
+                y: WORK_POS.1,
+            },
+        ); // Start by going to work
         world.add_component(actor_entity, WaitTimer { ticks: 0 });
         world.add_component(actor_entity, ActorState::MovingToWork);
     }
-    
+
     // Add systems
     world.add_system(MovementSystem);
     world.add_system(WaitSystem);
     world.add_system(RenderSystem);
-    
+
     // Initialize systems
     world.initialize_systems();
-    
+
     world
 }
 
@@ -439,9 +478,9 @@ pub fn run_game() {
     println!("Starting Simulation Game...");
     println!("Actors will travel between Home (H) and Work (W)");
     println!("Press Ctrl+C to stop the simulation");
-    
+
     let mut world = initialize_game();
-    
+
     // Game loop - 2 ticks per second
     loop {
         world.update();
@@ -452,24 +491,24 @@ pub fn run_game() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_game_initialization() {
         let world = initialize_game();
-        
+
         // Should have 5 entities: home, work, and 3 actors
         assert_eq!(world.entity_count(), 5);
-        
+
         // Should have entities with Home and Work components
         let home_entities = world.entities_with_component::<Home>();
         let work_entities = world.entities_with_component::<Work>();
         let actor_entities = world.entities_with_component::<Actor>();
-        
+
         assert_eq!(home_entities.len(), 1);
         assert_eq!(work_entities.len(), 1);
         assert_eq!(actor_entities.len(), 3);
     }
-    
+
     #[test]
     fn test_valid_position() {
         assert!(is_valid_position((0, 0)));
@@ -479,7 +518,7 @@ mod tests {
         assert!(!is_valid_position((0, -1)));
         assert!(!is_valid_position((0, 10)));
     }
-    
+
     #[test]
     fn test_is_adjacent() {
         assert!(is_adjacent((1, 1), (1, 2))); // vertical
@@ -489,15 +528,15 @@ mod tests {
         assert!(!is_adjacent((1, 1), (1, 1))); // same position
         assert!(!is_adjacent((1, 1), (3, 3))); // too far
     }
-    
+
     #[test]
     fn test_calculate_next_move() {
         let obstacles = HashSet::new();
-        
+
         // Test direct movement
         assert_eq!(calculate_next_move((0, 0), (2, 2), &obstacles), (1, 1));
         assert_eq!(calculate_next_move((5, 5), (3, 3), &obstacles), (4, 4));
-        
+
         // Test with obstacle
         let mut obstacles_with_block = HashSet::new();
         obstacles_with_block.insert((1, 1));
