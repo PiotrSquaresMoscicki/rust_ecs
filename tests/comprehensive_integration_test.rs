@@ -31,14 +31,9 @@ struct Health {
 }
 
 /// A system that moves entities based on their velocity
+#[derive(Default)]
 struct MovementSystem {
     initialized: bool,
-}
-
-impl Default for MovementSystem {
-    fn default() -> Self {
-        Self { initialized: false }
-    }
 }
 
 impl System for MovementSystem {
@@ -71,14 +66,9 @@ impl System for MovementSystem {
 }
 
 /// A system that handles health regeneration and damage
+#[derive(Default)]
 struct HealthSystem {
     frame_count: usize,
-}
-
-impl Default for HealthSystem {
-    fn default() -> Self {
-        Self { frame_count: 0 }
-    }
 }
 
 impl System for HealthSystem {
