@@ -4,9 +4,9 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput, Data, Fields};
 
-/// Derive macro for automatically implementing Diffable trait
-#[proc_macro_derive(Diffable)]
-pub fn derive_diffable(input: TokenStream) -> TokenStream {
+/// Derive macro for automatically implementing Diff trait
+#[proc_macro_derive(Diff)]
+pub fn derive_diff(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     
     let name = &input.ident;
@@ -20,7 +20,7 @@ pub fn derive_diffable(input: TokenStream) -> TokenStream {
                 
                 let diff_fields = field_names.iter().zip(field_types.iter()).map(|(name, ty)| {
                     quote! {
-                        pub #name: Option<<#ty as crate::Diffable>::Diff>
+                        pub #name: Option<<#ty as crate::Diff>::Diff>
                     }
                 });
                 
@@ -50,7 +50,7 @@ pub fn derive_diffable(input: TokenStream) -> TokenStream {
                         #(#diff_fields,)*
                     }
                     
-                    impl crate::Diffable for #name {
+                    impl crate::Diff for #name {
                         type Diff = #diff_name;
                         
                         fn diff(&self, other: &Self) -> Option<Self::Diff> {
@@ -71,14 +71,14 @@ pub fn derive_diffable(input: TokenStream) -> TokenStream {
                         }
                     }
                     
-                    impl crate::DiffableComponent for #name {}
+                    impl crate::DiffComponent for #name {}
                 };
                 
                 TokenStream::from(expanded)
             } else {
-                panic!("Diffable can only be derived for structs with named fields");
+                panic!("Diff can only be derived for structs with named fields");
             }
         }
-        _ => panic!("Diffable can only be derived for structs"),
+    _ => panic!("Diff can only be derived for structs"),
     }
 }

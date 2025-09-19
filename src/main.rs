@@ -1,26 +1,26 @@
-use rust_ecs::{Diffable, DiffableComponent, In, Out, System, World, WorldView};
+use rust_ecs::{Diff, DiffComponent, In, Out, System, World, WorldView};
 
-// Example components with Diffable implementation using derive macro
-#[derive(Debug, Diffable)]
+// Example components with Diff implementation using derive macro
+#[derive(Debug, Diff)]
 struct Position {
     x: f32,
     y: f32,
 }
 
-#[derive(Debug, Clone, Diffable)]
+#[derive(Debug, Clone, Diff)]
 struct Velocity {
     dx: f32,
     dy: f32,
 }
 
-#[derive(Debug, Diffable)]
+#[derive(Debug, Diff)]
 struct Health {
     current: i32,
     max: i32,
 }
 
 // Demo component to show derive macro in action
-#[derive(Debug, Diffable)]
+#[derive(Debug, Diff)]
 struct Temperature {
     celsius: f32,
     pressure: f32,
@@ -188,8 +188,8 @@ fn main() {
         world.entities_with_component::<Health>()
     );
 
-    // Demonstrate diffable functionality and derive macro
-    demo_diffable_functionality();
+    // Demonstrate diff functionality and derive macro
+    demo_diff_functionality();
 
     // Demonstrate the derive macro specifically
     demo_derive_macro();
@@ -198,7 +198,7 @@ fn main() {
 fn demo_derive_macro() {
     println!("\n--- Derive Macro Demo ---");
 
-    // Create instances of the Temperature component that uses #[derive(Diffable)]
+    // Create instances of the Temperature component that uses #[derive(Diff)]
     let temp1 = Temperature {
         celsius: 20.0,
         pressure: 1013.25,
@@ -232,10 +232,10 @@ fn demo_derive_macro() {
         println!("No diff when comparing identical temperatures (as expected)");
     }
 
-    println!("✅ Derive macro working perfectly! Components automatically implement Diffable with #[derive(Diffable)]");
+    println!("✅ Derive macro working perfectly! Components automatically implement Diff with #[derive(Diff)]");
 }
 
-fn demo_diffable_functionality() {
+fn demo_diff_functionality() {
     println!("\n--- Transparent Diff Tracking Demo ---");
 
     let mut world = World::new();

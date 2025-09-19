@@ -10,21 +10,21 @@
 use rust_ecs::*;
 
 /// Position component for entities
-#[derive(Debug, Clone, Diffable)]
+#[derive(Debug, Clone, Diff)]
 struct Position {
     x: f32,
     y: f32,
 }
 
 /// Velocity component for movement
-#[derive(Debug, Clone, Diffable)]
+#[derive(Debug, Clone, Diff)]
 struct Velocity {
     dx: f32,
     dy: f32,
 }
 
 /// Health component for damage systems
-#[derive(Debug, Clone, Diffable)]
+#[derive(Debug, Clone, Diff)]
 struct Health {
     current: i32,
     max: i32,
@@ -352,21 +352,21 @@ fn visualize_world_history(history: &WorldUpdateHistory) {
             // Show component changes
             for change in system_diff.component_changes() {
                 match change {
-                    DiffableComponentChange::Added {
+                    DiffComponentChange::Added {
                         entity,
                         type_name,
                         data,
                     } => {
                         println!("      Added {} to {:?}: {}", type_name, entity, data);
                     }
-                    DiffableComponentChange::Modified {
+                    DiffComponentChange::Modified {
                         entity,
                         type_name,
                         diff,
                     } => {
                         println!("      Modified {} on {:?}: {}", type_name, entity, diff);
                     }
-                    DiffableComponentChange::Removed { entity, type_name } => {
+                    DiffComponentChange::Removed { entity, type_name } => {
                         println!("      Removed {} from {:?}", type_name, entity);
                     }
                 }

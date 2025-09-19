@@ -8,7 +8,7 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
 // Re-export the derive macro from the derive crate
-pub use rust_ecs_derive::Diffable;
+pub use rust_ecs_derive::Diff;
 
 /// A dummy function to demonstrate the library.
 /// Returns the sum of two numbers.
@@ -17,7 +17,7 @@ pub fn add(a: i32, b: i32) -> i32 {
 }
 
 /// Trait for types that can be diffed to track changes
-pub trait Diffable {
+pub trait Diff {
     /// The type representing the diff between two instances
     type Diff: Clone + std::fmt::Debug;
 
@@ -34,20 +34,20 @@ pub trait Diffable {
     }
 }
 
-/// Macro to automatically implement Diffable for structs
+/// Macro to automatically implement Diff for structs
 /// Generates diff functions for all fields
 #[macro_export]
-macro_rules! impl_diffable {
+macro_rules! impl_diff {
     ($type:ident { $($field:ident: $field_type:ty),* $(,)? }) => {
         paste::paste! {
             #[derive(Clone, Debug)]
             pub struct [<$type Diff>] {
                 $(
-                    pub $field: Option<<$field_type as Diffable>::Diff>,
+                    pub $field: Option<<$field_type as Diff>::Diff>,
                 )*
             }
 
-            impl Diffable for $type {
+            impl Diff for $type {
                 type Diff = [<$type Diff>];
 
                 fn diff(&self, other: &Self) -> Option<Self::Diff> {
@@ -80,13 +80,13 @@ macro_rules! impl_diffable {
                 }
             }
 
-            impl DiffableComponent for $type {}
+            impl DiffComponent for $type {}
         }
     };
 }
 
-// Implement Diffable for primitive types
-impl Diffable for i32 {
+// Implement Diff for primitive types
+impl Diff for i32 {
     type Diff = i32;
 
     fn diff(&self, other: &Self) -> Option<Self::Diff> {
@@ -102,9 +102,9 @@ impl Diffable for i32 {
     }
 }
 
-impl DiffableComponent for i32 {}
+impl DiffComponent for i32 {}
 
-impl Diffable for f32 {
+impl Diff for f32 {
     type Diff = f32;
 
     fn diff(&self, other: &Self) -> Option<Self::Diff> {
@@ -120,9 +120,9 @@ impl Diffable for f32 {
     }
 }
 
-impl DiffableComponent for f32 {}
+impl DiffComponent for f32 {}
 
-impl Diffable for usize {
+impl Diff for usize {
     type Diff = usize;
 
     fn diff(&self, other: &Self) -> Option<Self::Diff> {
@@ -138,9 +138,9 @@ impl Diffable for usize {
     }
 }
 
-impl DiffableComponent for usize {}
+impl DiffComponent for usize {}
 
-impl Diffable for String {
+impl Diff for String {
     type Diff = String;
 
     fn diff(&self, other: &Self) -> Option<Self::Diff> {
@@ -156,9 +156,9 @@ impl Diffable for String {
     }
 }
 
-impl DiffableComponent for String {}
+impl DiffComponent for String {}
 
-impl<T: Diffable + Clone + std::fmt::Debug> Diffable for Vec<T> {
+impl<T: Diff + Clone + std::fmt::Debug> Diff for Vec<T> {
     type Diff = VecDiff<T>;
 
     fn diff(&self, other: &Self) -> Option<Self::Diff> {
@@ -229,18 +229,18 @@ impl<T: Diffable + Clone + std::fmt::Debug> Diffable for Vec<T> {
 }
 
 #[derive(Clone, Debug)]
-pub struct VecDiff<T: Diffable + std::fmt::Debug> {
+pub struct VecDiff<T: Diff + std::fmt::Debug> {
     pub changes: Vec<VecChange<T>>,
 }
 
 #[derive(Clone, Debug)]
-pub enum VecChange<T: Diffable + std::fmt::Debug> {
+pub enum VecChange<T: Diff + std::fmt::Debug> {
     Added { index: usize, value: T },
     Removed { index: usize },
     Modified { index: usize, diff: T::Diff },
 }
 
-impl<T: Diffable + std::fmt::Debug> VecChange<T> {
+impl<T: Diff + std::fmt::Debug> VecChange<T> {
     fn index(&self) -> usize {
         match self {
             VecChange::Added { index, .. } => *index,
@@ -252,8 +252,8 @@ impl<T: Diffable + std::fmt::Debug> VecChange<T> {
 
 impl<
         K: Clone + std::cmp::Eq + std::hash::Hash + std::fmt::Debug,
-        V: Diffable + Clone + std::fmt::Debug,
-    > Diffable for HashMap<K, V>
+        V: Diff + Clone + std::fmt::Debug,
+    > Diff for HashMap<K, V>
 {
     type Diff = HashMapDiff<K, V>;
 
@@ -312,12 +312,12 @@ impl<
 }
 
 #[derive(Clone, Debug)]
-pub struct HashMapDiff<K: std::fmt::Debug, V: Diffable + std::fmt::Debug> {
+pub struct HashMapDiff<K: std::fmt::Debug, V: Diff + std::fmt::Debug> {
     pub changes: HashMap<K, HashMapChange<V>>,
 }
 
 #[derive(Clone, Debug)]
-pub enum HashMapChange<V: Diffable + std::fmt::Debug> {
+pub enum HashMapChange<V: Diff + std::fmt::Debug> {
     Added(V),
     Removed,
     Modified(V::Diff),
@@ -325,7 +325,7 @@ pub enum HashMapChange<V: Diffable + std::fmt::Debug> {
 
 /// An Entity is a unique identifier consisting of world index and entity index.
 /// This allows entities to be uniquely identified across multiple worlds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Diffable)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Diff)]
 pub struct Entity {
     /// Index of the world this entity belongs to
     pub world_index: usize,
@@ -694,7 +694,7 @@ pub enum WorldOperation {
 
 /// Enhanced component change operations for better tracking
 #[derive(Debug, Clone)]
-pub enum DiffableComponentChange {
+pub enum DiffComponentChange {
     Added {
         entity: Entity,
         type_name: String,
@@ -711,8 +711,8 @@ pub enum DiffableComponentChange {
     },
 }
 
-/// Trait for components that can be tracked in the diffable change system
-pub trait DiffableComponent: Diffable + std::fmt::Debug + 'static {
+/// Trait for components that can be tracked in the diff change system
+pub trait DiffComponent: Diff + std::fmt::Debug + 'static {
     /// Serialize the component to a string representation
     fn serialize(&self) -> String {
         format!("{:?}", self)
@@ -724,10 +724,10 @@ pub trait DiffableComponent: Diffable + std::fmt::Debug + 'static {
     }
 }
 
-/// Enhanced system initialization diff tracking with diffable components
+/// Enhanced system initialization diff tracking with diff components
 #[derive(Debug)]
 pub struct SystemInitDiff {
-    pub component_changes: Vec<DiffableComponentChange>,
+    pub component_changes: Vec<DiffComponentChange>,
     pub world_operations: Vec<WorldOperation>,
 }
 
@@ -745,7 +745,7 @@ impl SystemInitDiff {
         }
     }
 
-    pub fn record_component_change(&mut self, change: DiffableComponentChange) {
+    pub fn record_component_change(&mut self, change: DiffComponentChange) {
         self.component_changes.push(change);
     }
 
@@ -754,10 +754,10 @@ impl SystemInitDiff {
     }
 }
 
-/// Enhanced system update diff tracking with diffable components
+/// Enhanced system update diff tracking with diff components
 #[derive(Debug)]
 pub struct SystemUpdateDiff {
-    pub component_changes: Vec<DiffableComponentChange>,
+    pub component_changes: Vec<DiffComponentChange>,
     pub world_operations: Vec<WorldOperation>,
 }
 
@@ -775,7 +775,7 @@ impl SystemUpdateDiff {
         }
     }
 
-    pub fn record_component_change(&mut self, change: DiffableComponentChange) {
+    pub fn record_component_change(&mut self, change: DiffComponentChange) {
         self.component_changes.push(change);
     }
 
@@ -783,7 +783,7 @@ impl SystemUpdateDiff {
         self.world_operations.push(operation);
     }
 
-    pub fn component_changes(&self) -> &[DiffableComponentChange] {
+    pub fn component_changes(&self) -> &[DiffComponentChange] {
         &self.component_changes
     }
 
@@ -792,10 +792,10 @@ impl SystemUpdateDiff {
     }
 }
 
-/// Enhanced system deinitialization diff tracking with diffable components
+/// Enhanced system deinitialization diff tracking with diff components
 #[derive(Debug)]
 pub struct SystemDeinitDiff {
-    pub component_changes: Vec<DiffableComponentChange>,
+    pub component_changes: Vec<DiffComponentChange>,
     pub world_operations: Vec<WorldOperation>,
 }
 
@@ -813,7 +813,7 @@ impl SystemDeinitDiff {
         }
     }
 
-    pub fn record_component_change(&mut self, change: DiffableComponentChange) {
+    pub fn record_component_change(&mut self, change: DiffComponentChange) {
         self.component_changes.push(change);
     }
 
@@ -1190,14 +1190,14 @@ impl World {
             // the actual component data and diffs. For this demo, we just log them.
             for change in system_diff.component_changes() {
                 match change {
-                    DiffableComponentChange::Added {
+                    DiffComponentChange::Added {
                         entity,
                         type_name,
                         data,
                     } => {
                         println!("    Would add {} to {:?}: {}", type_name, entity, data);
                     }
-                    DiffableComponentChange::Modified {
+                    DiffComponentChange::Modified {
                         entity,
                         type_name,
                         diff,
@@ -1207,7 +1207,7 @@ impl World {
                             type_name, entity, diff
                         );
                     }
-                    DiffableComponentChange::Removed { entity, type_name } => {
+                    DiffComponentChange::Removed { entity, type_name } => {
                         println!("    Would remove {} from {:?}", type_name, entity);
                     }
                 }
@@ -1557,7 +1557,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diffable_entity() {
+    fn test_diff_entity() {
         let entity1 = Entity::new(0, 5);
         let entity2 = Entity::new(0, 5);
         let entity3 = Entity::new(0, 10);
@@ -1583,7 +1583,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diffable_primitives() {
+    fn test_diff_primitives() {
         // Test i32 diffing
         let a = 5i32;
         let b = 5i32;
@@ -1614,7 +1614,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diffable_vec() {
+    fn test_diff_vec() {
         let vec1 = vec![1, 2, 3];
         let vec2 = vec![1, 2, 3];
         let vec3 = vec![1, 5, 3, 4];
@@ -1633,7 +1633,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diffable_hashmap() {
+    fn test_diff_hashmap() {
         let mut map1 = HashMap::new();
         map1.insert("key1".to_string(), 1);
         map1.insert("key2".to_string(), 2);
