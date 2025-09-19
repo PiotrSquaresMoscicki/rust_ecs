@@ -170,19 +170,11 @@ impl System for WaitSystem {
 }
 
 // Render System - displays the 10x10 grid
-pub struct RenderSystem {
-    pub replay_mode: bool,
-}
+pub struct RenderSystem;
 
 impl Default for RenderSystem {
     fn default() -> Self {
-        Self { replay_mode: false }
-    }
-}
-
-impl RenderSystem {
-    pub fn new_replay_mode() -> Self {
-        Self { replay_mode: true }
+        Self
     }
 }
 
@@ -227,14 +219,9 @@ impl System for RenderSystem {
             grid[WORK_POS.1 as usize][WORK_POS.0 as usize] = 'W';
         }
 
-        // Print grid with appropriate title based on mode
-        if self.replay_mode {
-            println!("Simulation Game REPLAY - Actors traveling between Home and Work");
-            println!("H = Home, W = Work, A = Actor (Replay Mode - Systems operating on component copies)");
-        } else {
-            println!("Simulation Game - Actors traveling between Home and Work");
-            println!("H = Home, W = Work, A = Actor");
-        }
+        // Print grid - same output regardless of mode
+        println!("Simulation Game - Actors traveling between Home and Work");
+        println!("H = Home, W = Work, A = Actor");
         println!();
         for row in &grid {
             for cell in row {
@@ -313,14 +300,6 @@ fn is_adjacent(pos1: (i32, i32), pos2: (i32, i32)) -> bool {
 // Game initialization and main loop
 
 pub fn initialize_game() -> World {
-    initialize_game_with_mode(false)
-}
-
-pub fn initialize_game_replay() -> World {
-    initialize_game_with_mode(true)
-}
-
-fn initialize_game_with_mode(replay_mode: bool) -> World {
     let mut world = World::new();
     let mut rng = rand::thread_rng();
 
@@ -374,16 +353,10 @@ fn initialize_game_with_mode(replay_mode: bool) -> World {
         world.add_component(actor_entity, ActorState::MovingToWork);
     }
 
-    // Add systems
+    // Add systems - same for both normal and replay modes
     world.add_system(MovementSystem);
     world.add_system(WaitSystem);
-    
-    // Add appropriate render system based on mode
-    if replay_mode {
-        world.add_system(RenderSystem::new_replay_mode());
-    } else {
-        world.add_system(RenderSystem::default());
-    }
+    world.add_system(RenderSystem::default());
 
     // Initialize systems
     world.initialize_systems();
@@ -399,8 +372,8 @@ pub fn run_game_replay(replay_log_path: &str) {
     println!("Starting Simulation Game in Replay Mode...");
     println!("Loading replay data from: {}", replay_log_path);
     
-    // Initialize the game world in replay mode
-    let mut world = initialize_game_replay();
+    // Initialize the game world - same as normal mode
+    let mut world = initialize_game();
     
     // Run the replay using existing systems with component copies
     match run_replay_with_existing_systems(&mut world, replay_log_path) {

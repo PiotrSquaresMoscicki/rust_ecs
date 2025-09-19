@@ -4,7 +4,7 @@ The ECS framework now supports replay mode functionality that allows you to repl
 
 ## Key Concept
 
-The main insight is that the existing ECS systems (MovementSystem, WaitSystem, RenderSystem) can work with component copies during replay mode without requiring any replay-specific systems. This allows developers to perform replay analysis using the same systems that run the live game.
+The main insight is that the existing ECS systems (MovementSystem, WaitSystem, RenderSystem) work with component copies during replay mode without being aware of it. This allows developers to perform replay analysis using the same systems that run the live game, with replay functionality being completely invisible to the systems.
 
 ## How to Use Replay Mode
 
@@ -35,50 +35,52 @@ cargo run game /path/to/replay.log
 ```
 
 This will:
-- Initialize the same ECS world as normal mode
-- Use the same systems (MovementSystem, WaitSystem, RenderSystem) 
+- Initialize the exact same ECS world as normal mode
+- Use the identical systems (MovementSystem, WaitSystem, RenderSystem) 
 - Apply replay data by updating component values from the log
-- Systems read and render the updated components but the world state follows exactly the replay data
+- Systems read and render the updated components without knowing it's replay data
 
 ## Key Features
 
-### No Dedicated Replay Systems Required
+### Replay Functionality Invisible to Systems
 
-The breakthrough of this approach is that **no separate replay systems are needed**. The existing game systems work perfectly in replay mode:
+The breakthrough of this approach is that **systems are completely unaware of replay mode**. There are no replay-specific properties, flags, or different behaviors in the systems:
 
-- `MovementSystem`: Reads Position and Target components (now from replay data)
-- `WaitSystem`: Reads WaitTimer components (now from replay data)  
-- `RenderSystem`: Reads Position components and renders the grid (now from replay data)
+- `MovementSystem`: Reads Position and Target components (unaware of data source)
+- `WaitSystem`: Reads WaitTimer components (unaware of data source)  
+- `RenderSystem`: Reads Position components and renders the grid (unaware of data source)
 
-### Component Copy Approach
+### True Component Copy Approach
 
 In replay mode:
 - Components are updated based on replay log data instead of game logic
 - Systems read these "replayed" components through normal ECS queries
 - The same rendering and logic systems work seamlessly
 - World state progression follows only the replay data
+- **Systems have no knowledge they're operating on replay data**
 
-### Mode-Aware Rendering
+### Unified System Architecture
 
-The `RenderSystem` automatically detects replay mode and shows:
-- Normal mode: "Simulation Game - Actors traveling between Home and Work"
-- Replay mode: "Simulation Game REPLAY - Actors traveling between Home and Work (Replay Mode - Systems operating on component copies)"
+Both modes use the identical systems and initialization:
+- Same `initialize_game()` function for both normal and replay modes
+- Same system registration: `MovementSystem`, `WaitSystem`, `RenderSystem`
+- Same rendering output: "Simulation Game - Actors traveling between Home and Work"
+- No mode-specific logic or properties anywhere in the systems
 
 ## Architecture
 
 ### Unified System Design
 
 ```rust
-// Same systems work for both modes
-pub struct RenderSystem {
-    pub replay_mode: bool,  // Only for display purposes
-}
+// Same systems work for both modes with no knowledge of replay
+pub struct RenderSystem;
 
-// Systems read components the same way regardless of mode
 impl System for RenderSystem {
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
+        // Same rendering logic works for both live and replay data
+        // System is completely unaware of data source
         for (_entity, position) in world.query_components::<(In<Position>,)>() {
-            // Same rendering logic works for both live and replay data
+            // Systems automatically see updated components from any source
         }
     }
 }
@@ -86,9 +88,10 @@ impl System for RenderSystem {
 
 ### Component Copy Implementation
 
-- In normal mode: Game logic updates components
-- In replay mode: `simulate_replay_frame()` applies replay data to components
-- Both modes: Systems read components through standard ECS queries
+- In normal mode: Game logic updates components → Systems read and render
+- In replay mode: Replay data updates components → Same systems read and render
+- Both modes: Systems use identical ECS queries and rendering logic
+- **Key insight**: Systems never know which mode they're in
 
 ### Replay Data Application
 
@@ -100,6 +103,7 @@ fn simulate_replay_frame(world: &mut World, frame: usize) {
     world.add_component(entity, new_position);
     
     // Existing systems automatically see the updated components
+    // They have no idea this data came from a replay log
 }
 ```
 
@@ -117,17 +121,19 @@ fn simulate_replay_frame(world: &mut World, frame: usize) {
    # Same systems render actors, but positions come from replay data
    ```
 
-3. **Observe the key difference:**
+3. **Observe the key insight:**
    - Normal mode: Systems update components based on game logic
    - Replay mode: Components are updated from replay data, systems just read and render
+   - Both modes: **Systems are completely unaware of which mode they're in**
 
 ## Benefits of This Approach
 
-1. **No Code Duplication**: Same systems work for both modes
+1. **No Code Duplication**: Same systems work for both modes with zero awareness
 2. **Easier Maintenance**: One set of rendering/logic systems to maintain
-3. **Consistency**: Replay rendering is guaranteed to match live rendering
-4. **Developer Friendly**: No need to implement replay-specific systems
-5. **Component Copy Safety**: Systems operate on the data but world state is controlled by replay
+3. **Guaranteed Consistency**: Replay rendering matches live rendering exactly
+4. **Developer Friendly**: No need to implement any replay-specific code in systems
+5. **True Invisibility**: Replay functionality is completely invisible to game systems
+6. **Component Copy Safety**: Systems operate on replay-driven component data but are unaware of it
 
 ## Implementation Notes
 
