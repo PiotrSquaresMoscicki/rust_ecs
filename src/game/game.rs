@@ -145,41 +145,52 @@ impl System for MovementSystem {
         // Collect all obstacle positions first
         let mut obstacles = HashSet::new();
         
-        // Add home and work positions as obstacles
+        // Add home and work positions as obstacles (don't move into them)
         obstacles.insert(HOME_POS);
         obstacles.insert(WORK_POS);
         
-        // Collect all actor positions (they are obstacles to each other)
-        let actor_positions: Vec<(i32, i32)> = world
+        // Collect all current actor positions to avoid collisions
+        let current_positions: Vec<(i32, i32)> = world
             .query_components::<(In<Position>, In<Actor>)>()
             .into_iter()
             .map(|(_, (pos, _))| (pos.x, pos.y))
             .collect();
         
-        for pos in &actor_positions {
-            obstacles.insert(*pos);
+        // Move each actor individually
+        let mut actor_data: Vec<((i32, i32), (i32, i32))> = Vec::new();
+        
+        // First, collect all actor positions and their targets
+        for (_entity, (position, _actor, target)) in world.query_components::<(In<Position>, In<Actor>, In<Target>)>() {
+            actor_data.push(((position.x, position.y), (target.x, target.y)));
         }
         
-        // Move each actor
-        for (entity, position) in world.query_components::<(Out<Position>,)>() {
-            // We need to get target separately due to query limitations
-            let current_pos = (position.x, position.y);
-            
-            // For now, simple movement - we'll improve this later
-            // This is a simplified version that moves toward work first
-            let target_pos = WORK_POS;
-            
-            if current_pos == target_pos {
-                continue; // Already at target
-            }
-            
-            // Calculate next move using simple pathfinding
-            let next_pos = calculate_next_move(current_pos, target_pos, &obstacles);
-            
-            // Update position if we can move
-            if next_pos != current_pos && is_valid_position(next_pos) && !obstacles.contains(&next_pos) {
-                position.x = next_pos.0;
-                position.y = next_pos.1;
+        // Now update positions
+        let mut update_index = 0;
+        for (_entity, position) in world.query_components::<(Out<Position>,)>() {
+            // Only update actor positions (skip home and work)
+            if update_index < actor_data.len() {
+                let (current_pos, target_pos) = actor_data[update_index];
+                
+                // Don't move if already at target or adjacent to target
+                if !is_adjacent(current_pos, target_pos) && current_pos != target_pos {
+                    // Create a temporary obstacles set without the current actor
+                    let mut temp_obstacles = obstacles.clone();
+                    for &pos in &current_positions {
+                        if pos != current_pos {
+                            temp_obstacles.insert(pos);
+                        }
+                    }
+                    
+                    // Calculate next move
+                    let next_pos = calculate_next_move(current_pos, target_pos, &temp_obstacles);
+                    
+                    // Update position if we can move
+                    if next_pos != current_pos && is_valid_position(next_pos) && !temp_obstacles.contains(&next_pos) {
+                        position.x = next_pos.0;
+                        position.y = next_pos.1;
+                    }
+                }
+                update_index += 1;
             }
         }
     }
@@ -196,22 +207,73 @@ impl System for WaitSystem {
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
     
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
-        // Due to query limitations, we'll process wait timers and targets separately
-        for (entity, wait_timer) in world.query_components::<(Out<WaitTimer>,)>() {
-            if wait_timer.ticks > 0 {
-                wait_timer.ticks -= 1;
+        // Collect actor data first - use simpler queries due to framework limitations
+        let mut actor_positions: Vec<(i32, i32)> = Vec::new();
+        let mut actor_targets: Vec<(i32, i32)> = Vec::new();
+        let mut wait_times: Vec<u32> = Vec::new();
+        
+        // Collect positions
+        for (_entity, (position, _actor)) in world.query_components::<(In<Position>, In<Actor>)>() {
+            actor_positions.push((position.x, position.y));
+        }
+        
+        // Collect targets
+        for (_entity, target) in world.query_components::<(In<Target>,)>() {
+            actor_targets.push((target.x, target.y));
+        }
+        
+        // Collect wait times
+        for (_entity, wait_timer) in world.query_components::<(In<WaitTimer>,)>() {
+            wait_times.push(wait_timer.ticks);
+        }
+        
+        // Calculate updates needed
+        let mut updates: Vec<(bool, bool, u32)> = Vec::new();
+        for i in 0..actor_positions.len().min(actor_targets.len()).min(wait_times.len()) {
+            let current_pos = actor_positions[i];
+            let target_pos = actor_targets[i];
+            let current_ticks = wait_times[i];
+            
+            let is_near_target = is_adjacent(current_pos, target_pos) || current_pos == target_pos;
+            let should_switch = is_near_target && current_ticks == 0;
+            let new_ticks = if is_near_target && current_ticks > 0 {
+                current_ticks - 1
+            } else if should_switch {
+                WAIT_TICKS
+            } else {
+                current_ticks
+            };
+            
+            updates.push((is_near_target, should_switch, new_ticks));
+        }
+        
+        // Update wait timers
+        let mut timer_index = 0;
+        for (_entity, wait_timer) in world.query_components::<(Out<WaitTimer>,)>() {
+            if timer_index < updates.len() {
+                wait_timer.ticks = updates[timer_index].2;
+                timer_index += 1;
             }
         }
         
-        // Process target switching (simplified)
-        for (entity, target) in world.query_components::<(Out<Target>,)>() {
-            // Simple toggle between home and work
-            if target.x == HOME_POS.0 && target.y == HOME_POS.1 {
-                target.x = WORK_POS.0;
-                target.y = WORK_POS.1;
-            } else {
-                target.x = HOME_POS.0;
-                target.y = HOME_POS.1;
+        // Update targets
+        let mut target_index = 0;
+        for (_entity, target) in world.query_components::<(Out<Target>,)>() {
+            if target_index < updates.len() && target_index < actor_targets.len() {
+                let should_switch = updates[target_index].1;
+                let current_target = actor_targets[target_index];
+                
+                if should_switch {
+                    // Switch target between home and work
+                    if current_target == HOME_POS {
+                        target.x = WORK_POS.0;
+                        target.y = WORK_POS.1;
+                    } else {
+                        target.x = HOME_POS.0;
+                        target.y = HOME_POS.1;
+                    }
+                }
+                target_index += 1;
             }
         }
     }
@@ -234,9 +296,8 @@ impl System for RenderSystem {
         // Create grid
         let mut grid = vec![vec!['.'; GRID_SIZE as usize]; GRID_SIZE as usize];
         
-        // Place entities on grid - simplified approach
-        // We'll query all positions and determine entity type by checking components individually
-        for (entity, position) in world.query_components::<(In<Position>,)>() {
+        // Place entities on grid 
+        for (_entity, position) in world.query_components::<(In<Position>,)>() {
             let x = position.x as usize;
             let y = position.y as usize;
             
@@ -247,9 +308,20 @@ impl System for RenderSystem {
                 } else if (position.x, position.y) == WORK_POS {
                     grid[y][x] = 'W';
                 } else {
-                    grid[y][x] = 'A'; // Assume it's an actor
+                    // If the position overlaps with home or work, show the location marker instead
+                    if grid[y][x] == '.' {
+                        grid[y][x] = 'A'; // Actor
+                    }
                 }
             }
+        }
+        
+        // Ensure home and work are always visible
+        if HOME_POS.0 >= 0 && HOME_POS.0 < GRID_SIZE && HOME_POS.1 >= 0 && HOME_POS.1 < GRID_SIZE {
+            grid[HOME_POS.1 as usize][HOME_POS.0 as usize] = 'H';
+        }
+        if WORK_POS.0 >= 0 && WORK_POS.0 < GRID_SIZE && WORK_POS.1 >= 0 && WORK_POS.1 < GRID_SIZE {
+            grid[WORK_POS.1 as usize][WORK_POS.0 as usize] = 'W';
         }
         
         // Print grid
