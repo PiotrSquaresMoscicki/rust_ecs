@@ -143,6 +143,24 @@ impl Diff for usize {
 
 impl DiffComponent for usize {}
 
+impl Diff for u32 {
+    type Diff = u32;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        if self != other {
+            Some(*other)
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        *self = *diff;
+    }
+}
+
+impl DiffComponent for u32 {}
+
 impl Diff for String {
     type Diff = String;
 
@@ -1660,5 +1678,97 @@ mod tests {
         let mut map = map1.clone();
         map.apply_diff(&diff);
         assert_eq!(map, map3);
+    }
+
+    #[test]
+    fn test_diff_u32() {
+        // Test u32 diffing (newly implemented)
+        let a = 5u32;
+        let b = 5u32;
+        let c = 10u32;
+
+        assert!(a.diff(&b).is_none());
+        assert_eq!(a.diff(&c), Some(10));
+
+        let mut x = a;
+        x.apply_diff(&10);
+        assert_eq!(x, 10);
+    }
+
+    #[test]
+    fn test_diff_derive_unit_struct() {
+        // Test derive macro for unit structs
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct TestUnit;
+
+        let unit1 = TestUnit;
+        let unit2 = TestUnit;
+
+        // Unit structs should never have differences
+        assert!(unit1.diff(&unit2).is_none());
+
+        // Apply diff should work without doing anything
+        let mut unit = unit1;
+        unit.apply_diff(&());
+        assert_eq!(unit, unit1);
+    }
+
+    #[test]
+    fn test_diff_derive_enum() {
+        // Test derive macro for enums
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        enum TestEnum {
+            Variant1,
+            Variant2,
+            Variant3,
+        }
+
+        let e1 = TestEnum::Variant1;
+        let e2 = TestEnum::Variant1;
+        let e3 = TestEnum::Variant2;
+
+        // No diff for identical variants
+        assert!(e1.diff(&e2).is_none());
+
+        // Diff for different variants
+        assert_eq!(e1.diff(&e3), Some(TestEnum::Variant2));
+
+        // Apply diff
+        let mut e = e1;
+        e.apply_diff(&TestEnum::Variant3);
+        assert_eq!(e, TestEnum::Variant3);
+    }
+
+    #[test]
+    fn test_diff_derive_struct_with_u32() {
+        // Test derive macro for struct containing u32
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct TestStruct {
+            counter: u32,
+            value: i32,
+        }
+
+        let s1 = TestStruct { counter: 1, value: 10 };
+        let s2 = TestStruct { counter: 1, value: 10 };
+        let s3 = TestStruct { counter: 5, value: 10 };
+        let s4 = TestStruct { counter: 1, value: 20 };
+
+        // No diff for identical structs
+        assert!(s1.diff(&s2).is_none());
+
+        // Diff for changed u32 field
+        let diff = s1.diff(&s3).unwrap();
+        assert!(diff.counter.is_some());
+        assert!(diff.value.is_none());
+
+        // Diff for changed i32 field
+        let diff = s1.diff(&s4).unwrap();
+        assert!(diff.counter.is_none());
+        assert!(diff.value.is_some());
+
+        // Apply diff
+        let mut s = s1;
+        s.apply_diff(&s1.diff(&s3).unwrap());
+        assert_eq!(s, s3);
     }
 }
