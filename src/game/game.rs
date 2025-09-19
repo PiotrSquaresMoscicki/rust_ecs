@@ -1,4 +1,4 @@
-use crate::{Diff, DiffComponent, In, Out, System, World, WorldView};
+use crate::{Diff, In, Out, System, World, WorldView};
 use rand::Rng;
 use std::collections::HashSet;
 use std::thread;
@@ -16,60 +16,25 @@ pub struct Position {
     pub y: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
 pub struct Home;
 
-// Manually implement Diff for unit struct
-impl Diff for Home {
-    type Diff = ();
-    fn diff(&self, _other: &Self) -> Option<Self::Diff> {
-        None // Unit structs are always the same
-    }
-    fn apply_diff(&mut self, _diff: &Self::Diff) {
-        // Nothing to apply for unit structs
-    }
-}
 
-impl DiffComponent for Home {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
 pub struct Work;
 
-impl Diff for Work {
-    type Diff = ();
-    fn diff(&self, _other: &Self) -> Option<Self::Diff> {
-        None
-    }
-    fn apply_diff(&mut self, _diff: &Self::Diff) {}
-}
 
-impl DiffComponent for Work {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
 pub struct Actor;
 
-impl Diff for Actor {
-    type Diff = ();
-    fn diff(&self, _other: &Self) -> Option<Self::Diff> {
-        None
-    }
-    fn apply_diff(&mut self, _diff: &Self::Diff) {}
-}
 
-impl DiffComponent for Actor {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
 pub struct Obstacle;
 
-impl Diff for Obstacle {
-    type Diff = ();
-    fn diff(&self, _other: &Self) -> Option<Self::Diff> {
-        None
-    }
-    fn apply_diff(&mut self, _diff: &Self::Diff) {}
-}
 
-impl DiffComponent for Obstacle {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
 pub struct Target {
@@ -77,31 +42,14 @@ pub struct Target {
     pub y: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
 pub struct WaitTimer {
     pub ticks: u32,
 }
 
-// Manually implement Diff for WaitTimer since u32 doesn't implement Diff
-impl Diff for WaitTimer {
-    type Diff = u32;
 
-    fn diff(&self, other: &Self) -> Option<Self::Diff> {
-        if self.ticks != other.ticks {
-            Some(other.ticks)
-        } else {
-            None
-        }
-    }
 
-    fn apply_diff(&mut self, diff: &Self::Diff) {
-        self.ticks = *diff;
-    }
-}
-
-impl DiffComponent for WaitTimer {}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Diff)]
 #[allow(dead_code)]
 pub enum ActorState {
     #[default]
@@ -111,23 +59,7 @@ pub enum ActorState {
     WaitingAtHome,
 }
 
-impl Diff for ActorState {
-    type Diff = ActorState;
 
-    fn diff(&self, other: &Self) -> Option<Self::Diff> {
-        if self != other {
-            Some(*other)
-        } else {
-            None
-        }
-    }
-
-    fn apply_diff(&mut self, diff: &Self::Diff) {
-        *self = *diff;
-    }
-}
-
-impl DiffComponent for ActorState {}
 
 // Movement System - handles actor movement with obstacle avoidance
 pub struct MovementSystem;

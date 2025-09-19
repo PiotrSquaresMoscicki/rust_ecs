@@ -14,74 +14,124 @@ pub fn derive_diff(input: TokenStream) -> TokenStream {
 
     match &input.data {
         Data::Struct(data_struct) => {
-            if let Fields::Named(fields) = &data_struct.fields {
-                let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
-                let field_types: Vec<_> = fields.named.iter().map(|f| &f.ty).collect();
+            match &data_struct.fields {
+                Fields::Named(fields) => {
+                    // Handle structs with named fields
+                    let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
+                    let field_types: Vec<_> = fields.named.iter().map(|f| &f.ty).collect();
 
-                let diff_fields = field_names
-                    .iter()
-                    .zip(field_types.iter())
-                    .map(|(name, ty)| {
+                    let diff_fields = field_names
+                        .iter()
+                        .zip(field_types.iter())
+                        .map(|(name, ty)| {
+                            quote! {
+                                pub #name: Option<<#ty as crate::Diff>::Diff>
+                            }
+                        });
+
+                    let diff_computation = field_names.iter().map(|name| {
                         quote! {
-                            pub #name: Option<<#ty as crate::Diff>::Diff>
+                            #name: {
+                                let field_diff = self.#name.diff(&other.#name);
+                                if field_diff.is_some() {
+                                    has_changes = true;
+                                }
+                                field_diff
+                            }
                         }
                     });
 
-                let diff_computation = field_names.iter().map(|name| {
-                    quote! {
-                        #name: {
-                            let field_diff = self.#name.diff(&other.#name);
-                            if field_diff.is_some() {
-                                has_changes = true;
+                    let apply_diff_operations = field_names.iter().map(|name| {
+                        quote! {
+                            if let Some(ref field_diff) = diff.#name {
+                                self.#name.apply_diff(field_diff);
                             }
-                            field_diff
                         }
-                    }
-                });
+                    });
 
-                let apply_diff_operations = field_names.iter().map(|name| {
-                    quote! {
-                        if let Some(ref field_diff) = diff.#name {
-                            self.#name.apply_diff(field_diff);
+                    let expanded = quote! {
+                        #[derive(Clone, Debug)]
+                        pub struct #diff_name {
+                            #(#diff_fields,)*
                         }
-                    }
-                });
 
-                let expanded = quote! {
-                    #[derive(Clone, Debug)]
-                    pub struct #diff_name {
-                        #(#diff_fields,)*
-                    }
+                        impl crate::Diff for #name {
+                            type Diff = #diff_name;
 
-                    impl crate::Diff for #name {
-                        type Diff = #diff_name;
+                            fn diff(&self, other: &Self) -> Option<Self::Diff> {
+                                let mut has_changes = false;
+                                let diff = Self::Diff {
+                                    #(#diff_computation,)*
+                                };
 
-                        fn diff(&self, other: &Self) -> Option<Self::Diff> {
-                            let mut has_changes = false;
-                            let diff = Self::Diff {
-                                #(#diff_computation,)*
-                            };
+                                if has_changes {
+                                    Some(diff)
+                                } else {
+                                    None
+                                }
+                            }
 
-                            if has_changes {
-                                Some(diff)
-                            } else {
-                                None
+                            fn apply_diff(&mut self, diff: &Self::Diff) {
+                                #(#apply_diff_operations)*
                             }
                         }
 
-                        fn apply_diff(&mut self, diff: &Self::Diff) {
-                            #(#apply_diff_operations)*
+                        impl crate::DiffComponent for #name {}
+                    };
+
+                    TokenStream::from(expanded)
+                }
+                Fields::Unit => {
+                    // Handle unit structs
+                    let expanded = quote! {
+                        impl crate::Diff for #name {
+                            type Diff = ();
+
+                            fn diff(&self, _other: &Self) -> Option<Self::Diff> {
+                                None // Unit structs are always the same
+                            }
+
+                            fn apply_diff(&mut self, _diff: &Self::Diff) {
+                                // Nothing to apply for unit structs
+                            }
                         }
-                    }
 
-                    impl crate::DiffComponent for #name {}
-                };
+                        impl crate::DiffComponent for #name {}
+                    };
 
-                TokenStream::from(expanded)
-            } else {
-                panic!("Diff can only be derived for structs with named fields");
+                    TokenStream::from(expanded)
+                }
+                Fields::Unnamed(_) => {
+                    panic!("Diff derive macro does not support tuple structs yet");
+                }
             }
         }
-        _ => panic!("Diff can only be derived for structs"),
+        Data::Enum(_) => {
+            // Handle enums - they diff by value comparison like primitives
+            let expanded = quote! {
+                impl crate::Diff for #name {
+                    type Diff = #name;
+
+                    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+                        if self != other {
+                            Some(*other)
+                        } else {
+                            None
+                        }
+                    }
+
+                    fn apply_diff(&mut self, diff: &Self::Diff) {
+                        *self = *diff;
+                    }
+                }
+
+                impl crate::DiffComponent for #name {}
+            };
+
+            TokenStream::from(expanded)
+        }
+        Data::Union(_) => {
+            panic!("Diff derive macro does not support unions");
+        }
     }
 }
