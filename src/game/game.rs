@@ -410,6 +410,7 @@ pub fn run_game() {
     println!("Starting Simulation Game...");
     println!("Actors will travel between Home (H) and Work (W)");
     println!("Press Ctrl+C to stop the simulation");
+    println!("Note: Replay logging is available via API - see tests for examples");
 
     let mut world = initialize_game();
 
@@ -475,5 +476,31 @@ mod tests {
         let next = calculate_next_move((0, 0), (2, 2), &obstacles_with_block);
         // Should find alternative path
         assert!(next == (1, 0) || next == (0, 1));
+    }
+
+    #[test]
+    fn test_replay_history_basic() {
+        // Create a world and run some updates
+        let mut world = initialize_game();
+        
+        // Run some updates
+        for _ in 0..5 {
+            world.update();
+        }
+        
+        // Verify the history is being tracked
+        let history = world.get_update_history();
+        
+        println!("Test replay history tracking:");
+        println!("  Total updates recorded: {}", history.len());
+        
+        assert_eq!(history.len(), 5);
+        assert!(!history.is_empty());
+        
+        // Check that each update has system diffs
+        for (i, update) in history.updates().iter().enumerate() {
+            println!("  Update {}: {} system diffs", i + 1, update.system_diffs().len());
+            assert!(update.system_diffs().len() > 0);
+        }
     }
 }

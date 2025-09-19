@@ -7,3 +7,4 @@ edition = "2021"
 paste = "1.0"
 rand = "0.8"
 rust_ecs_derive = { path = "./rust_ecs_derive" }
+chrono = { version = "0.4", features = ["serde"] }

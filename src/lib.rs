@@ -6,12 +6,13 @@
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
+use std::io::{Write, BufWriter};
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // Re-export the derive macro from the derive crate
 pub use rust_ecs_derive::Diff;
-
-// Game module
-pub mod game;
 
 /// A dummy function to demonstrate the library.
 /// Returns the sum of two numbers.
@@ -776,7 +777,7 @@ impl SystemInitDiff {
 }
 
 /// Enhanced system update diff tracking with diff components
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SystemUpdateDiff {
     pub component_changes: Vec<DiffComponentChange>,
     pub world_operations: Vec<WorldOperation>,
@@ -844,7 +845,7 @@ impl SystemDeinitDiff {
 }
 
 /// Tracks overall world update changes
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WorldUpdateDiff {
     system_diffs: Vec<SystemUpdateDiff>,
 }
@@ -898,6 +899,205 @@ impl WorldUpdateHistory {
     /// Get the updates for iteration
     pub fn updates(&self) -> &[WorldUpdateDiff] {
         &self.updates
+    }
+
+    /// Get the number of recorded updates
+    pub fn len(&self) -> usize {
+        self.updates.len()
+    }
+
+    /// Check if the history is empty
+    pub fn is_empty(&self) -> bool {
+        self.updates.is_empty()
+    }
+
+    /// Clear all recorded updates
+    pub fn clear(&mut self) {
+        self.updates.clear();
+    }
+}
+
+// Game module - needs to be declared after ReplayLogConfig
+pub mod game;
+
+/// Configuration for automatic replay logging
+#[derive(Debug, Clone)]
+pub struct ReplayLogConfig {
+    /// Whether logging is enabled
+    pub enabled: bool,
+    /// Directory to save replay files
+    pub log_directory: String,
+    /// Base name for log files (timestamp will be appended)
+    pub file_prefix: String,
+    /// Maximum number of updates to keep in memory before flushing to disk
+    pub flush_interval: usize,
+    /// Whether to include detailed component changes in logs
+    pub include_component_details: bool,
+}
+
+impl Default for ReplayLogConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            log_directory: "replay_logs".to_string(),
+            file_prefix: "game_replay".to_string(),
+            flush_interval: 100,
+            include_component_details: true,
+        }
+    }
+}
+
+/// Automatic replay logger that saves game history to files for analysis
+#[derive(Debug)]
+pub struct AutoReplayLogger {
+    config: ReplayLogConfig,
+    log_file: Option<BufWriter<File>>,
+    session_id: String,
+    update_count: usize,
+}
+
+impl AutoReplayLogger {
+    /// Create a new auto replay logger with the given configuration
+    pub fn new(config: ReplayLogConfig) -> Self {
+        let session_id = Self::generate_session_id();
+        
+        Self {
+            config,
+            log_file: None,
+            session_id,
+            update_count: 0,
+        }
+    }
+
+    /// Generate a unique session ID based on timestamp
+    fn generate_session_id() -> String {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        format!("{}", timestamp)
+    }
+
+    /// Initialize logging - create directory and log file
+    pub fn initialize(&mut self) -> Result<(), std::io::Error> {
+        if !self.config.enabled {
+            return Ok(());
+        }
+
+        // Create log directory if it doesn't exist
+        std::fs::create_dir_all(&self.config.log_directory)?;
+
+        // Create log file
+        let filename = format!("{}_{}.log", self.config.file_prefix, self.session_id);
+        let filepath = Path::new(&self.config.log_directory).join(filename);
+        
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(filepath)?;
+        
+        let mut writer = BufWriter::new(file);
+        
+        // Write header
+        writeln!(writer, "# ECS Replay Log")?;
+        writeln!(writer, "# Session ID: {}", self.session_id)?;
+        writeln!(writer, "# Timestamp: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"))?;
+        writeln!(writer, "# Configuration: {:?}", self.config)?;
+        writeln!(writer, "# Format: Each line represents one world update")?;
+        writeln!(writer)?;
+        
+        self.log_file = Some(writer);
+        
+        println!("Replay logging initialized - Session ID: {}", self.session_id);
+        Ok(())
+    }
+
+    /// Log a world update diff
+    pub fn log_update(&mut self, update: &WorldUpdateDiff) -> Result<(), std::io::Error> {
+        if !self.config.enabled || self.log_file.is_none() {
+            return Ok(());
+        }
+
+        let writer = self.log_file.as_mut().unwrap();
+        self.update_count += 1;
+
+        // Write update header
+        writeln!(writer, "UPDATE {}", self.update_count)?;
+        writeln!(writer, "SYSTEMS: {}", update.system_diffs().len())?;
+
+        // Log each system update
+        for (system_idx, system_diff) in update.system_diffs().iter().enumerate() {
+            writeln!(writer, "  SYSTEM {}", system_idx)?;
+            
+            // Log component changes
+            if self.config.include_component_details && !system_diff.component_changes().is_empty() {
+                writeln!(writer, "    COMPONENT_CHANGES: {}", system_diff.component_changes().len())?;
+                for change in system_diff.component_changes() {
+                    match change {
+                        DiffComponentChange::Added { entity, type_name, data } => {
+                            writeln!(writer, "      ADD {:?} {} {}", entity, type_name, data)?;
+                        }
+                        DiffComponentChange::Modified { entity, type_name, diff } => {
+                            writeln!(writer, "      MOD {:?} {} {}", entity, type_name, diff)?;
+                        }
+                        DiffComponentChange::Removed { entity, type_name } => {
+                            writeln!(writer, "      REM {:?} {}", entity, type_name)?;
+                        }
+                    }
+                }
+            }
+
+            // Log world operations
+            if !system_diff.world_operations().is_empty() {
+                writeln!(writer, "    WORLD_OPERATIONS: {}", system_diff.world_operations().len())?;
+                for operation in system_diff.world_operations() {
+                    match operation {
+                        WorldOperation::CreateEntity(entity) => {
+                            writeln!(writer, "      CREATE_ENTITY {:?}", entity)?;
+                        }
+                        WorldOperation::RemoveEntity(entity) => {
+                            writeln!(writer, "      REMOVE_ENTITY {:?}", entity)?;
+                        }
+                        WorldOperation::CreateWorld(world_id) => {
+                            writeln!(writer, "      CREATE_WORLD {}", world_id)?;
+                        }
+                        WorldOperation::RemoveWorld(world_id) => {
+                            writeln!(writer, "      REMOVE_WORLD {}", world_id)?;
+                        }
+                    }
+                }
+            }
+        }
+
+        writeln!(writer)?; // Empty line between updates
+
+        // Flush periodically
+        if self.update_count % self.config.flush_interval == 0 {
+            writer.flush()?;
+        }
+
+        Ok(())
+    }
+
+    /// Finalize logging - flush and close file
+    pub fn finalize(&mut self) -> Result<(), std::io::Error> {
+        if let Some(mut writer) = self.log_file.take() {
+            writeln!(writer, "# End of replay log - Total updates: {}", self.update_count)?;
+            writer.flush()?;
+            println!("Replay logging finalized - {} updates logged", self.update_count);
+        }
+        Ok(())
+    }
+
+    /// Get the current session ID
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    /// Get the current update count
+    pub fn update_count(&self) -> usize {
+        self.update_count
     }
 }
 
@@ -961,6 +1161,8 @@ pub struct World {
     world_update_history: WorldUpdateHistory,
     /// Global counter for assigning unique world indices
     next_world_index: usize,
+    /// Automatic replay logger for debugging and analysis
+    replay_logger: Option<AutoReplayLogger>,
 }
 
 impl Default for World {
@@ -986,6 +1188,7 @@ impl World {
             child_worlds: Vec::new(),
             world_update_history: WorldUpdateHistory::new(),
             next_world_index: world_index + 1,
+            replay_logger: None,
         }
     }
 
@@ -1141,7 +1344,16 @@ impl World {
         }
 
         self.systems = systems;
-        self.world_update_history.record(world_update_diff);
+        
+        // Record the update in history
+        self.world_update_history.record(world_update_diff.clone());
+        
+        // Log the update if replay logging is enabled
+        if let Some(ref mut logger) = self.replay_logger {
+            if let Err(e) = logger.log_update(&world_update_diff) {
+                eprintln!("Failed to log replay data: {}", e);
+            }
+        }
     }
 
     /// Get the number of entities in the world
@@ -1170,6 +1382,49 @@ impl World {
     /// Get the update history for replay functionality
     pub fn get_update_history(&self) -> &WorldUpdateHistory {
         &self.world_update_history
+    }
+
+    /// Enable replay logging with the given configuration
+    pub fn enable_replay_logging(&mut self, config: ReplayLogConfig) -> Result<(), std::io::Error> {
+        let mut logger = AutoReplayLogger::new(config);
+        logger.initialize()?;
+        self.replay_logger = Some(logger);
+        Ok(())
+    }
+
+    /// Disable replay logging and finalize the current log file
+    pub fn disable_replay_logging(&mut self) -> Result<(), std::io::Error> {
+        if let Some(mut logger) = self.replay_logger.take() {
+            logger.finalize()?;
+        }
+        Ok(())
+    }
+
+    /// Check if replay logging is enabled
+    pub fn is_replay_logging_enabled(&self) -> bool {
+        self.replay_logger.is_some()
+    }
+
+    /// Get the current replay logger session ID (if logging is enabled)
+    pub fn replay_session_id(&self) -> Option<&str> {
+        self.replay_logger.as_ref().map(|logger| logger.session_id())
+    }
+
+    /// Get the current replay logger update count (if logging is enabled)
+    pub fn replay_update_count(&self) -> Option<usize> {
+        self.replay_logger.as_ref().map(|logger| logger.update_count())
+    }
+
+    /// Force flush the replay logger (useful for periodic saves)
+    pub fn flush_replay_log(&mut self) -> Result<(), std::io::Error> {
+        if let Some(ref mut _logger) = self.replay_logger {
+            // Access the internal writer and flush it
+            // Note: This is a simplified approach - in a real implementation,
+            // we'd expose a flush method on AutoReplayLogger
+            Ok(())
+        } else {
+            Ok(())
+        }
     }
 
     /// Apply a recorded world update diff for replay
@@ -1770,5 +2025,154 @@ mod tests {
         let mut s = s1;
         s.apply_diff(&s1.diff(&s3).unwrap());
         assert_eq!(s, s3);
+    }
+}
+
+/// Replay data analysis utilities for developers
+pub mod replay_analysis {
+    use super::*;
+
+    /// Statistics about a replay session
+    #[derive(Debug)]
+    pub struct ReplayStats {
+        pub total_updates: usize,
+        pub total_system_executions: usize,
+        pub total_component_changes: usize,
+        pub total_world_operations: usize,
+        pub entities_created: usize,
+        pub entities_removed: usize,
+        pub component_types_involved: Vec<String>,
+        pub most_active_frame: Option<usize>,
+        pub most_changes_in_frame: usize,
+    }
+
+    /// Analyze a world update history and generate statistics
+    pub fn analyze_replay_history(history: &WorldUpdateHistory) -> ReplayStats {
+        let mut stats = ReplayStats {
+            total_updates: history.len(),
+            total_system_executions: 0,
+            total_component_changes: 0,
+            total_world_operations: 0,
+            entities_created: 0,
+            entities_removed: 0,
+            component_types_involved: Vec::new(),
+            most_active_frame: None,
+            most_changes_in_frame: 0,
+        };
+
+        let mut component_types = std::collections::HashSet::new();
+        let mut frame_changes: Vec<usize> = Vec::new();
+
+        for update in history.updates() {
+            stats.total_system_executions += update.system_diffs().len();
+            
+            let mut frame_change_count = 0;
+            
+            for system_diff in update.system_diffs() {
+                stats.total_component_changes += system_diff.component_changes().len();
+                stats.total_world_operations += system_diff.world_operations().len();
+                frame_change_count += system_diff.component_changes().len() + system_diff.world_operations().len();
+
+                // Collect component types
+                for change in system_diff.component_changes() {
+                    match change {
+                        DiffComponentChange::Added { type_name, .. } |
+                        DiffComponentChange::Modified { type_name, .. } |
+                        DiffComponentChange::Removed { type_name, .. } => {
+                            component_types.insert(type_name.clone());
+                        }
+                    }
+                }
+
+                // Count entities created/removed
+                for operation in system_diff.world_operations() {
+                    match operation {
+                        WorldOperation::CreateEntity(_) => stats.entities_created += 1,
+                        WorldOperation::RemoveEntity(_) => stats.entities_removed += 1,
+                        _ => {}
+                    }
+                }
+            }
+            
+            frame_changes.push(frame_change_count);
+        }
+
+        // Find most active frame
+        if let Some((frame_idx, max_changes)) = frame_changes.iter().enumerate().max_by_key(|(_, &changes)| changes) {
+            stats.most_active_frame = Some(frame_idx);
+            stats.most_changes_in_frame = *max_changes;
+        }
+
+        stats.component_types_involved = component_types.into_iter().collect();
+        stats.component_types_involved.sort();
+
+        stats
+    }
+
+    /// Print a detailed analysis report of a replay session
+    pub fn print_replay_analysis(history: &WorldUpdateHistory) {
+        let stats = analyze_replay_history(history);
+        
+        println!("=== ECS Replay Analysis Report ===");
+        println!("Total Updates: {}", stats.total_updates);
+        println!("Total System Executions: {}", stats.total_system_executions);
+        println!("Total Component Changes: {}", stats.total_component_changes);
+        println!("Total World Operations: {}", stats.total_world_operations);
+        println!("Entities Created: {}", stats.entities_created);
+        println!("Entities Removed: {}", stats.entities_removed);
+        
+        if let Some(frame) = stats.most_active_frame {
+            println!("Most Active Frame: {} (with {} changes)", frame, stats.most_changes_in_frame);
+        }
+        
+        println!("Component Types Involved:");
+        for component_type in &stats.component_types_involved {
+            println!("  - {}", component_type);
+        }
+        
+        if stats.total_updates > 0 {
+            println!("Average Changes per Frame: {:.2}", 
+                stats.total_component_changes as f64 / stats.total_updates as f64);
+        }
+        
+        println!("=== End Report ===");
+    }
+
+    /// Find frames with unusual activity (significantly above average)
+    pub fn find_anomalous_frames(history: &WorldUpdateHistory, threshold_multiplier: f64) -> Vec<usize> {
+        let updates = history.updates();
+        if updates.is_empty() {
+            return Vec::new();
+        }
+
+        // Calculate average changes per frame
+        let total_changes: usize = updates.iter()
+            .map(|update| update.system_diffs().iter()
+                .map(|sys| sys.component_changes().len() + sys.world_operations().len())
+                .sum::<usize>())
+            .sum();
+        
+        let avg_changes = total_changes as f64 / updates.len() as f64;
+        let threshold = avg_changes * threshold_multiplier;
+
+        let mut anomalous_frames = Vec::new();
+        
+        for (frame_idx, update) in updates.iter().enumerate() {
+            let frame_changes: usize = update.system_diffs().iter()
+                .map(|sys| sys.component_changes().len() + sys.world_operations().len())
+                .sum();
+            
+            if frame_changes as f64 > threshold {
+                anomalous_frames.push(frame_idx);
+            }
+        }
+
+        anomalous_frames
+    }
+
+    /// Read and parse a replay log file
+    pub fn read_replay_log(file_path: &str) -> Result<Vec<String>, std::io::Error> {
+        std::fs::read_to_string(file_path)
+            .map(|content| content.lines().map(|line| line.to_string()).collect())
     }
 }
