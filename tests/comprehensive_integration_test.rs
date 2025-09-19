@@ -199,7 +199,7 @@ fn comprehensive_ecs_integration_test() {
     println!("\nPHASE 2: Adding and initializing systems");
     main_world.add_system(MovementSystem::default());
     main_world.add_system(HealthSystem::default());
-    main_world.add_system(CrossWorldSystem::default());
+    main_world.add_system(CrossWorldSystem);
 
     main_world.initialize_systems();
 
@@ -408,7 +408,7 @@ fn test_cross_world_component_access() {
     }
 
     // Add cross-world system and test it can see entities from both worlds
-    main_world.add_system(CrossWorldSystem::default());
+    main_world.add_system(CrossWorldSystem);
     main_world.initialize_systems();
 
     println!("Testing cross-world component iteration:");
