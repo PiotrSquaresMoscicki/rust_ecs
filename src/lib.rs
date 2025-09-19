@@ -10,6 +10,9 @@ use std::collections::HashMap;
 // Re-export the derive macro from the derive crate
 pub use rust_ecs_derive::Diff;
 
+// Game module
+pub mod game;
+
 /// A dummy function to demonstrate the library.
 /// Returns the sum of two numbers.
 pub fn add(a: i32, b: i32) -> i32 {

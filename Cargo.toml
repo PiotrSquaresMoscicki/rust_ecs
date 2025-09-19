@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 paste = "1.0"
+rand = "0.8"
 rust_ecs_derive = { path = "./rust_ecs_derive" }

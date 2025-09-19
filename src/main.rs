@@ -1,4 +1,7 @@
 use rust_ecs::{Diff, DiffComponent, In, Out, System, World, WorldView};
+use std::env;
+
+mod game;
 
 // Example components with Diff implementation using derive macro
 #[derive(Debug, Diff)]
@@ -96,6 +99,19 @@ impl System for HealthSystem {
 }
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    // Check if "game" argument is provided
+    if args.len() > 1 && args[1] == "game" {
+        game::run_game();
+        return;
+    }
+
+    // Default behavior - run the ECS framework demo
+    run_ecs_demo();
+}
+
+fn run_ecs_demo() {
     println!("Rust ECS Framework Demo");
     println!("=======================");
 
