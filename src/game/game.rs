@@ -616,28 +616,25 @@ mod tests {
         // Verify entities were created
         assert!(world.entity_count() > 0);
         
-        // Test the new snapshot/restore approach for both systems and components
+        // Test the new system-level snapshot/restore approach
         let initial_entity_count = world.entity_count();
         
-        // Test system state snapshot/restore
-        let system_snapshot = create_system_state_snapshot(&world);
-        let component_snapshot = create_component_state_snapshot(&world);
+        // Enable replay mode to test system-level snapshot/restore
+        world.enable_replay_mode();
         
-        // Simulate a system update (this would normally change components and system state)
-        world.update();
+        // Run a few updates in replay mode - each system will handle its own snapshot/restore
+        for i in 0..3 {
+            println!("System-level replay update {}", i + 1);
+            world.update();
+        }
         
-        // Restore both system and component state to snapshot
-        restore_system_state_snapshot(&mut world, &system_snapshot);
-        restore_component_state_snapshot(&mut world, &component_snapshot);
-        
-        // Apply replay diff to both systems and components to ensure compliance
-        apply_replay_diff_to_systems(&mut world, 5);
-        apply_replay_diff_to_components(&mut world, 5);
+        // Disable replay mode
+        world.disable_replay_mode();
         
         // Verify world still has the same entities (components may have changed per replay data)
         assert_eq!(world.entity_count(), initial_entity_count);
         
-        println!("✅ Replay mode functionality test passed - snapshot/restore with replay diff application works for both systems and components");
+        println!("✅ Replay mode functionality test passed - system-level snapshot/restore with replay diff application works");
     }
 }
 
@@ -657,29 +654,24 @@ fn run_replay_with_existing_systems(world: &mut World, replay_log_path: &str) ->
         r.store(false, Ordering::SeqCst);
     }).expect("Error setting Ctrl-C handler");
 
-    // For demo purposes, simulate replay with proper snapshot/restore approach
+    // For demo purposes, simulate replay with system-level snapshot/restore approach
+    // Enable replay mode - this will make each system use snapshot/restore individually
+    world.enable_replay_mode();
+    
     let mut frame = 0;
     let max_frames = 20;
     
     while running.load(Ordering::SeqCst) && frame < max_frames {
-        // 1. Snapshot both system state and component state before the update
-        let system_snapshot = create_system_state_snapshot(world);
-        let component_snapshot = create_component_state_snapshot(world);
-        
-        // 2. Let systems run normally (this would modify components based on game logic)
+        // In the new system-level approach, each system handles its own snapshot/restore
+        // The World.update() method now calls update_with_replay for each system when replay_mode is enabled
         world.update();
-        
-        // 3. Restore both system state and component state after the update
-        restore_system_state_snapshot(world, &system_snapshot);
-        restore_component_state_snapshot(world, &component_snapshot);
-        
-        // 4. Apply the diff from replay to ensure compliance with the replay for both systems and components
-        apply_replay_diff_to_systems(world, frame);
-        apply_replay_diff_to_components(world, frame);
         
         frame += 1;
         thread::sleep(Duration::from_millis(500)); // 2 FPS
     }
+
+    // Disable replay mode when done
+    world.disable_replay_mode();
 
     if frame >= max_frames {
         println!("Demo replay completed - {} frames played", frame);

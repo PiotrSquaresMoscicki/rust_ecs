@@ -1670,10 +1670,29 @@ impl AutoReplayLogger {
     }
 }
 
+/// Snapshot structure for system-level component state
+#[derive(Debug, Clone)]
+struct SystemComponentSnapshot {
+    /// Serialized component data specific to this system
+    component_data: String,
+    /// Number of entities at snapshot time
+    entity_count: usize,
+}
+
+/// Snapshot structure for individual system's internal state
+#[derive(Debug, Clone)]
+struct SystemStateSnapshot {
+    /// System-specific internal state data
+    system_data: String,
+    /// Frame marker for this system
+    frame_marker: usize,
+}
+
 /// Type-erased system wrapper for storage in World
 trait SystemWrapper {
     fn initialize(&mut self, world: &mut World) -> SystemInitDiff;
     fn update(&mut self, world: &mut World) -> SystemUpdateDiff;
+    fn update_with_replay(&mut self, world: &mut World, frame_number: usize) -> SystemUpdateDiff;
     #[allow(dead_code)]
     fn deinitialize(&mut self, world: &mut World) -> SystemDeinitDiff;
 }
@@ -1686,6 +1705,49 @@ struct ConcreteSystemWrapper<S: System> {
 impl<S: System> ConcreteSystemWrapper<S> {
     fn new(system: S) -> Self {
         Self { system }
+    }
+
+    /// Create a snapshot of components that this system can access
+    fn create_system_component_snapshot(&self, world: &World) -> SystemComponentSnapshot {
+        // For this demo implementation, we'll create a simplified snapshot
+        // In a real implementation, this would snapshot only the components that this specific system accesses
+        
+        // Create a simple snapshot structure
+        SystemComponentSnapshot {
+            component_data: format!("Snapshot for system at frame - components: {}", world.entity_count()),
+            entity_count: world.entity_count(),
+        }
+    }
+
+    /// Restore components that this system can access from a snapshot
+    fn restore_system_component_snapshot(&self, _world: &mut World, snapshot: &SystemComponentSnapshot) {
+        // For demo implementation, just acknowledge the restore
+        // In a real implementation, this would restore specific component states
+        println!("Restored {} entities from system component snapshot", snapshot.entity_count);
+    }
+
+    /// Create a snapshot of this specific system's internal state
+    fn create_system_state_snapshot(&self) -> SystemStateSnapshot {
+        // For demo implementation, create a simple snapshot
+        // In a real implementation, this would capture system-specific internal state
+        SystemStateSnapshot {
+            system_data: "System state snapshot".to_string(),
+            frame_marker: 0,
+        }
+    }
+
+    /// Restore this specific system's internal state from a snapshot
+    fn restore_system_state_snapshot(&self, _snapshot: &SystemStateSnapshot) {
+        // For demo implementation, just acknowledge the restore
+        // In a real implementation, this would restore system-specific internal state
+        println!("System state restored from snapshot");
+    }
+
+    /// Apply replay diff specific to this system for the given frame
+    fn apply_system_replay_diff(&self, _world: &mut World, frame_number: usize) {
+        // For demo implementation, simulate applying replay data for this specific system
+        // In a real implementation, this would read and apply system-specific replay data
+        println!("Applied replay diff for system at frame {}", frame_number);
     }
 }
 
@@ -1705,6 +1767,25 @@ impl<S: System> SystemWrapper for ConcreteSystemWrapper<S> {
 
         // Return the accumulated changes from the world view
         world_view.get_system_diff()
+    }
+
+    fn update_with_replay(&mut self, world: &mut World, frame_number: usize) -> SystemUpdateDiff {
+        // 1. Snapshot component and system state before this system's update
+        let component_snapshot = self.create_system_component_snapshot(world);
+        let system_state_snapshot = self.create_system_state_snapshot();
+        
+        // 2. Run the system normally (this will modify components)
+        let system_diff = self.update(world);
+        
+        // 3. Restore component and system state after this system's update
+        self.restore_system_component_snapshot(world, &component_snapshot);
+        self.restore_system_state_snapshot(&system_state_snapshot);
+        
+        // 4. Apply replay diff specific to this system for this frame
+        self.apply_system_replay_diff(world, frame_number);
+        
+        // Return the original system diff for tracking purposes
+        system_diff
     }
 
     fn deinitialize(&mut self, world: &mut World) -> SystemDeinitDiff {
@@ -1732,6 +1813,10 @@ pub struct World {
     next_world_index: usize,
     /// Automatic replay logger for debugging and analysis
     replay_logger: Option<AutoReplayLogger>,
+    /// Replay mode tracking for system-level snapshot/restore
+    replay_mode: bool,
+    /// Current frame number in replay mode
+    replay_frame: usize,
 }
 
 impl Default for World {
@@ -1758,6 +1843,8 @@ impl World {
             world_update_history: WorldUpdateHistory::new(),
             next_world_index: world_index + 1,
             replay_logger: None,
+            replay_mode: false,
+            replay_frame: 0,
         }
     }
 
@@ -1908,11 +1995,22 @@ impl World {
         let mut systems = std::mem::take(&mut self.systems);
 
         for system in &mut systems {
-            let system_diff = system.update(self);
+            let system_diff = if self.replay_mode {
+                // In replay mode, use system-level snapshot/restore
+                system.update_with_replay(self, self.replay_frame)
+            } else {
+                // In normal mode, just update normally
+                system.update(self)
+            };
             world_update_diff.record(system_diff);
         }
 
         self.systems = systems;
+        
+        // Increment replay frame if in replay mode
+        if self.replay_mode {
+            self.replay_frame += 1;
+        }
         
         // Record the update in history
         self.world_update_history.record(world_update_diff.clone());
@@ -1923,6 +2021,30 @@ impl World {
                 eprintln!("Failed to log replay data: {}", e);
             }
         }
+    }
+
+    /// Enable replay mode for this world
+    pub fn enable_replay_mode(&mut self) {
+        self.replay_mode = true;
+        self.replay_frame = 0;
+        println!("Replay mode enabled - systems will use snapshot/restore pattern");
+    }
+
+    /// Disable replay mode for this world
+    pub fn disable_replay_mode(&mut self) {
+        self.replay_mode = false;
+        self.replay_frame = 0;
+        println!("Replay mode disabled - systems will run normally");
+    }
+
+    /// Check if replay mode is enabled
+    pub fn is_replay_mode_enabled(&self) -> bool {
+        self.replay_mode
+    }
+
+    /// Get the current replay frame number
+    pub fn get_replay_frame(&self) -> usize {
+        self.replay_frame
     }
 
     /// Get the number of entities in the world

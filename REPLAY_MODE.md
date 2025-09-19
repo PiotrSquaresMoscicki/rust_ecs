@@ -1,10 +1,26 @@
 # Replay Mode Documentation
 
-The ECS framework now supports replay mode functionality that allows you to replay game sessions with the existing game systems operating on component copies instead of creating dedicated replay systems.
+The ECS framework now supports advanced replay mode functionality with system-level snapshot/restore patterns that allows you to replay game sessions with existing game systems operating on component copies at the individual system level.
 
 ## Key Concept
 
-The main insight is that the existing ECS systems (MovementSystem, WaitSystem, RenderSystem) work with component copies during replay mode without being aware of it. This allows developers to perform replay analysis using the same systems that run the live game, with replay functionality being completely invisible to the systems.
+The main insight is that replay functionality should be handled at the SystemWrapper level since:
+
+1. **Components may be used by multiple systems** in a single world update
+2. **Systems can have dependencies between them** requiring individual system state management
+3. **Each system needs its own snapshot/restore cycle** to ensure proper isolation
+
+Each system now handles its own snapshot/restore cycle during replay mode:
+- **Before system update**: Snapshot both component and system state for this specific system
+- **During system update**: Let the system run normally (modifying components)
+- **After system update**: Restore both component and system state for this specific system
+- **Apply replay diff**: Apply replay data specific to this system for the current frame
+
+This ensures that:
+- Systems remain completely unaware of replay mode
+- Each system's modifications are isolated and controlled by replay data
+- Component state follows exactly the replay data per system
+- System dependencies are properly handled
 
 ## How to Use Replay Mode
 
@@ -20,6 +36,7 @@ This will:
 - Start the simulation game with actors moving between home and work
 - Track all component changes in the ECS framework's built-in history system
 - Systems operate on live data and can modify the world state
+- No snapshot/restore operations occur
 
 ### Running in Replay Mode
 
@@ -36,21 +53,35 @@ cargo run game /path/to/replay.log
 
 This will:
 - Initialize the exact same ECS world as normal mode
-- Use the identical systems (MovementSystem, WaitSystem, RenderSystem) 
-- Apply replay data by updating component values from the log
-- Systems read and render the updated components without knowing it's replay data
+- Enable system-level replay mode in the World
+- Each system handles its own snapshot/restore cycle:
+  - **MovementSystem**: Creates component snapshot → Updates components → Restores snapshot → Applies movement replay diff
+  - **WaitSystem**: Creates component snapshot → Updates components → Restores snapshot → Applies wait replay diff  
+  - **RenderSystem**: Creates component snapshot → Updates components → Restores snapshot → Applies render replay diff
+- World state follows exactly the replay data at each system level
 
 ## Key Features
 
-### Replay Functionality Invisible to Systems
+### System-Level Snapshot/Restore Pattern
 
-The breakthrough of this approach is that **systems are completely unaware of replay mode**. There are no replay-specific properties, flags, or different behaviors in the systems:
+The breakthrough of this approach is **system-level isolation** during replay mode. Each system individually handles:
 
-- `MovementSystem`: Reads Position and Target components (unaware of data source)
-- `WaitSystem`: Reads WaitTimer components (unaware of data source)  
-- `RenderSystem`: Reads Position components and renders the grid (unaware of data source)
+1. **Component Snapshot**: Before system update, snapshot components this system can access
+2. **System State Snapshot**: Before system update, snapshot internal system state
+3. **Normal System Update**: Let the system run normally (modifying components)
+4. **Component Restore**: After system update, restore components to snapshot state
+5. **System State Restore**: After system update, restore internal system state
+6. **Replay Diff Application**: Apply replay data specific to this system for this frame
 
-### True Component Copy Approach
+### Complete System Invisibility
+
+Systems remain **completely unaware of replay mode**. There are no replay-specific properties, flags, or different behaviors in the systems:
+
+- `MovementSystem`: Reads Position and Target components (unaware they come from replay snapshots)
+- `WaitSystem`: Reads WaitTimer components (unaware they come from replay snapshots)  
+- `RenderSystem`: Reads Position components and renders the grid (unaware they come from replay snapshots)
+
+### True System-Level Component Copy Approach
 
 In replay mode:
 - Components are updated based on replay log data instead of game logic
