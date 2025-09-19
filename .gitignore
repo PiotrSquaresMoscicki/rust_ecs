@@ -27,3 +27,8 @@ Cargo.lock
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Game log files (generated during gameplay)
+game_logs/
+demo_replay_logs/
+test_logs/
