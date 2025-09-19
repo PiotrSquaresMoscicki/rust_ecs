@@ -1,8 +1,12 @@
 use crate::{Diff, In, Out, System, World, WorldView};
 use rand::Rng;
 use std::collections::HashSet;
+use std::fs::{File, OpenOptions};
+use std::io::{Write, BufWriter};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // Grid constants
 const GRID_SIZE: i32 = 10;
@@ -357,14 +361,69 @@ pub fn run_game() {
     println!("Starting Simulation Game...");
     println!("Actors will travel between Home (H) and Work (W)");
     println!("Press Ctrl+C to stop the simulation");
-    println!("Note: Replay logging is available via API - see tests for examples");
 
     let mut world = initialize_game();
 
+    // Set up manual history logging to file
+    let session_id = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let log_directory = "game_logs";
+    let log_file_path = format!("{}/simulation_game_{}.log", log_directory, session_id);
+
+    // Create log directory and file
+    let mut log_file = match setup_logging(&log_directory, &log_file_path, session_id) {
+        Ok(file) => Some(file),
+        Err(e) => {
+            eprintln!("Warning: Failed to setup history logging: {}", e);
+            println!("Game will continue without file logging");
+            None
+        }
+    };
+
+    // Set up Ctrl+C handler for graceful shutdown
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    
+    ctrlc::set_handler(move || {
+        println!("\nReceived Ctrl+C, shutting down gracefully...");
+        r.store(false, Ordering::SeqCst);
+    }).expect("Error setting Ctrl-C handler");
+
+    let mut update_count = 0;
+    
     // Game loop - 2 ticks per second
-    loop {
+    while running.load(Ordering::SeqCst) {
         world.update();
+        update_count += 1;
+        
+        // Log game state to file
+        if let Some(ref mut file) = log_file {
+            if let Err(e) = log_game_update(file, update_count, &world) {
+                eprintln!("Warning: Failed to write to log file: {}", e);
+            }
+            
+            // Flush logs periodically for real-time monitoring
+            if update_count % 10 == 0 {
+                if let Err(e) = file.flush() {
+                    eprintln!("Warning: Failed to flush log file: {}", e);
+                }
+            }
+        }
+        
         thread::sleep(Duration::from_millis(500)); // 2 FPS
+    }
+
+    // Graceful shutdown - finalize logging
+    if let Some(mut file) = log_file {
+        println!("Finalizing history logs...");
+        if let Err(e) = finalize_logging(&mut file, update_count) {
+            eprintln!("Warning: Failed to finalize log file: {}", e);
+        } else {
+            println!("Game session logged successfully to {}", log_file_path);
+        }
     }
 }
 
@@ -501,4 +560,122 @@ mod tests {
         // but the test verifies the systems run without errors
         println!("Movement occurred during test: {}", movement_occurred);
     }
+
+    #[test]
+    fn test_history_logging_integration() {
+        // Test the history logging functionality with the game
+        let mut world = initialize_game();
+        
+        // Run some updates to generate history
+        for _ in 0..5 {
+            world.update();
+        }
+        
+        // Verify history is being tracked
+        let history = world.get_update_history();
+        assert_eq!(history.len(), 5);
+        
+        // Verify each update has system diffs
+        for (i, update) in history.updates().iter().enumerate() {
+            println!("Update {}: {} system diffs", i + 1, update.system_diffs().len());
+            // Should have 3 systems: Movement, Wait, and Render
+            assert_eq!(update.system_diffs().len(), 3);
+        }
+        
+        // Test that the logging functions would work (without actually creating files)
+        let session_id = 123456;
+        let temp_dir = "/tmp/test_game_logs";
+        let temp_file = format!("{}/test_game_{}.log", temp_dir, session_id);
+        
+        // Create temp directory
+        if std::fs::create_dir_all(temp_dir).is_ok() {
+            if let Ok(mut log_file) = setup_logging(temp_dir, &temp_file, session_id) {
+                // Test logging a few updates
+                for i in 1..=3 {
+                    assert!(log_game_update(&mut log_file, i, &world).is_ok());
+                }
+                
+                // Test finalization
+                assert!(finalize_logging(&mut log_file, 3).is_ok());
+                
+                // Verify file exists and has content
+                if let Ok(content) = std::fs::read_to_string(&temp_file) {
+                    assert!(content.contains("Simulation Game History Log"));
+                    assert!(content.contains("Session ID: 123456"));
+                    assert!(content.contains("UPDATE 1"));
+                    assert!(content.contains("UPDATE 3"));
+                    assert!(content.contains("Game Session Complete"));
+                }
+                
+                // Clean up
+                let _ = std::fs::remove_file(&temp_file);
+                let _ = std::fs::remove_dir(temp_dir);
+            }
+        }
+    }
+}
+
+// Manual logging functions for game history
+
+fn setup_logging(log_directory: &str, log_file_path: &str, session_id: u64) -> Result<BufWriter<File>, std::io::Error> {
+    // Create log directory if it doesn't exist
+    std::fs::create_dir_all(log_directory)?;
+
+    // Create log file
+    let file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(log_file_path)?;
+    
+    let mut writer = BufWriter::new(file);
+    
+    // Write header
+    writeln!(writer, "# Simulation Game History Log")?;
+    writeln!(writer, "# Session ID: {}", session_id)?;
+    writeln!(writer, "# Timestamp: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"))?;
+    writeln!(writer, "# Format: Each update shows actor positions and targets")?;
+    writeln!(writer)?;
+    
+    println!("History logging enabled - logs will be saved to {}", log_file_path);
+    println!("Session ID: {}", session_id);
+    
+    Ok(writer)
+}
+
+fn log_game_update(file: &mut BufWriter<File>, update_count: u32, world: &World) -> Result<(), std::io::Error> {
+    writeln!(file, "UPDATE {}", update_count)?;
+    
+    // Log basic statistics about the world
+    let history = world.get_update_history();
+    writeln!(file, "TOTAL_ENTITIES: {}", world.entity_count())?;
+    writeln!(file, "HISTORY_UPDATES: {}", history.len())?;
+    
+    if !history.is_empty() {
+        let latest_update = &history.updates()[history.len() - 1];
+        writeln!(file, "SYSTEM_EXECUTIONS: {}", latest_update.system_diffs().len())?;
+        
+        let total_changes: usize = latest_update.system_diffs()
+            .iter()
+            .map(|diff| diff.component_changes().len())
+            .sum();
+        writeln!(file, "COMPONENT_CHANGES: {}", total_changes)?;
+        
+        let total_operations: usize = latest_update.system_diffs()
+            .iter()
+            .map(|diff| diff.world_operations().len())
+            .sum();
+        writeln!(file, "WORLD_OPERATIONS: {}", total_operations)?;
+    }
+    
+    writeln!(file)?;
+    Ok(())
+}
+
+fn finalize_logging(file: &mut BufWriter<File>, total_updates: u32) -> Result<(), std::io::Error> {
+    writeln!(file, "# Game Session Complete")?;
+    writeln!(file, "# Total Updates: {}", total_updates)?;
+    writeln!(file, "# End Timestamp: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"))?;
+    file.flush()?;
+    Ok(())
 }

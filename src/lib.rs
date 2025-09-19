@@ -1489,9 +1489,6 @@ impl WorldUpdateHistory {
     }
 }
 
-// Game module - needs to be declared after ReplayLogConfig
-pub mod game;
-
 /// Configuration for automatic replay logging
 #[derive(Debug, Clone)]
 pub struct ReplayLogConfig {
@@ -2818,3 +2815,6 @@ pub mod replay_analysis {
             .map(|content| content.lines().map(|line| line.to_string()).collect())
     }
 }
+
+// Game module - declared after ReplayLogConfig
+pub mod game;
