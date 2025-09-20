@@ -1284,6 +1284,7 @@ pub enum WorldOperation {
     RemoveEntity(Entity),
     CreateWorld(usize),
     RemoveWorld(usize),
+    AddSystem(String), // System type name for replay identification
 }
 
 /// Enhanced component change operations for better tracking
@@ -1634,6 +1635,9 @@ impl AutoReplayLogger {
                         WorldOperation::RemoveWorld(world_id) => {
                             writeln!(writer, "      REMOVE_WORLD {}", world_id)?;
                         }
+                        WorldOperation::AddSystem(system_type) => {
+                            writeln!(writer, "      ADD_SYSTEM {}", system_type)?;
+                        }
                     }
                 }
             }
@@ -1946,6 +1950,21 @@ impl World {
 
     /// Add a system to the world
     pub fn add_system<S: System + 'static>(&mut self, system: S) {
+        let system_type_name = std::any::type_name::<S>().to_string();
+        
+        // Record the system addition operation in world update history
+        let mut world_diff = WorldUpdateDiff::new();
+        let mut system_diff = SystemUpdateDiff::new();
+        system_diff.record_world_operation(WorldOperation::AddSystem(system_type_name));
+        world_diff.record(system_diff);
+        self.world_update_history.record(world_diff);
+        
+        // Add the system to the world
+        self.add_system_internal(system);
+    }
+
+    /// Internal method to add a system without recording (for replay)
+    fn add_system_internal<S: System + 'static>(&mut self, system: S) {
         self.systems
             .push(Box::new(ConcreteSystemWrapper::new(system)));
     }
@@ -2195,6 +2214,12 @@ impl World {
                             components.retain(|(e, _)| *e != *entity);
                         }
                     }
+                    WorldOperation::AddSystem(system_type_name) => {
+                        // Apply system addition during replay
+                        if let Err(e) = self.apply_system_addition(system_type_name) {
+                            eprintln!("Failed to apply system addition: {}", e);
+                        }
+                    }
                 }
             }
 
@@ -2343,6 +2368,27 @@ impl World {
             "ActorState" => { self.remove_component::<ActorState>(*entity); }
             _ => {
                 return Err(format!("Unknown component type for removal: {}", type_name));
+            }
+        }
+        Ok(())
+    }
+
+    /// Apply a system addition from replay data
+    fn apply_system_addition(&mut self, system_type_name: &str) -> Result<(), String> {
+        use crate::game::game::*;
+        
+        match system_type_name {
+            "rust_ecs::game::game::MovementSystem" => {
+                self.add_system_internal(MovementSystem);
+            }
+            "rust_ecs::game::game::WaitSystem" => {
+                self.add_system_internal(WaitSystem);
+            }
+            "rust_ecs::game::game::RenderSystem" => {
+                self.add_system_internal(RenderSystem);
+            }
+            _ => {
+                return Err(format!("Unknown system type for addition: {}", system_type_name));
             }
         }
         Ok(())
@@ -2577,7 +2623,7 @@ mod tests {
         world.update();
 
         let history = world.get_update_history();
-        assert_eq!(history.updates.len(), 2);
+        assert_eq!(history.updates.len(), 3); // 1 system addition + 2 updates
     }
 
     #[test]
