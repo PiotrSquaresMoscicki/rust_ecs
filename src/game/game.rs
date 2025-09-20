@@ -75,6 +75,8 @@ impl System for MovementSystem {
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
+        println!("DEBUG: MovementSystem::update called");
+        
         // Collect all obstacle positions first
         let mut obstacles = HashSet::new();
 
@@ -89,8 +91,11 @@ impl System for MovementSystem {
             .map(|(_, (pos, _))| (pos.x, pos.y))
             .collect();
 
+        // Collect changes to apply after the query
+        let mut changes = Vec::new();
+
         // Now we can query and update actor positions in a single query thanks to extended support!
-        for (_entity, (position, _actor, target)) in
+        for (entity, (position, _actor, target)) in
             world.query_components::<(Out<Position>, In<Actor>, In<Target>)>()
         {
             let current_pos = (position.x, position.y);
@@ -114,10 +119,23 @@ impl System for MovementSystem {
                     && is_valid_position(next_pos)
                     && !temp_obstacles.contains(&next_pos)
                 {
+                    let old_position = *position;
                     position.x = next_pos.0;
                     position.y = next_pos.1;
+                    
+                    println!("DEBUG: Movement detected for entity {:?}: ({}, {}) -> ({}, {})", 
+                             entity, old_position.x, old_position.y, position.x, position.y);
+                    
+                    // Store the change to record later
+                    changes.push((entity, old_position, *position));
                 }
             }
+        }
+        
+        // Record all component changes
+        println!("DEBUG: About to record {} position changes", changes.len());
+        for (entity, old_position, new_position) in changes {
+            world.record_component_modification(entity, &old_position, &new_position);
         }
     }
 
@@ -134,8 +152,12 @@ impl System for WaitSystem {
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
+        // Collect changes to apply after the query
+        let mut wait_timer_changes = Vec::new();
+        let mut target_changes = Vec::new();
+
         // Now we can query all actor components together thanks to extended query support!
-        for (_entity, (position, _actor, wait_timer, target)) in 
+        for (entity, (position, _actor, wait_timer, target)) in 
             world.query_components::<(In<Position>, In<Actor>, Out<WaitTimer>, Out<Target>)>()
         {
             let current_pos = (position.x, position.y);
@@ -146,14 +168,21 @@ impl System for WaitSystem {
             let should_switch = is_near_target && current_ticks == 0;
 
             // Update wait timer
+            let old_wait_timer = *wait_timer;
             if is_near_target && current_ticks > 0 {
                 wait_timer.ticks = current_ticks - 1;
             } else if should_switch {
                 wait_timer.ticks = WAIT_TICKS;
             }
+            
+            // Store wait timer change if it was modified
+            if old_wait_timer.ticks != wait_timer.ticks {
+                wait_timer_changes.push((entity, old_wait_timer, *wait_timer));
+            }
 
             // Update target if needed
             if should_switch {
+                let old_target = *target;
                 // Switch target between home and work
                 if target_pos == HOME_POS {
                     target.x = WORK_POS.0;
@@ -162,7 +191,19 @@ impl System for WaitSystem {
                     target.x = HOME_POS.0;
                     target.y = HOME_POS.1;
                 }
+                
+                // Store target change
+                target_changes.push((entity, old_target, *target));
             }
+        }
+        
+        // Record all component changes
+        for (entity, old_wait_timer, new_wait_timer) in wait_timer_changes {
+            world.record_component_modification(entity, &old_wait_timer, &new_wait_timer);
+        }
+        
+        for (entity, old_target, new_target) in target_changes {
+            world.record_component_modification(entity, &old_target, &new_target);
         }
     }
 

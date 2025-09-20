@@ -1195,6 +1195,48 @@ impl<I, O> WorldView<I, O> {
         self.system_diff
     }
 
+    /// Record a component modification (call this when you modify a component)
+    pub fn record_component_modification<T: Diff + Clone + std::fmt::Debug + 'static>(
+        &mut self, 
+        entity: Entity, 
+        old_value: &T, 
+        new_value: &T
+    ) {
+        println!("DEBUG: record_component_modification called for entity {:?}", entity);
+        if let Some(diff) = old_value.diff(new_value) {
+            let diff_str = T::diff_to_string(&diff);
+            let type_name = std::any::type_name::<T>().split("::").last().unwrap_or(std::any::type_name::<T>());
+            
+            println!("DEBUG: Recording change for {} on entity {:?}: {}", type_name, entity, diff_str);
+            
+            let change = DiffComponentChange::Modified {
+                entity,
+                type_name: type_name.to_string(),
+                diff: diff_str,
+            };
+            
+            self.system_diff.record_component_change(change);
+        }
+    }
+
+    /// Record a component addition
+    pub fn record_component_addition<T: std::fmt::Debug + 'static>(
+        &mut self, 
+        entity: Entity, 
+        component: &T
+    ) {
+        let type_name = std::any::type_name::<T>().split("::").last().unwrap_or(std::any::type_name::<T>());
+        let data = format!("{:?}", component);
+        
+        let change = DiffComponentChange::Added {
+            entity,
+            type_name: type_name.to_string(),
+            data,
+        };
+        
+        self.system_diff.record_component_change(change);
+    }
+
     /// Get a reference to the underlying world (unsafe due to raw pointer)
     unsafe fn world(&self) -> &World {
         &*self.world
@@ -1257,7 +1299,12 @@ impl<I, O> WorldView<I, O> {
     where
         for<'a> Q: MixedMultiQuery<'a>,
     {
-        unsafe { Q::query_mixed(self.world_mut()) }
+        // Get the query results
+        let results = unsafe { Q::query_mixed(self.world_mut()) };
+        
+        // For now, return results directly without tracking
+        // TODO: Implement automatic change tracking
+        results
     }
 }
 
