@@ -377,6 +377,9 @@ fn visualize_world_history(history: &WorldUpdateHistory) {
                     WorldOperation::RemoveWorld(world_id) => {
                         println!("      Removed world {}", world_id);
                     }
+                    WorldOperation::AddSystem(system_type) => {
+                        println!("      Added system {}", system_type);
+                    }
                 }
             }
         }

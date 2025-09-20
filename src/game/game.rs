@@ -506,7 +506,7 @@ mod tests {
         println!("Test replay history tracking:");
         println!("  Total updates recorded: {}", history.len());
         
-        assert_eq!(history.len(), 5);
+        assert_eq!(history.len(), 8); // 3 system additions + 5 updates
         assert!(!history.is_empty());
         
         // Check that each update has system diffs
@@ -579,13 +579,18 @@ mod tests {
         
         // Verify history is being tracked
         let history = world.get_update_history();
-        assert_eq!(history.len(), 5);
+        assert_eq!(history.len(), 8); // 3 system additions + 5 updates
         
         // Verify each update has system diffs
         for (i, update) in history.updates().iter().enumerate() {
             println!("Update {}: {} system diffs", i + 1, update.system_diffs().len());
-            // Should have 3 systems: Movement, Wait, and Render
-            assert_eq!(update.system_diffs().len(), 3);
+            if i < 3 {
+                // First 3 updates are system additions - each has 1 system diff
+                assert_eq!(update.system_diffs().len(), 1);
+            } else {
+                // Remaining updates are game updates - each has 3 system diffs (Movement, Wait, Render)
+                assert_eq!(update.system_diffs().len(), 3);
+            }
         }
         
         // Test that the logging functions would work (without actually creating files)
