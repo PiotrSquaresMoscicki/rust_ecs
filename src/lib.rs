@@ -2202,13 +2202,18 @@ impl World {
                     }
                     WorldOperation::CreateEntity(entity) => {
                         // Ensure the entity exists (create if it doesn't)
-                        if entity.entity_index >= self.next_entity_id {
-                            self.next_entity_id = entity.entity_index + 1;
+                        if !self.entity_exists(*entity) {
+                            // Extend next_entity_id if necessary to maintain consistency
+                            if entity.entity_index >= self.next_entity_id {
+                                self.next_entity_id = entity.entity_index + 1;
+                            }
+                            // Add the entity to the entities list
+                            self.entities.push(*entity);
                         }
-                        // Note: Entity creation during replay is complex because
-                        // we need to maintain entity ID consistency with the original run
                     }
                     WorldOperation::RemoveEntity(entity) => {
+                        // Remove the entity from the entities list
+                        self.entities.retain(|e| e != entity);
                         // Remove all components for this entity
                         for components in self.components.values_mut() {
                             components.retain(|(e, _)| *e != *entity);
@@ -3151,14 +3156,14 @@ pub mod replay_analysis {
 
     /// Parse a replay log file into WorldUpdateHistory
     pub fn parse_replay_log(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn std::error::Error>> {
-        let lines = read_replay_log(file_path)?;
+        let lines = replay_analysis::read_replay_log(file_path)?;
         let mut history = WorldUpdateHistory::new();
         let mut current_update: Option<WorldUpdateDiff> = None;
         let mut current_system: Option<SystemUpdateDiff> = None;
-        let mut line_number = 0;
+        let mut _line_number = 0;
 
         for line in lines {
-            line_number += 1;
+            _line_number += 1;
             let line = line.trim();
             
             // Skip comments and empty lines
@@ -3235,6 +3240,12 @@ pub mod replay_analysis {
                         system.record_world_operation(WorldOperation::RemoveWorld(world_id));
                     }
                 }
+            } else if line.starts_with("      ADD_SYSTEM ") {
+                // Parse system addition: "ADD_SYSTEM system_type_name"
+                let system_type_name = line[17..].to_string();
+                if let Some(ref mut system) = current_system {
+                    system.record_world_operation(WorldOperation::AddSystem(system_type_name));
+                }
             }
         }
 
@@ -3302,12 +3313,6 @@ fn parse_component_rem(input: &str) -> Option<DiffComponentChange> {
         }
     }
     None
-}
-
-/// Helper function for reading replay log files
-fn read_replay_log(file_path: &str) -> Result<Vec<String>, std::io::Error> {
-    std::fs::read_to_string(file_path)
-        .map(|content| content.lines().map(|line| line.to_string()).collect())
 }
 
 /// Parse Position component data from string like "Position { x: 1, y: 2 }"

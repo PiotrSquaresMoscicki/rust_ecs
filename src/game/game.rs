@@ -740,9 +740,44 @@ fn simulate_replay_frame(world: &mut World, frame: usize) {
     }
 }
 
+/// Public function to run a simulated replay without actual log data
+/// This demonstrates replay functionality with deterministic simulation
+pub fn run_simulated_replay(num_frames: usize) {
+    println!("Starting Simulated Replay Demo...");
+    println!("This will show {} frames of deterministic actor movement", num_frames);
+    
+    let mut world = initialize_game();
+    
+    // Set up Ctrl+C handler for graceful shutdown
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    
+    ctrlc::set_handler(move || {
+        println!("\nReceived Ctrl+C, stopping simulated replay...");
+        r.store(false, Ordering::SeqCst);
+    }).expect("Error setting Ctrl-C handler");
+    
+    for frame in 0..num_frames {
+        if !running.load(Ordering::SeqCst) {
+            break;
+        }
+        
+        println!("=== Simulated Replay Frame {} ===", frame + 1);
+        
+        // Apply simulated changes for this frame
+        simulate_replay_frame(&mut world, frame);
+        
+        println!("Applied simulated frame {}", frame + 1);
+        
+        thread::sleep(Duration::from_millis(500)); // 2 FPS for visualization
+    }
+    
+    println!("Simulated replay completed - {} frames simulated", num_frames);
+}
+
 /// Snapshot structure to store system state
 #[derive(Debug, Clone)]
-struct SystemStateSnapshot {
+pub struct SystemStateSnapshot {
     /// Store any system-specific state that needs to be preserved
     /// This captures system internal state for snapshot/restore functionality
     frame_marker: usize,
@@ -750,7 +785,7 @@ struct SystemStateSnapshot {
 
 /// Snapshot structure to store component state
 #[derive(Debug, Clone)]
-struct ComponentStateSnapshot {
+pub struct ComponentStateSnapshot {
     /// Positions of all entities with Position component
     positions: Vec<Position>,
     /// Targets of all entities with Target component  
@@ -762,10 +797,10 @@ struct ComponentStateSnapshot {
 }
 
 /// Create a snapshot of the current system state
-fn create_system_state_snapshot(_world: &World) -> SystemStateSnapshot {
+fn create_system_state_snapshot(world: &World) -> SystemStateSnapshot {
     // Capture system internal state for snapshot/restore functionality
     SystemStateSnapshot {
-        frame_marker: 0, // Tracks system execution state for replay consistency
+        frame_marker: world.get_replay_frame(), // Tracks system execution state for replay consistency
     }
 }
 
@@ -810,6 +845,19 @@ fn create_component_state_snapshot(world: &World) -> ComponentStateSnapshot {
         wait_timers,
         actor_states,
     }
+}
+
+/// Public function to create a complete world snapshot for replay/debugging
+pub fn create_world_snapshot(world: &World) -> (SystemStateSnapshot, ComponentStateSnapshot) {
+    let system_snapshot = create_system_state_snapshot(world);
+    let component_snapshot = create_component_state_snapshot(world);
+    (system_snapshot, component_snapshot)
+}
+
+/// Public function to restore world from snapshots
+pub fn restore_world_from_snapshot(world: &mut World, system_snapshot: &SystemStateSnapshot, component_snapshot: &ComponentStateSnapshot) {
+    restore_system_state_snapshot(world, system_snapshot);
+    restore_component_state_snapshot(world, component_snapshot);
 }
 
 /// Restore component state from a snapshot
@@ -868,11 +916,18 @@ fn restore_system_state_snapshot(_world: &mut World, snapshot: &SystemStateSnaps
 }
 
 /// Apply replay diff to systems to ensure compliance with replay data
-fn apply_replay_diff_to_systems(_world: &mut World, frame: usize) {
+fn apply_replay_diff_to_systems(world: &mut World, frame: usize) {
     // Apply recorded system state from replay data for the given frame
     // This ensures system state matches the replay exactly
     
-    let _replay_frame = frame;
+    // Enable replay mode if not already enabled
+    if !world.is_replay_mode_enabled() {
+        world.enable_replay_mode();
+    }
+    
+    // Note: We can't directly set replay_frame as it's private
+    // Instead, this function works with the current replay state
+    let _target_frame = frame;
     
     // System replay diff application includes:
     // 1. Reading system state from replay log for this frame
@@ -916,8 +971,16 @@ fn apply_replay_diff_to_components(world: &mut World, frame: usize) {
     // - Any other components that were recorded in the replay
 }
 
+/// Public function to apply replay diffs for a specific frame
+/// This can be used for advanced replay manipulation
+pub fn apply_replay_frame_diffs(world: &mut World, frame: usize) {
+    apply_replay_diff_to_systems(world, frame);
+    apply_replay_diff_to_components(world, frame);
+}
+
 // Manual logging functions for game history
 
+/// Setup logging for manual game history tracking (alternative to AutoReplayLogger)
 fn setup_logging(log_directory: &str, log_file_path: &str, session_id: u64) -> Result<BufWriter<File>, std::io::Error> {
     // Create log directory if it doesn't exist
     std::fs::create_dir_all(log_directory)?;
@@ -944,6 +1007,7 @@ fn setup_logging(log_directory: &str, log_file_path: &str, session_id: u64) -> R
     Ok(writer)
 }
 
+/// Log a game update to the manual log file
 fn log_game_update(file: &mut BufWriter<File>, update_count: u32, world: &World) -> Result<(), std::io::Error> {
     writeln!(file, "UPDATE {}", update_count)?;
     
@@ -973,10 +1037,40 @@ fn log_game_update(file: &mut BufWriter<File>, update_count: u32, world: &World)
     Ok(())
 }
 
+/// Finalize the manual logging
 fn finalize_logging(file: &mut BufWriter<File>, total_updates: u32) -> Result<(), std::io::Error> {
     writeln!(file, "# Game Session Complete")?;
     writeln!(file, "# Total Updates: {}", total_updates)?;
     writeln!(file, "# End Timestamp: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"))?;
     file.flush()?;
+    Ok(())
+}
+
+/// Public function to run a game with manual logging
+/// This demonstrates an alternative logging approach to AutoReplayLogger
+pub fn run_game_with_manual_logging(log_directory: &str, num_updates: u32) -> Result<(), std::io::Error> {
+    println!("Starting game with manual logging...");
+    
+    let session_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    
+    let log_file_path = format!("{}/manual_game_{}.log", log_directory, session_id);
+    let mut log_file = setup_logging(log_directory, &log_file_path, session_id)?;
+    
+    let mut world = initialize_game();
+    
+    for update_count in 1..=num_updates {
+        world.update();
+        log_game_update(&mut log_file, update_count, &world)?;
+        
+        if update_count % 10 == 0 {
+            println!("Completed {} updates", update_count);
+        }
+    }
+    
+    finalize_logging(&mut log_file, num_updates)?;
+    println!("Game session completed with manual logging");
     Ok(())
 }
