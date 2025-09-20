@@ -1,5 +1,5 @@
 use rust_ecs::*;
-use rust_ecs::game::game::*;
+use rust_ecs::game::*;
 use std::fs;
 
 /// Test that uses a hand-written replay file to execute game for 5 frames and verify component states

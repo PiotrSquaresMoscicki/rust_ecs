@@ -1,4 +1,4 @@
-use rust_ecs::{World, game::game::{MovementSystem, WaitSystem, RenderSystem, initialize_game}};
+use rust_ecs::{World, game::{MovementSystem, WaitSystem, RenderSystem, initialize_game}};
 
 fn main() {
     println!("=== Demonstrating System Addition Recording and Replay ===\n");

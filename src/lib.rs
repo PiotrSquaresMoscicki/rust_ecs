@@ -2308,7 +2308,7 @@ impl World {
 
     /// Apply a component addition from replay data
     fn apply_component_addition(&mut self, entity: &Entity, type_name: &str, data: &str) -> Result<(), String> {
-        use crate::game::game::*;
+        use crate::game::*;
         
         match type_name {
             "Position" => {
@@ -2356,7 +2356,7 @@ impl World {
 
     /// Apply a component modification from replay data  
     fn apply_component_modification(&mut self, entity: &Entity, type_name: &str, diff_data: &str) -> Result<(), String> {
-        use crate::game::game::*;
+        use crate::game::*;
         
         match type_name {
             "Position" => {
@@ -2404,7 +2404,7 @@ impl World {
 
     /// Apply a component removal from replay data
     fn apply_component_removal(&mut self, entity: &Entity, type_name: &str) -> Result<(), String> {
-        use crate::game::game::*;
+        use crate::game::*;
         
         match type_name {
             "Position" => { self.remove_component::<Position>(*entity); }
@@ -2424,17 +2424,18 @@ impl World {
 
     /// Apply a system addition from replay data
     fn apply_system_addition(&mut self, system_type_name: &str) -> Result<(), String> {
-        use crate::game::game::*;
+        use crate::game::*;
         
         match system_type_name {
-            "rust_ecs::game::game::MovementSystem" => {
+            // Support both old and new paths for backward compatibility
+            "rust_ecs::game::game::MovementSystem" | "rust_ecs::game::movement_system::MovementSystem" => {
                 self.add_system_internal(MovementSystem);
             }
-            "rust_ecs::game::game::WaitSystem" => {
+            "rust_ecs::game::game::WaitSystem" | "rust_ecs::game::wait_system::WaitSystem" => {
                 self.add_system_internal(WaitSystem);
             }
-            "rust_ecs::game::game::RenderSystem" => {
-                self.add_system_internal(RenderSystem);
+            "rust_ecs::game::game::RenderSystem" | "rust_ecs::game::render_system::RenderSystem" => {
+                self.add_system_internal(RenderSystem::default());
             }
             _ => {
                 return Err(format!("Unknown system type for addition: {}", system_type_name));
@@ -3360,7 +3361,7 @@ fn parse_component_rem(input: &str) -> Option<DiffComponentChange> {
 }
 
 /// Parse Position component data from string like "Position { x: 1, y: 2 }"
-fn parse_position_data(data: &str) -> Result<crate::game::game::Position, String> {
+fn parse_position_data(data: &str) -> Result<crate::game::Position, String> {
     // Simple parser for Position { x: value, y: value }
     if let Some(content) = data.strip_prefix("Position { ").and_then(|s| s.strip_suffix(" }")) {
         let mut x: Option<i32> = None;
@@ -3375,7 +3376,7 @@ fn parse_position_data(data: &str) -> Result<crate::game::game::Position, String
         }
         
         if let (Some(x), Some(y)) = (x, y) {
-            Ok(crate::game::game::Position { x, y })
+            Ok(crate::game::Position { x, y })
         } else {
             Err("Missing x or y value in Position data".to_string())
         }
@@ -3385,7 +3386,7 @@ fn parse_position_data(data: &str) -> Result<crate::game::game::Position, String
 }
 
 /// Parse Target component data from string like "Target { x: 1, y: 2 }"
-fn parse_target_data(data: &str) -> Result<crate::game::game::Target, String> {
+fn parse_target_data(data: &str) -> Result<crate::game::Target, String> {
     if let Some(content) = data.strip_prefix("Target { ").and_then(|s| s.strip_suffix(" }")) {
         let mut x: Option<i32> = None;
         let mut y: Option<i32> = None;
@@ -3399,7 +3400,7 @@ fn parse_target_data(data: &str) -> Result<crate::game::game::Target, String> {
         }
         
         if let (Some(x), Some(y)) = (x, y) {
-            Ok(crate::game::game::Target { x, y })
+            Ok(crate::game::Target { x, y })
         } else {
             Err("Missing x or y value in Target data".to_string())
         }
@@ -3409,11 +3410,11 @@ fn parse_target_data(data: &str) -> Result<crate::game::game::Target, String> {
 }
 
 /// Parse WaitTimer component data from string like "WaitTimer { ticks: 5 }"
-fn parse_wait_timer_data(data: &str) -> Result<crate::game::game::WaitTimer, String> {
+fn parse_wait_timer_data(data: &str) -> Result<crate::game::WaitTimer, String> {
     if let Some(content) = data.strip_prefix("WaitTimer { ").and_then(|s| s.strip_suffix(" }")) {
         if let Some(value_str) = content.strip_prefix("ticks: ") {
             let ticks = value_str.parse().map_err(|e| format!("Failed to parse ticks: {}", e))?;
-            Ok(crate::game::game::WaitTimer { ticks })
+            Ok(crate::game::WaitTimer { ticks })
         } else {
             Err("Missing ticks value in WaitTimer data".to_string())
         }
@@ -3423,18 +3424,18 @@ fn parse_wait_timer_data(data: &str) -> Result<crate::game::game::WaitTimer, Str
 }
 
 /// Parse ActorState component data from string like "MovingToWork"
-fn parse_actor_state_data(data: &str) -> Result<crate::game::game::ActorState, String> {
+fn parse_actor_state_data(data: &str) -> Result<crate::game::ActorState, String> {
     match data {
-        "MovingToWork" => Ok(crate::game::game::ActorState::MovingToWork),
-        "MovingToHome" => Ok(crate::game::game::ActorState::MovingToHome),
-        "WaitingAtWork" => Ok(crate::game::game::ActorState::WaitingAtWork),
-        "WaitingAtHome" => Ok(crate::game::game::ActorState::WaitingAtHome),
+        "MovingToWork" => Ok(crate::game::ActorState::MovingToWork),
+        "MovingToHome" => Ok(crate::game::ActorState::MovingToHome),
+        "WaitingAtWork" => Ok(crate::game::ActorState::WaitingAtWork),
+        "WaitingAtHome" => Ok(crate::game::ActorState::WaitingAtHome),
         _ => Err(format!("Unknown ActorState variant: {}", data))
     }
 }
 
 /// Apply Position diff from string like "PositionDiff { x: Some(1), y: Some(2) }"
-fn apply_position_diff(position: &mut crate::game::game::Position, diff_data: &str) -> Result<(), String> {
+fn apply_position_diff(position: &mut crate::game::Position, diff_data: &str) -> Result<(), String> {
     if let Some(content) = diff_data.strip_prefix("PositionDiff { ").and_then(|s| s.strip_suffix(" }")) {
         for part in content.split(", ") {
             if let Some(value_str) = part.strip_prefix("x: Some(").and_then(|s| s.strip_suffix(")")) {
@@ -3451,7 +3452,7 @@ fn apply_position_diff(position: &mut crate::game::game::Position, diff_data: &s
 }
 
 /// Apply Target diff from string like "TargetDiff { x: Some(1), y: Some(2) }"
-fn apply_target_diff(target: &mut crate::game::game::Target, diff_data: &str) -> Result<(), String> {
+fn apply_target_diff(target: &mut crate::game::Target, diff_data: &str) -> Result<(), String> {
     if let Some(content) = diff_data.strip_prefix("TargetDiff { ").and_then(|s| s.strip_suffix(" }")) {
         for part in content.split(", ") {
             if let Some(value_str) = part.strip_prefix("x: Some(").and_then(|s| s.strip_suffix(")")) {
@@ -3467,7 +3468,7 @@ fn apply_target_diff(target: &mut crate::game::game::Target, diff_data: &str) ->
 }
 
 /// Apply WaitTimer diff from string like "WaitTimerDiff { ticks: Some(5) }"
-fn apply_wait_timer_diff(timer: &mut crate::game::game::WaitTimer, diff_data: &str) -> Result<(), String> {
+fn apply_wait_timer_diff(timer: &mut crate::game::WaitTimer, diff_data: &str) -> Result<(), String> {
     if let Some(content) = diff_data.strip_prefix("WaitTimerDiff { ").and_then(|s| s.strip_suffix(" }")) {
         if let Some(value_str) = content.strip_prefix("ticks: Some(").and_then(|s| s.strip_suffix(")")) {
             timer.ticks = value_str.parse().map_err(|e| format!("Failed to parse ticks diff: {}", e))?;
@@ -3479,7 +3480,7 @@ fn apply_wait_timer_diff(timer: &mut crate::game::game::WaitTimer, diff_data: &s
 }
 
 /// Apply ActorState diff from string like "MovingToWork"
-fn apply_actor_state_diff(state: &mut crate::game::game::ActorState, diff_data: &str) -> Result<(), String> {
+fn apply_actor_state_diff(state: &mut crate::game::ActorState, diff_data: &str) -> Result<(), String> {
     *state = parse_actor_state_data(diff_data)?;
     Ok(())
 }
