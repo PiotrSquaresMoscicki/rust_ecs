@@ -75,8 +75,6 @@ impl System for MovementSystem {
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
-        println!("DEBUG: MovementSystem::update called");
-        
         // Collect all obstacle positions first
         let mut obstacles = HashSet::new();
 
@@ -123,9 +121,6 @@ impl System for MovementSystem {
                     position.x = next_pos.0;
                     position.y = next_pos.1;
                     
-                    println!("DEBUG: Movement detected for entity {:?}: ({}, {}) -> ({}, {})", 
-                             entity, old_position.x, old_position.y, position.x, position.y);
-                    
                     // Store the change to record later
                     changes.push((entity, old_position, *position));
                 }
@@ -133,7 +128,6 @@ impl System for MovementSystem {
         }
         
         // Record all component changes
-        println!("DEBUG: About to record {} position changes", changes.len());
         for (entity, old_position, new_position) in changes {
             world.record_component_modification(entity, &old_position, &new_position);
         }

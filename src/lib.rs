@@ -1202,12 +1202,9 @@ impl<I, O> WorldView<I, O> {
         old_value: &T, 
         new_value: &T
     ) {
-        println!("DEBUG: record_component_modification called for entity {:?}", entity);
         if let Some(diff) = old_value.diff(new_value) {
             let diff_str = T::diff_to_string(&diff);
             let type_name = std::any::type_name::<T>().split("::").last().unwrap_or(std::any::type_name::<T>());
-            
-            println!("DEBUG: Recording change for {} on entity {:?}: {}", type_name, entity, diff_str);
             
             let change = DiffComponentChange::Modified {
                 entity,
