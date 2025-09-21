@@ -117,6 +117,20 @@ impl<I, O> WorldView<I, O> {
     {
         self.multi_query::<Q>()
     }
+
+    /// Record a component modification for diff tracking
+    pub fn record_component_modification<T: DiffComponent>(&mut self, entity: Entity, _old: &T, _new: &T) {
+        // Record the change for diff tracking
+        let change = ComponentChange {
+            entity,
+            type_id: TypeId::of::<T>(),
+            operation: ComponentOperation::Modify,
+        };
+        self.system_diff.add_component_change(change);
+        
+        // TODO: In a full implementation, this would also record the actual diff
+        // using T::diff(old, new) and store it in the system_diff
+    }
 }
 
 // Internal representation of systems
@@ -270,7 +284,19 @@ impl World {
                 let system = system_any.downcast_mut::<S>().unwrap();
                 let mut world_view = WorldView::<S::InComponents, S::OutComponents>::new(world);
                 system.initialize(&mut world_view);
-                world_view.get_system_diff().into()
+                // Convert SystemUpdateDiff to SystemInitDiff
+                let update_diff = world_view.get_system_diff();
+                let mut init_diff = SystemInitDiff::new();
+                for change in update_diff.component_changes() {
+                    init_diff.add_component_change(change.clone());
+                }
+                for operation in update_diff.world_operations() {
+                    init_diff.add_world_operation(operation.clone());
+                }
+                for diff_change in update_diff.diff_changes() {
+                    init_diff.add_diff_change(diff_change.clone());
+                }
+                init_diff
             },
             update_fn: |system_any, world| {
                 let system = system_any.downcast_mut::<S>().unwrap();
@@ -282,7 +308,19 @@ impl World {
                 let system = system_any.downcast_mut::<S>().unwrap();
                 let mut world_view = WorldView::<S::InComponents, S::OutComponents>::new(world);
                 system.deinitialize(&mut world_view);
-                world_view.get_system_diff().into()
+                // Convert SystemUpdateDiff to SystemDeinitDiff
+                let update_diff = world_view.get_system_diff();
+                let mut deinit_diff = SystemDeinitDiff::new();
+                for change in update_diff.component_changes() {
+                    deinit_diff.add_component_change(change.clone());
+                }
+                for operation in update_diff.world_operations() {
+                    deinit_diff.add_world_operation(operation.clone());
+                }
+                for diff_change in update_diff.diff_changes() {
+                    deinit_diff.add_diff_change(diff_change.clone());
+                }
+                deinit_diff
             },
             type_name: std::any::type_name::<S>().to_string(),
         };

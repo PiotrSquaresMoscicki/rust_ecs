@@ -101,7 +101,8 @@ macro_rules! impl_mixed_multi_query {
     };
 }
 
-// Generate implementations for tuples of 2 to 15 components
+// Generate implementations for tuples of 1 to 15 components
+impl_mixed_multi_query!(A);
 impl_mixed_multi_query!(A, B);
 impl_mixed_multi_query!(A, B, C);
 impl_mixed_multi_query!(A, B, C, D);
