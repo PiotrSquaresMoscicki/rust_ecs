@@ -1,13 +1,6 @@
 //! Integration tests for the rust_ecs library.
 
-use rust_ecs::{add, Entity, World};
-
-#[test]
-fn integration_test_add_function() {
-    // Test the public add function
-    assert_eq!(add(5, 7), 12);
-    assert_eq!(add(-3, 3), 0);
-}
+use rust_ecs::{Entity, World};
 
 #[test]
 fn integration_test_world_functionality() {

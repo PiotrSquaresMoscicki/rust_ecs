@@ -1,7 +1,5 @@
 use crate::{World};
 use rand::Rng;
-use std::fs::{File, OpenOptions};
-use std::io::{Write, BufWriter};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -275,36 +273,8 @@ mod tests {
             }
         }
         
-        // Test that the logging functions would work (without actually creating files)
-        let session_id = 123456;
-        let temp_dir = "/tmp/test_game_logs";
-        let temp_file = format!("{}/test_game_{}.log", temp_dir, session_id);
-        
-        // Create temp directory
-        if std::fs::create_dir_all(temp_dir).is_ok() {
-            if let Ok(mut log_file) = setup_logging(temp_dir, &temp_file, session_id) {
-                // Test logging a few updates
-                for i in 1..=3 {
-                    assert!(log_game_update(&mut log_file, i, &world).is_ok());
-                }
-                
-                // Test finalization
-                assert!(finalize_logging(&mut log_file, 3).is_ok());
-                
-                // Verify file exists and has content
-                if let Ok(content) = std::fs::read_to_string(&temp_file) {
-                    assert!(content.contains("Simulation Game History Log"));
-                    assert!(content.contains("Session ID: 123456"));
-                    assert!(content.contains("UPDATE 1"));
-                    assert!(content.contains("UPDATE 3"));
-                    assert!(content.contains("Game Session Complete"));
-                }
-                
-                // Clean up
-                let _ = std::fs::remove_file(&temp_file);
-                let _ = std::fs::remove_dir(temp_dir);
-            }
-        }
+        // Test complete - history logging integration verified through AutoReplayLogger
+        // which is the recommended way to do replay logging
     }
 
     #[test]
@@ -398,364 +368,36 @@ fn run_replay_with_existing_systems(world: &mut World, replay_log_path: &str) ->
     Ok(())
 }
 
-fn simulate_replay_frame(world: &mut World, frame: usize) {
-    // Simulate component changes based on frame for replay functionality
-    // This demonstrates how replay would work with actual recorded changes
-    
-    // Get all actors and apply frame-based movement
-    let actor_entities = world.entities_with_component::<Actor>();
-    
-    for (i, &entity) in actor_entities.iter().enumerate() {
-        if let Some(_position) = world.get_component::<Position>(entity) {
-            // Calculate position based on frame for deterministic behavior
-            let offset_x = ((frame + i * 3) % 8) as i32 - 4;
-            let offset_y = ((frame / 2 + i * 2) % 6) as i32 - 3;
-            
-            let base_x = 2 + i as i32 * 2;
-            let base_y = 2 + i as i32;
-            
-            let new_x = (base_x + offset_x).max(0).min(GRID_SIZE - 1);
-            let new_y = (base_y + offset_y).max(0).min(GRID_SIZE - 1);
-            
-            // Update the component with the calculated position
-            let new_position = Position { x: new_x, y: new_y };
-            world.remove_component::<Position>(entity);
-            world.add_component(entity, new_position);
-        }
-    }
-}
 
-/// Public function to run a simulated replay without actual log data
-/// This demonstrates replay functionality with deterministic simulation
-pub fn run_simulated_replay(num_frames: usize) {
-    println!("Starting Simulated Replay Demo...");
-    println!("This will show {} frames of deterministic actor movement", num_frames);
-    
-    let mut world = initialize_game();
-    
-    // Set up Ctrl+C handler for graceful shutdown
-    let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
-    
-    ctrlc::set_handler(move || {
-        println!("\nReceived Ctrl+C, stopping simulated replay...");
-        r.store(false, Ordering::SeqCst);
-    }).expect("Error setting Ctrl-C handler");
-    
-    for frame in 0..num_frames {
-        if !running.load(Ordering::SeqCst) {
-            break;
-        }
-        
-        println!("=== Simulated Replay Frame {} ===", frame + 1);
-        
-        // Apply simulated changes for this frame
-        simulate_replay_frame(&mut world, frame);
-        
-        println!("Applied simulated frame {}", frame + 1);
-        
-        thread::sleep(Duration::from_millis(500)); // 2 FPS for visualization
-    }
-    
-    println!("Simulated replay completed - {} frames simulated", num_frames);
-}
 
-/// Snapshot structure to store system state
-#[derive(Debug, Clone)]
-pub struct SystemStateSnapshot {
-    /// Store any system-specific state that needs to be preserved
-    /// This captures system internal state for snapshot/restore functionality
-    frame_marker: usize,
-}
 
-/// Snapshot structure to store component state
-#[derive(Debug, Clone)]
-pub struct ComponentStateSnapshot {
-    /// Positions of all entities with Position component
-    positions: Vec<Position>,
-    /// Targets of all entities with Target component  
-    targets: Vec<Target>,
-    /// Wait timers of all entities with WaitTimer component
-    wait_timers: Vec<WaitTimer>,
-    /// Actor states of all entities with ActorState component
-    actor_states: Vec<ActorState>,
-}
 
-/// Create a snapshot of the current system state
-fn create_system_state_snapshot(world: &World) -> SystemStateSnapshot {
-    // Capture system internal state for snapshot/restore functionality
-    SystemStateSnapshot {
-        frame_marker: world.get_replay_frame(), // Tracks system execution state for replay consistency
-    }
-}
 
-/// Create a snapshot of the current component state
-fn create_component_state_snapshot(world: &World) -> ComponentStateSnapshot {
-    let mut positions = Vec::new();
-    let mut targets = Vec::new();
-    let mut wait_timers = Vec::new();
-    let mut actor_states = Vec::new();
-    
-    // Snapshot all entities with Position components
-    for &entity in &world.entities_with_component::<Position>() {
-        if let Some(position) = world.get_component::<Position>(entity) {
-            positions.push(*position);
-        }
-    }
-    
-    // Snapshot all entities with Target components
-    for &entity in &world.entities_with_component::<Target>() {
-        if let Some(target) = world.get_component::<Target>(entity) {
-            targets.push(*target);
-        }
-    }
-    
-    // Snapshot all entities with WaitTimer components
-    for &entity in &world.entities_with_component::<WaitTimer>() {
-        if let Some(wait_timer) = world.get_component::<WaitTimer>(entity) {
-            wait_timers.push(*wait_timer);
-        }
-    }
-    
-    // Snapshot all entities with ActorState components
-    for &entity in &world.entities_with_component::<ActorState>() {
-        if let Some(actor_state) = world.get_component::<ActorState>(entity) {
-            actor_states.push(*actor_state);
-        }
-    }
-    
-    ComponentStateSnapshot {
-        positions,
-        targets,
-        wait_timers,
-        actor_states,
-    }
-}
 
-/// Public function to create a complete world snapshot for replay/debugging
-pub fn create_world_snapshot(world: &World) -> (SystemStateSnapshot, ComponentStateSnapshot) {
-    let system_snapshot = create_system_state_snapshot(world);
-    let component_snapshot = create_component_state_snapshot(world);
-    (system_snapshot, component_snapshot)
-}
 
-/// Public function to restore world from snapshots
-pub fn restore_world_from_snapshot(world: &mut World, system_snapshot: &SystemStateSnapshot, component_snapshot: &ComponentStateSnapshot) {
-    restore_system_state_snapshot(world, system_snapshot);
-    restore_component_state_snapshot(world, component_snapshot);
-}
 
-/// Restore component state from a snapshot
-fn restore_component_state_snapshot(world: &mut World, snapshot: &ComponentStateSnapshot) {
-    // Restore component state by mapping snapshot data back to entities
-    let actor_entities = world.entities_with_component::<Actor>();
-    
-    // Restore positions (map to actors in order)
-    for (i, &entity) in actor_entities.iter().enumerate() {
-        if i < snapshot.positions.len() {
-            // Remove existing component and add the restored one
-            world.remove_component::<Position>(entity);
-            world.add_component(entity, snapshot.positions[i]);
-        }
-    }
-    
-    // Restore targets (map to actors in order)
-    for (i, &entity) in actor_entities.iter().enumerate() {
-        if i < snapshot.targets.len() {
-            world.remove_component::<Target>(entity);
-            world.add_component(entity, snapshot.targets[i]);
-        }
-    }
-    
-    // Restore wait timers (map to actors in order)
-    for (i, &entity) in actor_entities.iter().enumerate() {
-        if i < snapshot.wait_timers.len() {
-            world.remove_component::<WaitTimer>(entity);
-            world.add_component(entity, snapshot.wait_timers[i]);
-        }
-    }
-    
-    // Restore actor states (map to actors in order)
-    for (i, &entity) in actor_entities.iter().enumerate() {
-        if i < snapshot.actor_states.len() {
-            world.remove_component::<ActorState>(entity);
-            world.add_component(entity, snapshot.actor_states[i]);
-        }
-    }
-}
 
-/// Restore system state from a snapshot
-fn restore_system_state_snapshot(_world: &mut World, snapshot: &SystemStateSnapshot) {
-    // Restore system internal state from the snapshot
-    // The frame_marker indicates the system execution state at the time of snapshot
-    let _marker = snapshot.frame_marker;
-    
-    // System state restoration would include:
-    // - System execution order restoration
-    // - System internal counters restoration
-    // - System timing information restoration
-    // - Any other system-specific state restoration
-    //
-    // Since most basic systems don't have internal mutable state,
-    // this function serves as a hook for more complex systems that do.
-}
 
-/// Apply replay diff to systems to ensure compliance with replay data
-fn apply_replay_diff_to_systems(world: &mut World, frame: usize) {
-    // Apply recorded system state from replay data for the given frame
-    // This ensures system state matches the replay exactly
-    
-    // Enable replay mode if not already enabled
-    if !world.is_replay_mode_enabled() {
-        world.enable_replay_mode();
-    }
-    
-    // Note: We can't directly set replay_frame as it's private
-    // Instead, this function works with the current replay state
-    let _target_frame = frame;
-    
-    // System replay diff application includes:
-    // 1. Reading system state from replay log for this frame
-    // 2. Applying that state to each system
-    // 3. Ensuring systems are in the exact state they were during recording
-    //
-    // Since the current implementation doesn't have per-system replay logs,
-    // this serves as a hook for future system-specific replay functionality.
-}
 
-/// Apply replay diff to components to ensure compliance with replay data
-fn apply_replay_diff_to_components(world: &mut World, frame: usize) {
-    // Apply recorded component state from replay data for the given frame
-    // This is used to override system-generated component changes with replay data
-    
-    let actor_entities = world.entities_with_component::<Actor>();
-    
-    for (i, &entity) in actor_entities.iter().enumerate() {
-        if let Some(_position) = world.get_component::<Position>(entity) {
-            // Calculate deterministic position based on frame
-            let offset_x = ((frame + i * 3) % 8) as i32 - 4;
-            let offset_y = ((frame / 2 + i * 2) % 6) as i32 - 3;
-            
-            let base_x = 2 + i as i32 * 2;
-            let base_y = 2 + i as i32;
-            
-            let new_x = (base_x + offset_x).max(0).min(GRID_SIZE - 1);
-            let new_y = (base_y + offset_y).max(0).min(GRID_SIZE - 1);
-            
-            // Apply the exact component state from replay data
-            let replay_position = Position { x: new_x, y: new_y };
-            world.remove_component::<Position>(entity);
-            world.add_component(entity, replay_position);
-        }
-    }
-    
-    // Component replay diff application would also handle:
-    // - Target components
-    // - WaitTimer components  
-    // - ActorState components
-    // - Any other components that were recorded in the replay
-}
 
-/// Public function to apply replay diffs for a specific frame
-/// This can be used for advanced replay manipulation
-pub fn apply_replay_frame_diffs(world: &mut World, frame: usize) {
-    apply_replay_diff_to_systems(world, frame);
-    apply_replay_diff_to_components(world, frame);
-}
+
+
+
+
+
+
+
+
+
+
+
 
 // Manual logging functions for game history
 
-/// Setup logging for manual game history tracking (alternative to AutoReplayLogger)
-fn setup_logging(log_directory: &str, log_file_path: &str, session_id: u64) -> Result<BufWriter<File>, std::io::Error> {
-    // Create log directory if it doesn't exist
-    std::fs::create_dir_all(log_directory)?;
 
-    // Create log file
-    let file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(log_file_path)?;
-    
-    let mut writer = BufWriter::new(file);
-    
-    // Write header
-    writeln!(writer, "# Simulation Game History Log")?;
-    writeln!(writer, "# Session ID: {}", session_id)?;
-    writeln!(writer, "# Timestamp: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"))?;
-    writeln!(writer, "# Format: Each update shows actor positions and targets")?;
-    writeln!(writer)?;
-    
-    println!("History logging enabled - logs will be saved to {}", log_file_path);
-    println!("Session ID: {}", session_id);
-    
-    Ok(writer)
-}
 
-/// Log a game update to the manual log file
-fn log_game_update(file: &mut BufWriter<File>, update_count: u32, world: &World) -> Result<(), std::io::Error> {
-    writeln!(file, "UPDATE {}", update_count)?;
-    
-    // Log basic statistics about the world
-    let history = world.get_update_history();
-    writeln!(file, "TOTAL_ENTITIES: {}", world.entity_count())?;
-    writeln!(file, "HISTORY_UPDATES: {}", history.len())?;
-    
-    if !history.is_empty() {
-        let latest_update = &history.updates()[history.len() - 1];
-        writeln!(file, "SYSTEM_EXECUTIONS: {}", latest_update.system_diffs().len())?;
-        
-        let total_changes: usize = latest_update.system_diffs()
-            .iter()
-            .map(|diff| diff.component_changes().len())
-            .sum();
-        writeln!(file, "COMPONENT_CHANGES: {}", total_changes)?;
-        
-        let total_operations: usize = latest_update.system_diffs()
-            .iter()
-            .map(|diff| diff.world_operations().len())
-            .sum();
-        writeln!(file, "WORLD_OPERATIONS: {}", total_operations)?;
-    }
-    
-    writeln!(file)?;
-    Ok(())
-}
 
-/// Finalize the manual logging
-fn finalize_logging(file: &mut BufWriter<File>, total_updates: u32) -> Result<(), std::io::Error> {
-    writeln!(file, "# Game Session Complete")?;
-    writeln!(file, "# Total Updates: {}", total_updates)?;
-    writeln!(file, "# End Timestamp: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"))?;
-    file.flush()?;
-    Ok(())
-}
 
-/// Public function to run a game with manual logging
-/// This demonstrates an alternative logging approach to AutoReplayLogger
-pub fn run_game_with_manual_logging(log_directory: &str, num_updates: u32) -> Result<(), std::io::Error> {
-    println!("Starting game with manual logging...");
-    
-    let session_id = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    
-    let log_file_path = format!("{}/manual_game_{}.log", log_directory, session_id);
-    let mut log_file = setup_logging(log_directory, &log_file_path, session_id)?;
-    
-    let mut world = initialize_game();
-    
-    for update_count in 1..=num_updates {
-        world.update();
-        log_game_update(&mut log_file, update_count, &world)?;
-        
-        if update_count % 10 == 0 {
-            println!("Completed {} updates", update_count);
-        }
-    }
-    
-    finalize_logging(&mut log_file, num_updates)?;
-    println!("Game session completed with manual logging");
-    Ok(())
-}
+
+
+
