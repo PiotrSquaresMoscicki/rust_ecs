@@ -7,11 +7,11 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-use crate::ecs::core::{Entity, ComponentChange, ComponentOperation, WorldOperation, Out};
-use crate::ecs::diff::{Diff, DiffComponent, DiffComponentChange};
+use crate::ecs::core::{Entity, ComponentChange, ComponentOperation, WorldOperation};
+use crate::ecs::diff::DiffComponent;
 use crate::ecs::system::{System, SystemUpdateDiff, SystemInitDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
 use crate::ecs::replay::{AutoReplayLogger, ReplayLogConfig};
-use crate::ecs::query::{QueryComponent, MixedMultiQuery, MixedQueryComponent};
+use crate::ecs::query::MixedMultiQuery;
 
 /// WorldView provides controlled access to world data for systems
 pub struct WorldView<InComponents, OutComponents> {
@@ -138,21 +138,6 @@ struct SystemWrapper {
     system: Box<dyn Any>,
     initialize_fn: fn(&mut dyn Any, &mut World) -> SystemInitDiff,
     update_fn: fn(&mut dyn Any, &mut World) -> SystemUpdateDiff,
-    deinitialize_fn: fn(&mut dyn Any, &mut World) -> SystemDeinitDiff,
-    type_name: String,
-}
-
-/// Snapshot structures for internal change tracking
-#[derive(Debug, Clone)]
-struct SystemComponentSnapshot {
-    /// Serialized component data specific to this system
-    component_data: String,
-}
-
-#[derive(Debug, Clone)]
-struct SystemStateSnapshot {
-    /// System state information
-    frame_marker: usize,
 }
 
 /// The main ECS World that manages entities, components, and systems
@@ -304,25 +289,6 @@ impl World {
                 system.update(&mut world_view);
                 world_view.get_system_diff()
             },
-            deinitialize_fn: |system_any, world| {
-                let system = system_any.downcast_mut::<S>().unwrap();
-                let mut world_view = WorldView::<S::InComponents, S::OutComponents>::new(world);
-                system.deinitialize(&mut world_view);
-                // Convert SystemUpdateDiff to SystemDeinitDiff
-                let update_diff = world_view.get_system_diff();
-                let mut deinit_diff = SystemDeinitDiff::new();
-                for change in update_diff.component_changes() {
-                    deinit_diff.add_component_change(change.clone());
-                }
-                for operation in update_diff.world_operations() {
-                    deinit_diff.add_world_operation(operation.clone());
-                }
-                for diff_change in update_diff.diff_changes() {
-                    deinit_diff.add_diff_change(diff_change.clone());
-                }
-                deinit_diff
-            },
-            type_name: std::any::type_name::<S>().to_string(),
         };
 
         self.systems.push(wrapper);
@@ -487,7 +453,7 @@ impl World {
 
     /// Replay a world history to create a new world with the same state
     pub fn replay_history(history: &WorldUpdateHistory) -> World {
-        let mut world = World::new();
+        let world = World::new();
         
         // Apply each update in the history
         for _update in history.updates() {

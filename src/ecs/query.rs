@@ -2,7 +2,6 @@
 //!
 //! This module provides the query system for accessing components in the ECS.
 
-use std::marker::PhantomData;
 use crate::ecs::core::{Entity, Out, In};
 
 /// Trait for component types that can be queried immutably
@@ -39,7 +38,7 @@ impl<'a, T: 'static> QueryComponent<'a> for In<T> {
 impl<'a, T: 'static> QueryComponent<'a> for Out<T> {
     type Item = &'a mut T;
 
-    fn get_component(world: &'a crate::ecs::World, entity: Entity) -> Option<Self::Item> {
+    fn get_component(_world: &'a crate::ecs::World, _entity: Entity) -> Option<Self::Item> {
         // This is handled specially in WorldView
         unreachable!("Out<T> queries should be handled by WorldView")
     }
@@ -58,7 +57,7 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for In<T> {
 impl<'a, T: 'static> MixedQueryComponent<'a> for Out<T> {
     type Item = &'a mut T;
 
-    fn get_mixed_component(world: &'a crate::ecs::World, entity: Entity) -> Option<Self::Item> {
+    fn get_mixed_component(_world: &'a crate::ecs::World, _entity: Entity) -> Option<Self::Item> {
         // This is handled specially in WorldView
         unreachable!("Out<T> queries should be handled by WorldView")
     }
@@ -93,7 +92,7 @@ macro_rules! impl_mixed_multi_query {
         {
             type Item = ($($component::Item,)+);
 
-            fn query_mixed(world: &'a crate::ecs::World) -> Vec<(Entity, Self::Item)> {
+            fn query_mixed(_world: &'a crate::ecs::World) -> Vec<(Entity, Self::Item)> {
                 // Implementation would be in WorldView
                 unreachable!("MixedMultiQuery should be implemented in WorldView")
             }

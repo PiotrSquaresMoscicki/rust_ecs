@@ -32,7 +32,7 @@ pub trait Diff {
 pub trait BinaryDiff: Diff {
     /// Convert the diff to binary format for efficient storage
     /// Default implementation tries to serialize the diff if it supports serde
-    fn diff_to_binary(diff: &Self::Diff) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    fn diff_to_binary(_diff: &Self::Diff) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         Err("Binary serialization not implemented for this type".into())
     }
 
