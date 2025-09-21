@@ -20,6 +20,5 @@ pub use ecs::{
     DiffComponentChange
 };
 
-// Re-export the derive macro from the derive crate and the trait
+// Re-export the derive macro from the derive crate
 pub use rust_ecs_derive::Diff;
-pub use ecs::Diff;
