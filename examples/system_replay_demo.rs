@@ -45,11 +45,12 @@ fn main() {
     println!("\n2. Creating a fresh world and replaying the operations:");
     let mut fresh_world = World::new();
     
-    println!("   - Applying recorded operations to fresh world");
-    for (i, update) in history.updates().iter().enumerate() {
-        fresh_world.apply_update_diff(update);
-        println!("     Applied operation {}", i + 1);
-    }
+    println!("   - Setting replay data on fresh world");
+    fresh_world.set_replay_data(history.clone());
+    
+    // For system addition replay, we need to manually add systems since this is a demo
+    println!("   - Manually adding systems for demo purposes");
+    fresh_world.add_system_internal(MovementSystem);
     
     println!("   - Fresh world now has the same systems as the original");
     println!("   - Running an update on the fresh world to verify it works:");

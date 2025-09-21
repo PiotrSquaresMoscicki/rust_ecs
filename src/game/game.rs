@@ -374,24 +374,27 @@ fn run_replay_with_existing_systems(world: &mut World, replay_log_path: &str) ->
     }).expect("Error setting Ctrl-C handler");
 
     // Apply each update from the replay
-    let updates = replay_history.updates();
-    for (frame_idx, update) in updates.iter().enumerate() {
+    let num_updates = replay_history.updates().len();
+    
+    // Set the replay data on the world and enable replay mode
+    world.set_replay_data(replay_history);
+    
+    for frame_idx in 0..num_updates {
         if !running.load(Ordering::SeqCst) {
             break;
         }
 
         println!("=== Replay Frame {} ===", frame_idx + 1);
         
-        // Apply the recorded world update
-        world.apply_update_diff(update);
+        // Call the normal update method - systems will use replay data automatically
+        world.update();
         
-        // For now, just print the frame number - rendering would require specific system access
         println!("Applied replay frame {}", frame_idx + 1);
 
         thread::sleep(Duration::from_millis(500)); // 2 FPS for visualization
     }
 
-    println!("Replay completed - {} frames applied", updates.len());
+    println!("Replay completed - {} frames applied", num_updates);
     Ok(())
 }
 
