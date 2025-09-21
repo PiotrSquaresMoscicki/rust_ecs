@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::hash::Hash;
+use serde::{Serialize, Deserialize};
 
 use crate::ecs::core::Entity;
 
@@ -26,6 +27,22 @@ pub trait Diff {
     }
 }
 
+/// Extended trait for types that support binary diff serialization
+/// This is a simplified version that works with the existing diff system
+pub trait BinaryDiff: Diff {
+    /// Convert the diff to binary format for efficient storage
+    /// Default implementation tries to serialize the diff if it supports serde
+    fn diff_to_binary(diff: &Self::Diff) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        Err("Binary serialization not implemented for this type".into())
+    }
+
+    /// Create a diff from binary format
+    /// Default implementation returns an error
+    fn diff_from_binary(_data: &[u8]) -> Result<Self::Diff, Box<dyn std::error::Error>> {
+        Err("Binary deserialization not implemented for this type".into())
+    }
+}
+
 /// Marker trait for component types that can be diffed
 pub trait DiffComponent: Diff + std::fmt::Debug + 'static {
     /// Get the type name as a string for serialization/debugging
@@ -35,7 +52,7 @@ pub trait DiffComponent: Diff + std::fmt::Debug + 'static {
 }
 
 /// Enumeration of component changes that can be recorded in replay logs
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DiffComponentChange {
     /// A component was added to an entity
     Added {
@@ -54,6 +71,78 @@ pub enum DiffComponentChange {
         entity: Entity,
         type_name: String,
     },
+}
+
+/// Binary-optimized enumeration of component changes for high-performance recording
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BinaryDiffComponentChange {
+    /// A component was added to an entity
+    Added {
+        entity: Entity,
+        type_name: String,
+        diff_data: Vec<u8>,
+    },
+    /// A component was modified on an entity
+    Modified {
+        entity: Entity,
+        type_name: String,
+        diff_data: Vec<u8>,
+    },
+    /// A component was removed from an entity
+    Removed {
+        entity: Entity,
+        type_name: String,
+    },
+}
+
+impl BinaryDiffComponentChange {
+    /// Convert from regular DiffComponentChange to binary format with raw diff data
+    pub fn from_diff_change_raw(
+        entity: Entity,
+        type_name: String,
+        diff_data: Vec<u8>,
+        change_type: DiffChangeType,
+    ) -> Self {
+        match change_type {
+            DiffChangeType::Added => Self::Added { entity, type_name, diff_data },
+            DiffChangeType::Modified => Self::Modified { entity, type_name, diff_data },
+            DiffChangeType::Removed => Self::Removed { entity, type_name },
+        }
+    }
+
+    /// Convert to regular DiffComponentChange for text-based logging
+    pub fn to_diff_change(&self) -> DiffComponentChange {
+        match self {
+            Self::Added { entity, type_name, diff_data } => {
+                DiffComponentChange::Added {
+                    entity: *entity,
+                    type_name: type_name.clone(),
+                    diff_string: format!("Binary({} bytes)", diff_data.len()),
+                }
+            }
+            Self::Modified { entity, type_name, diff_data } => {
+                DiffComponentChange::Modified {
+                    entity: *entity,
+                    type_name: type_name.clone(),
+                    diff_string: format!("Binary({} bytes)", diff_data.len()),
+                }
+            }
+            Self::Removed { entity, type_name } => {
+                DiffComponentChange::Removed {
+                    entity: *entity,
+                    type_name: type_name.clone(),
+                }
+            }
+        }
+    }
+}
+
+/// Type of diff change for helper functions
+#[derive(Debug, Clone, Copy)]
+pub enum DiffChangeType {
+    Added,
+    Modified,
+    Removed,
 }
 
 /// Macro to automatically implement Diff for structs
@@ -126,6 +215,16 @@ impl Diff for i32 {
 
 impl DiffComponent for i32 {}
 
+impl BinaryDiff for i32 {
+    fn diff_to_binary(diff: &Self::Diff) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        Ok(bincode::serialize(diff)?)
+    }
+
+    fn diff_from_binary(data: &[u8]) -> Result<Self::Diff, Box<dyn std::error::Error>> {
+        Ok(bincode::deserialize(data)?)
+    }
+}
+
 impl Diff for f32 {
     type Diff = f32;
 
@@ -143,6 +242,16 @@ impl Diff for f32 {
 }
 
 impl DiffComponent for f32 {}
+
+impl BinaryDiff for f32 {
+    fn diff_to_binary(diff: &Self::Diff) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        Ok(bincode::serialize(diff)?)
+    }
+
+    fn diff_from_binary(data: &[u8]) -> Result<Self::Diff, Box<dyn std::error::Error>> {
+        Ok(bincode::deserialize(data)?)
+    }
+}
 
 impl Diff for usize {
     type Diff = usize;
@@ -162,6 +271,16 @@ impl Diff for usize {
 
 impl DiffComponent for usize {}
 
+impl BinaryDiff for usize {
+    fn diff_to_binary(diff: &Self::Diff) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        Ok(bincode::serialize(diff)?)
+    }
+
+    fn diff_from_binary(data: &[u8]) -> Result<Self::Diff, Box<dyn std::error::Error>> {
+        Ok(bincode::deserialize(data)?)
+    }
+}
+
 impl Diff for u32 {
     type Diff = u32;
 
@@ -180,6 +299,16 @@ impl Diff for u32 {
 
 impl DiffComponent for u32 {}
 
+impl BinaryDiff for u32 {
+    fn diff_to_binary(diff: &Self::Diff) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        Ok(bincode::serialize(diff)?)
+    }
+
+    fn diff_from_binary(data: &[u8]) -> Result<Self::Diff, Box<dyn std::error::Error>> {
+        Ok(bincode::deserialize(data)?)
+    }
+}
+
 impl Diff for String {
     type Diff = String;
 
@@ -197,6 +326,16 @@ impl Diff for String {
 }
 
 impl DiffComponent for String {}
+
+impl BinaryDiff for String {
+    fn diff_to_binary(diff: &Self::Diff) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        Ok(bincode::serialize(diff)?)
+    }
+
+    fn diff_from_binary(data: &[u8]) -> Result<Self::Diff, Box<dyn std::error::Error>> {
+        Ok(bincode::deserialize(data)?)
+    }
+}
 
 impl<T: Diff + Clone + std::fmt::Debug> Diff for Vec<T> {
     type Diff = VecDiff<T>;
@@ -260,13 +399,13 @@ impl<T: Diff + Clone + std::fmt::Debug> Diff for Vec<T> {
 }
 
 /// Diff type for Vec<T>
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VecDiff<T: Diff + std::fmt::Debug> {
     pub changes: Vec<VecChange<T>>,
 }
 
 /// Individual change in a Vec
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum VecChange<T: Diff + std::fmt::Debug> {
     Added { index: usize, value: T },
     Modified { index: usize, diff: T::Diff },
@@ -344,13 +483,13 @@ impl<
 }
 
 /// Diff type for HashMap<K, V>
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HashMapDiff<K: std::fmt::Debug, V: Diff + std::fmt::Debug> {
     pub changes: Vec<HashMapChange<K, V>>,
 }
 
 /// Individual change in a HashMap
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum HashMapChange<K: std::fmt::Debug, V: Diff + std::fmt::Debug> {
     Added { key: K, value: V },
     Modified { key: K, diff: V::Diff },
