@@ -14,11 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 // Re-export the derive macro from the derive crate
 pub use rust_ecs_derive::Diff;
 
-/// A dummy function to demonstrate the library.
-/// Returns the sum of two numbers.
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
+
 
 /// Trait for types that can be diffed to track changes
 pub trait Diff {
@@ -2405,27 +2401,7 @@ impl World {
         Ok(())
     }
 
-    /// Apply a system addition from replay data
-    fn apply_system_addition(&mut self, system_type_name: &str) -> Result<(), String> {
-        use crate::game::*;
-        
-        match system_type_name {
-            // Support both old and new paths for backward compatibility
-            "rust_ecs::game::game::MovementSystem" | "rust_ecs::game::movement_system::MovementSystem" => {
-                self.add_system_internal(MovementSystem);
-            }
-            "rust_ecs::game::game::WaitSystem" | "rust_ecs::game::wait_system::WaitSystem" => {
-                self.add_system_internal(WaitSystem);
-            }
-            "rust_ecs::game::game::RenderSystem" | "rust_ecs::game::render_system::RenderSystem" => {
-                self.add_system_internal(RenderSystem::default());
-            }
-            _ => {
-                return Err(format!("Unknown system type for addition: {}", system_type_name));
-            }
-        }
-        Ok(())
-    }
+
 
     /// Get all entities that have a specific component type
     pub fn entities_with_component<T: 'static>(&self) -> Vec<Entity> {
@@ -2440,12 +2416,7 @@ impl World {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_add_function() {
-        assert_eq!(add(2, 3), 5);
-        assert_eq!(add(-1, 1), 0);
-        assert_eq!(add(0, 0), 0);
-    }
+
 
     #[test]
     fn test_world_creation() {
