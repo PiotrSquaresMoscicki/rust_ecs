@@ -23,6 +23,38 @@ pub struct ReplayLogConfig {
     pub flush_interval: usize,
     /// Whether to include detailed component changes in logs
     pub include_component_details: bool,
+    /// Use minimal logging to reduce overhead
+    pub minimal_mode: bool,
+    /// Maximum size of in-memory buffer before forcing flush (in bytes)
+    pub max_buffer_size: usize,
+}
+
+impl ReplayLogConfig {
+    /// Create a configuration optimized for performance with minimal overhead
+    pub fn optimized_performance() -> Self {
+        Self {
+            enabled: true,
+            log_directory: "replay_logs".to_string(),
+            file_prefix: "game_replay".to_string(),
+            flush_interval: 1000,  // Flush less frequently
+            include_component_details: false,  // Reduce data size
+            minimal_mode: true,  // Use minimal logging
+            max_buffer_size: 2 * 1024 * 1024,  // 2MB buffer for better batching
+        }
+    }
+
+    /// Create a configuration for debugging with full details
+    pub fn debug_full() -> Self {
+        Self {
+            enabled: true,
+            log_directory: "debug_logs".to_string(),
+            file_prefix: "debug_replay".to_string(),
+            flush_interval: 1,  // Flush immediately for debugging
+            include_component_details: true,  // Full details
+            minimal_mode: false,  // Full logging
+            max_buffer_size: 1024 * 1024,
+        }
+    }
 }
 
 impl Default for ReplayLogConfig {
@@ -33,6 +65,8 @@ impl Default for ReplayLogConfig {
             file_prefix: "game_replay".to_string(),
             flush_interval: 100,
             include_component_details: true,
+            minimal_mode: false,
+            max_buffer_size: 1024 * 1024,  // 1MB buffer
         }
     }
 }
@@ -44,6 +78,8 @@ pub struct AutoReplayLogger {
     log_file: Option<BufWriter<File>>,
     session_id: String,
     update_count: usize,
+    in_memory_buffer: Vec<String>,
+    buffer_size_bytes: usize,
 }
 
 impl AutoReplayLogger {
@@ -56,6 +92,8 @@ impl AutoReplayLogger {
             log_file: None,
             session_id,
             update_count: 0,
+            in_memory_buffer: Vec::new(),
+            buffer_size_bytes: 0,
         }
     }
 
@@ -103,48 +141,112 @@ impl AutoReplayLogger {
 
     /// Log a world update to the replay file
     pub fn log_update(&mut self, update_diff: &WorldUpdateDiff) -> Result<(), std::io::Error> {
-        if !self.config.enabled || self.log_file.is_none() {
+        if !self.config.enabled {
             return Ok(());
         }
 
         self.update_count += 1;
 
-        if let Some(ref mut file) = self.log_file {
-            writeln!(file, "UPDATE {}", self.update_count)?;
-            writeln!(file, "SYSTEMS: {}", update_diff.system_diffs().len())?;
+        if self.config.minimal_mode {
+            self.log_update_minimal(update_diff)
+        } else {
+            self.log_update_full(update_diff)
+        }
+    }
 
-            for (system_index, system_diff) in update_diff.system_diffs().iter().enumerate() {
-                writeln!(file, "  SYSTEM {}", system_index)?;
-                
-                if self.config.include_component_details {
-                    writeln!(file, "    COMPONENT_CHANGES: {}", system_diff.diff_changes().len())?;
-                    for change in system_diff.diff_changes() {
-                        writeln!(file, "      {:?}", change)?;
-                    }
-                    
-                    writeln!(file, "    WORLD_OPERATIONS: {}", system_diff.world_operations().len())?;
-                    for operation in system_diff.world_operations() {
-                        writeln!(file, "      {:?}", operation)?;
-                    }
-                } else {
-                    writeln!(file, "    COMPONENT_CHANGES: {}", system_diff.component_changes().len())?;
-                    writeln!(file, "    WORLD_OPERATIONS: {}", system_diff.world_operations().len())?;
-                }
-            }
+    /// Log update with minimal information to reduce overhead
+    fn log_update_minimal(&mut self, update_diff: &WorldUpdateDiff) -> Result<(), std::io::Error> {
+        // Use efficient string building
+        let entry = format!("U{} S{}\n", 
+            self.update_count, 
+            update_diff.system_diffs().len()
+        );
+        
+        self.in_memory_buffer.push(entry);
+        self.buffer_size_bytes += 32; // Rough estimate for minimal entry
+        
+        // Check if we should flush
+        self.check_and_flush()?;
+        
+        Ok(())
+    }
+
+    /// Log update with full details (original behavior)
+    fn log_update_full(&mut self, update_diff: &WorldUpdateDiff) -> Result<(), std::io::Error> {
+        // Build the full log entry in memory first to reduce I/O
+        let mut entry = format!("UPDATE {}\nSYSTEMS: {}\n", 
+            self.update_count, 
+            update_diff.system_diffs().len()
+        );
+
+        for (system_index, system_diff) in update_diff.system_diffs().iter().enumerate() {
+            entry.push_str(&format!("  SYSTEM {}\n", system_index));
             
-            writeln!(file)?; // Empty line for readability
-
-            // Flush periodically or when requested
-            if self.update_count % self.config.flush_interval == 0 {
-                file.flush()?;
+            if self.config.include_component_details {
+                entry.push_str(&format!("    COMPONENT_CHANGES: {}\n", system_diff.diff_changes().len()));
+                for change in system_diff.diff_changes() {
+                    entry.push_str(&format!("      {:?}\n", change));
+                }
+                
+                entry.push_str(&format!("    WORLD_OPERATIONS: {}\n", system_diff.world_operations().len()));
+                for operation in system_diff.world_operations() {
+                    entry.push_str(&format!("      {:?}\n", operation));
+                }
+            } else {
+                entry.push_str(&format!("    COMPONENT_CHANGES: {}\n", system_diff.component_changes().len()));
+                entry.push_str(&format!("    WORLD_OPERATIONS: {}\n", system_diff.world_operations().len()));
             }
         }
+        
+        entry.push('\n'); // Empty line for readability
+        
+        self.buffer_size_bytes += entry.len();
+        self.in_memory_buffer.push(entry);
+        
+        // Check if we should flush
+        self.check_and_flush()?;
+        
+        Ok(())
+    }
+
+    /// Check if buffer should be flushed and flush if needed
+    fn check_and_flush(&mut self) -> Result<(), std::io::Error> {
+        let should_flush = self.update_count % self.config.flush_interval == 0 ||
+                          self.buffer_size_bytes >= self.config.max_buffer_size;
+        
+        if should_flush {
+            self.flush_buffer()?;
+        }
+        
+        Ok(())
+    }
+
+    /// Flush the in-memory buffer to disk
+    fn flush_buffer(&mut self) -> Result<(), std::io::Error> {
+        if self.in_memory_buffer.is_empty() {
+            return Ok(());
+        }
+
+        if let Some(ref mut file) = self.log_file {
+            // Write all buffered entries at once
+            for entry in &self.in_memory_buffer {
+                file.write_all(entry.as_bytes())?;
+            }
+            file.flush()?;
+        }
+
+        // Clear the buffer
+        self.in_memory_buffer.clear();
+        self.buffer_size_bytes = 0;
 
         Ok(())
     }
 
     /// Finalize the log file and close it
     pub fn finalize(&mut self) -> Result<(), std::io::Error> {
+        // Flush any remaining buffer
+        self.flush_buffer()?;
+        
         if let Some(mut file) = self.log_file.take() {
             writeln!(file, "# End of replay log - Total updates: {}", self.update_count)?;
             file.flush()?;
