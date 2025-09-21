@@ -1,5 +1,5 @@
 use rust_ecs::*;
-use rust_ecs::game::game::*;
+use rust_ecs::game::*;
 use std::fs;
 use std::path::Path;
 use std::collections::HashMap;
