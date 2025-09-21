@@ -26,8 +26,8 @@ pub trait MixedMultiQuery<'a> {
     fn query_mixed(world: &'a crate::ecs::World) -> Vec<(Entity, Self::Item)>;
 }
 
-// Implement QueryComponent for direct component access
-impl<'a, T: 'static> QueryComponent<'a> for T {
+// Implement QueryComponent for In<T> wrapper specifically  
+impl<'a, T: 'static> QueryComponent<'a> for In<T> {
     type Item = &'a T;
 
     fn get_component(world: &'a crate::ecs::World, entity: Entity) -> Option<Self::Item> {
@@ -45,8 +45,8 @@ impl<'a, T: 'static> QueryComponent<'a> for Out<T> {
     }
 }
 
-// Implement MixedQueryComponent for direct component access
-impl<'a, T: 'static> MixedQueryComponent<'a> for T {
+// Implement MixedQueryComponent for In<T> wrapper specifically
+impl<'a, T: 'static> MixedQueryComponent<'a> for In<T> {
     type Item = &'a T;
 
     fn get_mixed_component(world: &'a crate::ecs::World, entity: Entity) -> Option<Self::Item> {
@@ -64,16 +64,23 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for Out<T> {
     }
 }
 
-// Implement MixedMultiQuery for single component
-impl<'a, A> MixedMultiQuery<'a> for A
-where
-    A: MixedQueryComponent<'a> + 'static,
-{
-    type Item = A::Item;
+// Implement MixedMultiQuery for single In<T> component
+impl<'a, T: 'static> MixedMultiQuery<'a> for In<T> {
+    type Item = &'a T;
 
-    fn query_mixed(world: &'a crate::ecs::World) -> Vec<(Entity, Self::Item)> {
+    fn query_mixed(_world: &'a crate::ecs::World) -> Vec<(Entity, Self::Item)> {
         // Implementation would be in WorldView
-        unreachable!("MixedMultiQuery should be implemented in WorldView")
+        Vec::new()
+    }
+}
+
+// Implement MixedMultiQuery for single Out<T> component  
+impl<'a, T: 'static> MixedMultiQuery<'a> for Out<T> {
+    type Item = &'a mut T;
+
+    fn query_mixed(_world: &'a crate::ecs::World) -> Vec<(Entity, Self::Item)> {
+        // Implementation would be in WorldView
+        Vec::new()
     }
 }
 

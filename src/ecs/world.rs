@@ -109,6 +109,14 @@ impl<I, O> WorldView<I, O> {
         // This is a placeholder - real implementation would handle the complex query logic
         Vec::new()
     }
+
+    /// Query for components with mixed query syntax (compatibility method)
+    pub fn query_components<Q>(&mut self) -> Vec<(Entity, Q::Item)>
+    where
+        Q: MixedMultiQuery<'static>,
+    {
+        self.multi_query::<Q>()
+    }
 }
 
 // Internal representation of systems
@@ -290,7 +298,10 @@ impl World {
 
         let mut world_update_diff = WorldUpdateDiff::new();
 
-        for system in &mut self.systems {
+        // We need to temporarily take ownership of systems to avoid borrowing issues
+        let mut systems = std::mem::take(&mut self.systems);
+        
+        for system in &mut systems {
             let init_diff = (system.initialize_fn)(&mut *system.system, self);
             // Convert SystemInitDiff to SystemUpdateDiff for consistency
             let mut update_diff = SystemUpdateDiff::new();
@@ -306,6 +317,8 @@ impl World {
             world_update_diff.add_system_diff(update_diff);
         }
 
+        // Restore systems
+        self.systems = systems;
         self.update_history.add_update(world_update_diff);
         self.systems_initialized = true;
     }
@@ -318,10 +331,16 @@ impl World {
 
         let mut world_update_diff = WorldUpdateDiff::new();
 
-        for system in &mut self.systems {
+        // We need to temporarily take ownership of systems to avoid borrowing issues
+        let mut systems = std::mem::take(&mut self.systems);
+        
+        for system in &mut systems {
             let system_diff = (system.update_fn)(&mut *system.system, self);
             world_update_diff.add_system_diff(system_diff);
         }
+
+        // Restore systems
+        self.systems = systems;
 
         // Log the update if replay logging is enabled
         if let Some(ref mut logger) = self.replay_logger {
@@ -398,6 +417,9 @@ impl World {
             file_prefix: file_prefix.to_string(),
             flush_interval,
             include_component_details: true,
+            minimal_mode: false,
+            max_buffer_size: 1024 * 1024,  // 1MB default
+            binary_format: false,  // Use text format for compatibility
         };
         self.enable_replay_logging(config)
     }
@@ -436,6 +458,18 @@ impl World {
         }
         
         world
+    }
+
+    /// Parse a replay log file and return the parsed history
+    pub fn parse_replay_log_file(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn std::error::Error>> {
+        crate::ecs::replay::analysis::parse_replay_log(file_path)
+    }
+
+    /// Set replay data for this world and enable replay mode
+    pub fn set_replay_data(&mut self, replay_history: WorldUpdateHistory) {
+        self.update_history = replay_history;
+        self.replay_mode = true;
+        self.replay_frame = 0;
     }
 
     /// Parse a replay log file and return the parsed history

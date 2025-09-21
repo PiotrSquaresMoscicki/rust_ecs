@@ -399,13 +399,13 @@ impl<T: Diff + Clone + std::fmt::Debug> Diff for Vec<T> {
 }
 
 /// Diff type for Vec<T>
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct VecDiff<T: Diff + std::fmt::Debug> {
     pub changes: Vec<VecChange<T>>,
 }
 
 /// Individual change in a Vec
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub enum VecChange<T: Diff + std::fmt::Debug> {
     Added { index: usize, value: T },
     Modified { index: usize, diff: T::Diff },
@@ -483,13 +483,13 @@ impl<
 }
 
 /// Diff type for HashMap<K, V>
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct HashMapDiff<K: std::fmt::Debug, V: Diff + std::fmt::Debug> {
     pub changes: Vec<HashMapChange<K, V>>,
 }
 
 /// Individual change in a HashMap
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub enum HashMapChange<K: std::fmt::Debug, V: Diff + std::fmt::Debug> {
     Added { key: K, value: V },
     Modified { key: K, diff: V::Diff },
