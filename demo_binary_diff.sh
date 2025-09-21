@@ -55,3 +55,14 @@ echo
 
 echo "Demo completed! Binary diff recording provides significant"
 echo "performance improvements for production replay logging."
+echo
+echo "=== Running Benchmarks ==="
+echo
+echo "To run comprehensive benchmarks comparing all three scenarios:"
+echo "  cargo run --bin comprehensive_benchmark --release"
+echo
+echo "To run basic replay system benchmarks:"
+echo "  cargo run --bin replay_benchmark --release"
+echo
+echo "To run criterion benchmarks:"
+echo "  cargo bench"
