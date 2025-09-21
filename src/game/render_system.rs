@@ -72,7 +72,6 @@ mod tests {
     use super::*;
     use crate::World;
     use super::super::components::*;
-    use std::io::{self, Write};
 
     fn create_test_world_with_entities() -> World {
         let mut world = World::new();

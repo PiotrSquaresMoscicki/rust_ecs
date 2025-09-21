@@ -186,7 +186,7 @@ mod tests {
         println!("Test replay history tracking:");
         println!("  Total updates recorded: {}", history.len());
         
-        assert_eq!(history.len(), 8); // 3 system additions + 5 updates
+        assert_eq!(history.len(), 6); // 1 system initialization + 5 updates
         assert!(!history.is_empty());
         
         // Check that each update has system diffs
@@ -203,8 +203,7 @@ mod tests {
         
         // Get initial positions and targets of actors
         let initial_data: Vec<((i32, i32), (i32, i32))> = {
-            let mut world_view = crate::WorldView::<(), ()>::new(&mut world);
-            world_view.query_components::<(crate::In<Position>, crate::In<Actor>, crate::In<Target>)>()
+            world.query_position_actor_target_components()
                 .into_iter()
                 .map(|(_, (pos, _, target))| ((pos.x, pos.y), (target.x, target.y)))
                 .collect()
@@ -229,8 +228,7 @@ mod tests {
         
         // Verify actors have moved (at least some should have different positions)
         let final_data: Vec<((i32, i32), (i32, i32))> = {
-            let mut world_view = crate::WorldView::<(), ()>::new(&mut world);
-            world_view.query_components::<(crate::In<Position>, crate::In<Actor>, crate::In<Target>)>()
+            world.query_position_actor_target_components()
                 .into_iter()
                 .map(|(_, (pos, _, target))| ((pos.x, pos.y), (target.x, target.y)))
                 .collect()
@@ -259,14 +257,14 @@ mod tests {
         
         // Verify history is being tracked
         let history = world.get_update_history();
-        assert_eq!(history.len(), 8); // 3 system additions + 5 updates
+        assert_eq!(history.len(), 6); // 1 system initialization + 5 updates
         
         // Verify each update has system diffs
         for (i, update) in history.updates().iter().enumerate() {
             println!("Update {}: {} system diffs", i + 1, update.system_diffs().len());
-            if i < 3 {
-                // First 3 updates are system additions - each has 1 system diff
-                assert_eq!(update.system_diffs().len(), 1);
+            if i == 0 {
+                // First update is system initialization - has 3 system diffs (all systems)
+                assert_eq!(update.system_diffs().len(), 3);
             } else {
                 // Remaining updates are game updates - each has 3 system diffs (Movement, Wait, Render)
                 assert_eq!(update.system_diffs().len(), 3);

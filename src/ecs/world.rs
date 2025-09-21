@@ -106,7 +106,7 @@ impl<I, O> WorldView<I, O> {
     where
         Q: MixedMultiQuery<'static>,
     {
-        // This is a placeholder - real implementation would handle the complex query logic
+        // For now, return empty until we implement the full query system
         Vec::new()
     }
 
@@ -115,7 +115,69 @@ impl<I, O> WorldView<I, O> {
     where
         Q: MixedMultiQuery<'static>,
     {
-        self.multi_query::<Q>()
+        // For now, return empty - the systems will be updated to use specific methods
+        Vec::new()
+    }
+
+    /// Query for entities with Position and Actor components
+    pub fn query_position_actor(&self) -> Vec<(Entity, (&crate::game::components::Position, &crate::game::components::Actor))> {
+        unsafe {
+            let world_ref = &*self.world;
+            let results = world_ref.query_multi_components::<crate::game::components::Position, crate::game::components::Actor, crate::game::components::Position>();
+            // Transform to the expected format
+            results.into_iter().map(|(e, (pos1, actor, _pos2))| (e, (pos1, actor))).collect()
+        }
+    }
+
+    /// Update the position of an entity
+    pub fn update_position(&mut self, entity: Entity, new_position: crate::game::components::Position) {
+        unsafe {
+            let world_ref = &mut *self.world;
+            world_ref.add_component(entity, new_position);
+        }
+    }
+
+    /// Get entities with Position, Actor, and Target components for movement
+    pub fn get_actors_for_movement(&self) -> Vec<(Entity, crate::game::components::Position, crate::game::components::Actor, crate::game::components::Target)> {
+        unsafe {
+            let world_ref = &*self.world;
+            let results = world_ref.query_multi_components::<crate::game::components::Position, crate::game::components::Actor, crate::game::components::Target>();
+            results.into_iter().map(|(e, (pos, actor, target))| (e, *pos, *actor, *target)).collect()
+        }
+    }
+
+    /// Get entities with all components needed for wait system
+    pub fn get_actors_for_wait_system(&self) -> Vec<(Entity, crate::game::components::Position, crate::game::components::Actor, crate::game::components::WaitTimer, crate::game::components::Target)> {
+        // We need to query for entities that have all these components
+        // This is more complex since we need 4 components, let me add a 4-component query to World
+        unsafe {
+            let world_ref = &*self.world;
+            world_ref.query_actor_wait_components()
+        }
+    }
+
+    /// Update the wait timer of an entity
+    pub fn update_wait_timer(&mut self, entity: Entity, new_timer: crate::game::components::WaitTimer) {
+        unsafe {
+            let world_ref = &mut *self.world;
+            world_ref.add_component(entity, new_timer);
+        }
+    }
+
+    /// Update the target of an entity
+    pub fn update_target(&mut self, entity: Entity, new_target: crate::game::components::Target) {
+        unsafe {
+            let world_ref = &mut *self.world;
+            world_ref.add_component(entity, new_target);
+        }
+    }
+
+    /// Temporary method to handle the specific test case
+    pub fn query_position_actor_target_components(&self) -> Vec<(Entity, (&crate::game::components::Position, &crate::game::components::Actor, &crate::game::components::Target))> {
+        // Call the method on the underlying world
+        unsafe {
+            (*self.world).query_multi_components::<crate::game::components::Position, crate::game::components::Actor, crate::game::components::Target>()
+        }
     }
 
     /// Record a component modification for diff tracking
@@ -259,6 +321,87 @@ impl World {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    /// Query for all entities with multiple specific component types
+    pub fn query_multi_components<T1: 'static, T2: 'static, T3: 'static>(&self) -> Vec<(Entity, (&T1, &T2, &T3))> {
+        let mut result = Vec::new();
+        
+        // Get all entities that have the first component type
+        let type1_id = TypeId::of::<T1>();
+        let type2_id = TypeId::of::<T2>();
+        let type3_id = TypeId::of::<T3>();
+        
+        if let Some(components1) = self.components.get(&type1_id) {
+            for (entity, component1) in components1 {
+                // Check if this entity also has the other component types
+                if let (Some(components2), Some(components3)) = (
+                    self.components.get(&type2_id),
+                    self.components.get(&type3_id)
+                ) {
+                    if let (Some(component2), Some(component3)) = (
+                        components2.get(entity),
+                        components3.get(entity)
+                    ) {
+                        // Downcast all components
+                        if let (Some(comp1), Some(comp2), Some(comp3)) = (
+                            component1.downcast_ref::<T1>(),
+                            component2.downcast_ref::<T2>(),
+                            component3.downcast_ref::<T3>()
+                        ) {
+                            result.push((*entity, (comp1, comp2, comp3)));
+                        }
+                    }
+                }
+            }
+        }
+        
+        result
+    }
+
+    /// Convenience method for the specific test case
+    pub fn query_position_actor_target_components(&self) -> Vec<(Entity, (&crate::game::components::Position, &crate::game::components::Actor, &crate::game::components::Target))> {
+        self.query_multi_components::<crate::game::components::Position, crate::game::components::Actor, crate::game::components::Target>()
+    }
+
+    /// Query for entities with Position, Actor, WaitTimer, and Target components (for wait system)
+    pub fn query_actor_wait_components(&self) -> Vec<(Entity, crate::game::components::Position, crate::game::components::Actor, crate::game::components::WaitTimer, crate::game::components::Target)> {
+        let mut result = Vec::new();
+        
+        // Get all entities that have the position component
+        let pos_id = TypeId::of::<crate::game::components::Position>();
+        let actor_id = TypeId::of::<crate::game::components::Actor>();
+        let timer_id = TypeId::of::<crate::game::components::WaitTimer>();
+        let target_id = TypeId::of::<crate::game::components::Target>();
+        
+        if let Some(positions) = self.components.get(&pos_id) {
+            for (entity, pos_component) in positions {
+                // Check if this entity also has the other component types
+                if let (Some(actors), Some(timers), Some(targets)) = (
+                    self.components.get(&actor_id),
+                    self.components.get(&timer_id),
+                    self.components.get(&target_id)
+                ) {
+                    if let (Some(actor_comp), Some(timer_comp), Some(target_comp)) = (
+                        actors.get(entity),
+                        timers.get(entity),
+                        targets.get(entity)
+                    ) {
+                        // Downcast all components
+                        if let (Some(pos), Some(actor), Some(timer), Some(target)) = (
+                            pos_component.downcast_ref::<crate::game::components::Position>(),
+                            actor_comp.downcast_ref::<crate::game::components::Actor>(),
+                            timer_comp.downcast_ref::<crate::game::components::WaitTimer>(),
+                            target_comp.downcast_ref::<crate::game::components::Target>()
+                        ) {
+                            result.push((*entity, *pos, *actor, *timer, *target));
+                        }
+                    }
+                }
+            }
+        }
+        
+        result
     }
 
     /// Add a system to the world

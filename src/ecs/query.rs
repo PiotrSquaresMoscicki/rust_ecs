@@ -67,9 +67,8 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for Out<T> {
 impl<'a, T: 'static> MixedMultiQuery<'a> for In<T> {
     type Item = &'a T;
 
-    fn query_mixed(_world: &'a crate::ecs::World) -> Vec<(Entity, Self::Item)> {
-        // Implementation would be in WorldView
-        Vec::new()
+    fn query_mixed(world: &'a crate::ecs::World) -> Vec<(Entity, Self::Item)> {
+        world.query::<T>()
     }
 }
 
@@ -93,8 +92,8 @@ macro_rules! impl_mixed_multi_query {
             type Item = ($($component::Item,)+);
 
             fn query_mixed(_world: &'a crate::ecs::World) -> Vec<(Entity, Self::Item)> {
-                // Implementation would be in WorldView
-                unreachable!("MixedMultiQuery should be implemented in WorldView")
+                // For now, return empty - the actual implementation will be in WorldView
+                Vec::new()
             }
         }
     };

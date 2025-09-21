@@ -1,4 +1,4 @@
-use crate::{In, Out, System, WorldView};
+use crate::{System, WorldView};
 use super::components::{Actor, Position, Target, WaitTimer, HOME_POS, WORK_POS, WAIT_TICKS};
 use super::utils::is_adjacent;
 
@@ -17,10 +17,8 @@ impl System for WaitSystem {
         let mut wait_timer_changes = Vec::new();
         let mut target_changes = Vec::new();
 
-        // Now we can query all actor components together thanks to extended query support!
-        for (entity, (position, _actor, wait_timer, target)) in 
-            world.query_components::<(In<Position>, In<Actor>, Out<WaitTimer>, Out<Target>)>()
-        {
+        // Get all actors with their components for wait processing
+        for (entity, position, _actor, wait_timer, target) in world.get_actors_for_wait_system() {
             let current_pos = (position.x, position.y);
             let target_pos = (target.x, target.y);
             let current_ticks = wait_timer.ticks;
@@ -29,41 +27,45 @@ impl System for WaitSystem {
             let should_switch = is_near_target && current_ticks == 0;
 
             // Update wait timer
-            let old_wait_timer = *wait_timer;
+            let old_wait_timer = wait_timer;
+            let mut new_wait_timer = wait_timer;
             if is_near_target && current_ticks > 0 {
-                wait_timer.ticks = current_ticks - 1;
+                new_wait_timer.ticks = current_ticks - 1;
             } else if should_switch {
-                wait_timer.ticks = WAIT_TICKS;
+                new_wait_timer.ticks = WAIT_TICKS;
             }
             
             // Store wait timer change if it was modified
-            if old_wait_timer.ticks != wait_timer.ticks {
-                wait_timer_changes.push((entity, old_wait_timer, *wait_timer));
+            if old_wait_timer.ticks != new_wait_timer.ticks {
+                wait_timer_changes.push((entity, old_wait_timer, new_wait_timer));
             }
 
             // Update target if needed
             if should_switch {
-                let old_target = *target;
+                let old_target = target;
+                let mut new_target = target;
                 // Switch target between home and work
                 if target_pos == HOME_POS {
-                    target.x = WORK_POS.0;
-                    target.y = WORK_POS.1;
+                    new_target.x = WORK_POS.0;
+                    new_target.y = WORK_POS.1;
                 } else {
-                    target.x = HOME_POS.0;
-                    target.y = HOME_POS.1;
+                    new_target.x = HOME_POS.0;
+                    new_target.y = HOME_POS.1;
                 }
                 
                 // Store target change
-                target_changes.push((entity, old_target, *target));
+                target_changes.push((entity, old_target, new_target));
             }
         }
         
-        // Record all component changes
+        // Apply all the changes
         for (entity, old_wait_timer, new_wait_timer) in wait_timer_changes {
+            world.update_wait_timer(entity, new_wait_timer);
             world.record_component_modification(entity, &old_wait_timer, &new_wait_timer);
         }
         
         for (entity, old_target, new_target) in target_changes {
+            world.update_target(entity, new_target);
             world.record_component_modification(entity, &old_target, &new_target);
         }
     }
