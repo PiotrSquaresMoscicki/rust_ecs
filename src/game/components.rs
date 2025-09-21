@@ -1,4 +1,4 @@
-use crate::Diff;
+use rust_ecs_derive::Diff;
 
 // Grid constants
 pub const GRID_SIZE: i32 = 10;
