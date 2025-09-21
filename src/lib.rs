@@ -1491,7 +1491,7 @@ impl WorldUpdateDiff {
 }
 
 /// Maintains history of all world changes for replay functionality
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WorldUpdateHistory {
     updates: Vec<WorldUpdateDiff>,
 }
@@ -1823,17 +1823,67 @@ impl<S: System> ConcreteSystemWrapper<S> {
     }
 
     /// Apply replay diff specific to this system for the given frame
-    fn apply_system_replay_diff(&self, _world: &mut World, frame_number: usize) {
+    fn apply_system_replay_diff(&self, world: &mut World, frame_number: usize) {
         // Apply system-specific replay data for this frame
-        // This would typically involve reading the replay log and applying 
-        // the specific changes that this system made during the original execution
+        // Get the replay data from the world for the current frame
+        let update_diff = if let Some(ref replay_data) = world.replay_data {
+            if frame_number < replay_data.updates().len() {
+                Some(replay_data.updates()[frame_number].clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         
-        // Since we don't have system-specific replay logs in the current implementation,
-        // and the replay data is already applied at the world level via apply_update_diff,
-        // this becomes a coordination point for more complex replay scenarios.
-        
-        // For now, this ensures the system is ready for the replay frame
-        let _ = frame_number; // Use the frame number if needed for frame-specific logic
+        if let Some(update_diff) = update_diff {
+            // Apply all the changes from this frame to the world
+            for system_diff in update_diff.system_diffs() {
+                // Apply component changes
+                for change in system_diff.component_changes() {
+                    match change {
+                        DiffComponentChange::Added { entity, type_name, data } => {
+                            if let Err(e) = world.apply_component_addition(entity, type_name, data) {
+                                eprintln!("Failed to apply component addition in replay: {}", e);
+                            }
+                        }
+                        DiffComponentChange::Modified { entity, type_name, diff } => {
+                            if let Err(e) = world.apply_component_modification(entity, type_name, diff) {
+                                eprintln!("Failed to apply component modification in replay: {}", e);
+                            }
+                        }
+                        DiffComponentChange::Removed { entity, type_name } => {
+                            if let Err(e) = world.apply_component_removal(entity, type_name) {
+                                eprintln!("Failed to apply component removal in replay: {}", e);
+                            }
+                        }
+                    }
+                }
+                
+                // Apply world operations
+                for operation in system_diff.world_operations() {
+                    match operation {
+                        WorldOperation::CreateEntity(entity) => {
+                            if !world.entity_exists(*entity) {
+                                if entity.entity_index >= world.next_entity_id {
+                                    world.next_entity_id = entity.entity_index + 1;
+                                }
+                                world.entities.push(*entity);
+                            }
+                        }
+                        WorldOperation::RemoveEntity(entity) => {
+                            world.entities.retain(|e| e != entity);
+                            for components in world.components.values_mut() {
+                                components.retain(|(e, _)| *e != *entity);
+                            }
+                        }
+                        _ => {
+                            // Other operations not implemented for replay
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1903,6 +1953,8 @@ pub struct World {
     replay_mode: bool,
     /// Current frame number in replay mode
     replay_frame: usize,
+    /// Replay data for use during replay mode
+    replay_data: Option<WorldUpdateHistory>,
 }
 
 impl Default for World {
@@ -1931,6 +1983,7 @@ impl World {
             replay_logger: None,
             replay_mode: false,
             replay_frame: 0,
+            replay_data: None,
         }
     }
 
@@ -2008,7 +2061,7 @@ impl World {
     }
 
     /// Internal method to add a system without recording (for replay)
-    fn add_system_internal<S: System + 'static>(&mut self, system: S) {
+    pub fn add_system_internal<S: System + 'static>(&mut self, system: S) {
         self.systems
             .push(Box::new(ConcreteSystemWrapper::new(system)));
     }
@@ -2131,10 +2184,17 @@ impl World {
         // Replay mode enabled - systems will use snapshot/restore pattern for deterministic replay
     }
 
+    /// Set replay data for this world and enable replay mode
+    pub fn set_replay_data(&mut self, replay_data: WorldUpdateHistory) {
+        self.replay_data = Some(replay_data);
+        self.enable_replay_mode();
+    }
+
     /// Disable replay mode for this world
     pub fn disable_replay_mode(&mut self) {
         self.replay_mode = false;
         self.replay_frame = 0;
+        self.replay_data = None;
         // Replay mode disabled - systems will run normally
     }
 
@@ -2227,83 +2287,6 @@ impl World {
     /// Parse a replay log file and return the parsed history
     pub fn parse_replay_log_file(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn std::error::Error>> {
         replay_analysis::parse_replay_log(file_path)
-    }
-
-    /// Apply a recorded world update diff for replay
-    pub fn apply_update_diff(&mut self, diff: &WorldUpdateDiff) {
-        for system_diff in diff.system_diffs() {
-            // Apply world operations first
-            for operation in system_diff.world_operations() {
-                match operation {
-                    WorldOperation::CreateWorld(_world_index) => {
-                        // Child world operations are complex to implement properly
-                        // Without a full world hierarchy system, we cannot implement this
-                        eprintln!("Warning: CreateWorld operation not implemented - requires world hierarchy support");
-                    }
-                    WorldOperation::RemoveWorld(_world_index) => {
-                        // Child world operations are complex to implement properly
-                        eprintln!("Warning: RemoveWorld operation not implemented - requires world hierarchy support");
-                    }
-                    WorldOperation::CreateEntity(entity) => {
-                        // Ensure the entity exists (create if it doesn't)
-                        if !self.entity_exists(*entity) {
-                            // Extend next_entity_id if necessary to maintain consistency
-                            if entity.entity_index >= self.next_entity_id {
-                                self.next_entity_id = entity.entity_index + 1;
-                            }
-                            // Add the entity to the entities list
-                            self.entities.push(*entity);
-                        }
-                    }
-                    WorldOperation::RemoveEntity(entity) => {
-                        // Remove the entity from the entities list
-                        self.entities.retain(|e| e != entity);
-                        // Remove all components for this entity
-                        for components in self.components.values_mut() {
-                            components.retain(|(e, _)| *e != *entity);
-                        }
-                    }
-                    WorldOperation::AddSystem(system_type_name) => {
-                        // Apply system addition during replay
-                        if let Err(e) = self.apply_system_addition(system_type_name) {
-                            eprintln!("Failed to apply system addition: {}", e);
-                        }
-                    }
-                }
-            }
-
-            // Apply component changes
-            for change in system_diff.component_changes() {
-                match change {
-                    DiffComponentChange::Added {
-                        entity,
-                        type_name,
-                        data,
-                    } => {
-                        // Parse and add the component
-                        if let Err(e) = self.apply_component_addition(entity, type_name, data) {
-                            eprintln!("Failed to apply component addition: {}", e);
-                        }
-                    }
-                    DiffComponentChange::Modified {
-                        entity,
-                        type_name,
-                        diff,
-                    } => {
-                        // Parse and apply the component diff
-                        if let Err(e) = self.apply_component_modification(entity, type_name, diff) {
-                            eprintln!("Failed to apply component modification: {}", e);
-                        }
-                    }
-                    DiffComponentChange::Removed { entity, type_name } => {
-                        // Remove the component
-                        if let Err(e) = self.apply_component_removal(entity, type_name) {
-                            eprintln!("Failed to apply component removal: {}", e);
-                        }
-                    }
-                }
-            }
-        }
     }
 
     /// Apply a component addition from replay data
