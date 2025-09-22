@@ -500,6 +500,16 @@ impl<I, O> WorldView<I, O> {
         }
     }
 
+    /// Remove a component from an entity
+    pub fn remove_component<T: 'static>(&mut self, entity: Entity) -> Option<T> {
+        unsafe { self.world_mut().remove_component(entity) }
+    }
+
+    /// Remove an entity and all its components
+    pub fn remove_entity(&mut self, entity: Entity) -> bool {
+        unsafe { self.world_mut().remove_entity(entity) }
+    }
+
     /// Query entities with multiple components, using Out<T> for mutable access and In<T> for immutable access
     /// Example: world_view.query_components::<(In<Position>, Out<Velocity>)>()
     pub fn query_components<Q>(&mut self) -> Vec<(Entity, <Q as MixedMultiQuery<'_>>::Item)>

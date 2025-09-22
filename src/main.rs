@@ -114,6 +114,21 @@ fn main() {
         return;
     }
 
+    // Check if "demo" argument is provided
+    if args.len() > 2 && args[1] == "demo" {
+        match args[2].as_str() {
+            "woodcutter" => {
+                game::run_woodcutter_demo();
+                return;
+            }
+            _ => {
+                eprintln!("Unknown demo type: {}", args[2]);
+                eprintln!("Available demos: woodcutter");
+                return;
+            }
+        }
+    }
+
     // Check if "replay-demo" argument is provided
     if args.len() > 1 && args[1] == "replay-demo" {
         demo_replay_analysis();

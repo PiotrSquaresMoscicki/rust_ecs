@@ -3,7 +3,7 @@ use crate::Diff;
 // Grid constants
 pub const GRID_SIZE: i32 = 10;
 pub const HOME_POS: (i32, i32) = (1, 1);
-pub const WORK_POS: (i32, i32) = (6, 8);
+pub const WORK_POS: (i32, i32) = (6, 6); // Moved to center to avoid blocking woodcutter paths
 pub const WAIT_TICKS: u32 = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
@@ -44,3 +44,16 @@ pub enum ActorState {
     WaitingAtWork,
     WaitingAtHome,
 }
+
+// Woodcutter system components
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct Tree;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct WoodcutterHut;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct Woodcutter;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct CarryingTree;
