@@ -74,6 +74,11 @@ pub use ecs::{
 // Re-export Diff trait from ECS (not conflicting with derive macro)
 pub use ecs::diff::Diff;
 
+// Re-export replay analysis functions for backward compatibility
+pub mod replay_analysis {
+    pub use crate::ecs::replay::{analyze_replay_history, print_replay_analysis, find_anomalous_frames, read_replay_log, parse_replay_log, ReplayStats};
+}
+
 /// A dummy function to demonstrate the library.
 /// Returns the sum of two numbers.
 pub fn add(a: i32, b: i32) -> i32 {
@@ -416,9 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diff_entity() {
-        use ecs::diff::EntityDiff;
-        
+    fn test_diff_entity() {        
         let entity1 = Entity::new(0, 5);
         let entity2 = Entity::new(0, 5);
         let entity3 = Entity::new(0, 10);
@@ -475,9 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diff_vec() {
-        use ecs::diff::{VecDiff, VecChange};
-        
+    fn test_diff_vec() {        
         let vec1 = vec![1, 2, 3];
         let vec2 = vec![1, 2, 3];
         let vec3 = vec![1, 5, 3, 4];
@@ -497,9 +498,7 @@ mod tests {
 
     #[test]
     fn test_diff_hashmap() {
-        use std::collections::HashMap;
-        use ecs::diff::{HashMapDiff, HashMapChange};
-        
+        use std::collections::HashMap;        
         let mut map1 = HashMap::new();
         map1.insert("key1".to_string(), 1);
         map1.insert("key2".to_string(), 2);
