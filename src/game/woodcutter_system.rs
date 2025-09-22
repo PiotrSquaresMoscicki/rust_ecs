@@ -10,8 +10,8 @@ use std::time::Duration;
 pub struct WoodcutterSystem;
 
 impl System for WoodcutterSystem {
-    type InComponents = (Woodcutter, Position, WaitTimer, Target, Tree, WoodcutterHut, CarryingTree);
-    type OutComponents = (Target, WaitTimer, CarryingTree);
+    type InComponents = (Woodcutter, Position, WaitTimer, Target, Tree, WoodcutterHut, CarryingTree, Navigation);
+    type OutComponents = (Target, WaitTimer, CarryingTree, Navigation);
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 
@@ -40,11 +40,12 @@ impl System for WoodcutterSystem {
         let mut target_changes = Vec::new();
         let mut timer_changes = Vec::new();
         let mut carrying_changes = Vec::new();
+        let mut navigation_changes = Vec::new();
         let mut entities_to_remove = Vec::new();
 
         // Query woodcutters
-        for (entity, (position, _woodcutter, wait_timer, target)) in 
-            world.query_components::<(In<Position>, In<Woodcutter>, Out<WaitTimer>, Out<Target>)>()
+        for (entity, (position, _woodcutter, wait_timer, target, navigation)) in 
+            world.query_components::<(In<Position>, In<Woodcutter>, Out<WaitTimer>, Out<Target>, Out<Navigation>)>()
         {
             let current_pos = (position.x, position.y);
             let target_pos = (target.x, target.y);
@@ -70,6 +71,11 @@ impl System for WoodcutterSystem {
                             target.x = nearest_tree.0;
                             target.y = nearest_tree.1;
                             target_changes.push((entity, old_target, *target));
+                            
+                            // Signal navigation recalculation for new target
+                            let old_navigation = navigation.clone();
+                            navigation.request_recalculation();
+                            navigation_changes.push((entity, old_navigation, navigation.clone()));
                         }
                     }
                 } else {
@@ -80,6 +86,11 @@ impl System for WoodcutterSystem {
                             target.x = nearest_hut.0;
                             target.y = nearest_hut.1;
                             target_changes.push((entity, old_target, *target));
+                            
+                            // Signal navigation recalculation for new target
+                            let old_navigation = navigation.clone();
+                            navigation.request_recalculation();
+                            navigation_changes.push((entity, old_navigation, navigation.clone()));
                         }
                     }
                 }
@@ -107,6 +118,11 @@ impl System for WoodcutterSystem {
                             target.x = nearest_hut.0;
                             target.y = nearest_hut.1;
                             target_changes.push((entity, old_target, *target));
+                            
+                            // Signal navigation recalculation for new target
+                            let old_navigation = navigation.clone();
+                            navigation.request_recalculation();
+                            navigation_changes.push((entity, old_navigation, navigation.clone()));
                         }
                     }
                 } else if is_near_target {
@@ -122,6 +138,11 @@ impl System for WoodcutterSystem {
                             let old_timer = *wait_timer;
                             wait_timer.ticks = 10;
                             timer_changes.push((entity, old_timer, *wait_timer));
+                            
+                            // Signal navigation recalculation for new target
+                            let old_navigation = navigation.clone();
+                            navigation.request_recalculation();
+                            navigation_changes.push((entity, old_navigation, navigation.clone()));
                         }
                     }
                 } else {
@@ -136,6 +157,11 @@ impl System for WoodcutterSystem {
                             let old_timer = *wait_timer;
                             wait_timer.ticks = 10;
                             timer_changes.push((entity, old_timer, *wait_timer));
+                            
+                            // Signal navigation recalculation for new target
+                            let old_navigation = navigation.clone();
+                            navigation.request_recalculation();
+                            navigation_changes.push((entity, old_navigation, navigation.clone()));
                         }
                     }
                 }
@@ -149,6 +175,10 @@ impl System for WoodcutterSystem {
 
         for (entity, old_timer, new_timer) in timer_changes {
             world.record_component_modification(entity, &old_timer, &new_timer);
+        }
+
+        for (entity, old_navigation, new_navigation) in navigation_changes {
+            world.record_component_modification(entity, &old_navigation, &new_navigation);
         }
 
         for (entity, _component, add_or_remove) in carrying_changes {
