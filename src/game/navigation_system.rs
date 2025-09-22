@@ -1,8 +1,12 @@
-use crate::{In, Out, System, WorldView};
+use crate::{In, Out, System, WorldView, World};
 use std::collections::HashSet;
 use pathfinding::prelude::astar;
-use super::components::{Actor, Position, Target, Navigation, Obstacle, GRID_SIZE};
+use super::components::{Actor, Position, Target, Navigation, Obstacle, GRID_SIZE, Work};
 use super::utils::{is_valid_position, is_adjacent};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 /// Navigation System - handles sophisticated pathfinding using A* algorithm
 pub struct NavigationSystem;
@@ -144,6 +148,155 @@ impl System for NavigationSystem {
     }
 
     fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+}
+
+/// Initialize a navigation demo world with a labyrinth and two actors finding their way to the exit
+pub fn initialize_navigation_demo() -> World {
+    let mut world = World::new();
+
+    println!("Creating labyrinth maze...");
+    
+    // Define labyrinth layout (1 = wall, 0 = open space)
+    // Simpler 10x10 grid with guaranteed path to exit
+    let labyrinth_layout = [
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 1, 1, 0, 1, 1, 1, 0, 1],
+        [1, 0, 0, 1, 0, 0, 0, 1, 0, 1],
+        [1, 1, 0, 1, 1, 1, 0, 1, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+        [1, 0, 1, 1, 1, 1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+        [1, 0, 1, 1, 1, 1, 1, 1, 0, 0], // Exit at (9, 8)
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    ];
+    
+    // Create wall entities
+    for (y, row) in labyrinth_layout.iter().enumerate() {
+        for (x, &cell) in row.iter().enumerate() {
+            if cell == 1 {
+                let wall_entity = world.create_entity();
+                world.add_component(wall_entity, Position { x: x as i32, y: y as i32 });
+                world.add_component(wall_entity, Obstacle);
+            }
+        }
+    }
+    
+    // Create exit marker (special component to show the exit)
+    let exit_entity = world.create_entity();
+    world.add_component(exit_entity, Position { x: 9, y: 8 });
+    world.add_component(exit_entity, Work); // Use Work as exit marker for rendering
+    
+    println!("Creating two actors with navigation components...");
+    
+    // Create Actor 1 at starting position (1, 1)
+    let actor1_entity = world.create_entity();
+    world.add_component(actor1_entity, Position { x: 1, y: 1 });
+    world.add_component(actor1_entity, Actor);
+    world.add_component(actor1_entity, Target { x: 9, y: 8 }); // Target the exit
+    world.add_component(actor1_entity, Navigation::new());
+    
+    // Create Actor 2 at starting position (1, 7)
+    let actor2_entity = world.create_entity();
+    world.add_component(actor2_entity, Position { x: 1, y: 7 });
+    world.add_component(actor2_entity, Actor);
+    world.add_component(actor2_entity, Target { x: 9, y: 8 }); // Target the exit
+    world.add_component(actor2_entity, Navigation::new());
+    
+    // Add navigation system (uses A* pathfinding)
+    world.add_system(NavigationSystem);
+    
+    // Add render system for visualization
+    world.add_system(super::render_system::RenderSystem::new(10, 10)); // 10x10 grid for labyrinth
+    
+    // Initialize systems
+    world.initialize_systems();
+    
+    println!("Labyrinth demo world initialized!");
+    println!("Grid size: 10x10");
+    println!("Actors: 2 (starting at (1,1) and (1,7))");
+    println!("Exit: (9,8)");
+    println!("Wall obstacles: Created from maze layout");
+    
+    world
+}
+
+pub fn run_navigation_demo() {
+    println!("🧭 Starting Navigation Demo 🧭");
+    println!("=====================================");
+    println!("This demo shows 2 actors navigating through a labyrinth to reach the exit");
+    println!("Symbols: # = Wall, A = Actor, E = Exit, . = Open space");
+    println!("The actors use A* pathfinding to find the optimal route while avoiding walls");
+    println!("Press Ctrl+C to stop the demo");
+    println!();
+
+    let mut world = initialize_navigation_demo();
+
+    // Set up Ctrl+C handler for graceful shutdown
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    
+    ctrlc::set_handler(move || {
+        println!("\nReceived Ctrl+C, shutting down gracefully...");
+        r.store(false, Ordering::SeqCst);
+    }).expect("Error setting Ctrl-C handler");
+
+    let mut update_count = 0;
+    
+    // Demo loop - 2 FPS for good observation speed
+    while running.load(Ordering::SeqCst) {
+        update_count += 1;
+        
+        println!("=== Update {} ===", update_count);
+        
+        // Log actor states before update
+        log_actor_navigation_states(&world, update_count);
+        
+        // Update the world
+        world.update();
+        
+        // Check if any actor reached the exit
+        let actors = world.entities_with_component::<Actor>();
+        let mut actors_at_exit = 0;
+        
+        for &actor in &actors {
+            if let Some(position) = world.get_component::<Position>(actor) {
+                if position.x == 9 && position.y == 8 {
+                    actors_at_exit += 1;
+                    println!("🎉 Actor {:?} reached the exit! 🎉", actor);
+                }
+            }
+        }
+        
+        if actors_at_exit == 2 {
+            println!("🎉 Both actors have reached the exit! Demo complete! 🎉");
+            break;
+        }
+        
+        thread::sleep(Duration::from_millis(500)); // 2 FPS for good observation
+    }
+
+    println!("Navigation demo completed after {} updates", update_count);
+}
+
+fn log_actor_navigation_states(world: &World, _update_count: u32) {
+    let actors = world.entities_with_component::<Actor>();
+    
+    println!("Actor Navigation States:");
+    for &actor in &actors {
+        let position = world.get_component::<Position>(actor);
+        let target = world.get_component::<Target>(actor);
+        let navigation = world.get_component::<Navigation>(actor);
+        
+        if let (Some(pos), Some(tgt), Some(nav)) = (position, target, navigation) {
+            println!("  Actor {:?}: Position({}, {}) -> Target({}, {})", 
+                     actor, pos.x, pos.y, tgt.x, tgt.y);
+            println!("    Path: {:?}", nav.path);
+            println!("    Path index: {}, Needs recalc: {}", 
+                     nav.current_path_index, nav.needs_recalculation);
+        }
+    }
+    println!();
 }
 
 #[cfg(test)]
