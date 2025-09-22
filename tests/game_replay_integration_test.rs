@@ -366,12 +366,15 @@ fn test_game_replay_integration() {
     // Step 5: Demonstrate the replay analysis capabilities
     println!("Step 4: Demonstrating replay analysis capabilities");
     
-    let replay_stats = rust_ecs::replay_analysis::analyze_replay_history(&replay_history);
     println!("✅ Replay analysis statistics:");
-    println!("   - Total updates: {}", replay_stats.total_updates);
-    println!("   - Total system executions: {}", replay_stats.total_system_executions);
-    println!("   - Total component changes: {}", replay_stats.total_component_changes);
-    println!("   - Component types involved: {}", replay_stats.component_types_involved.len());
+    println!("   - Total updates: {}", replay_history.len());
+    println!("   - Total system executions: {}", 
+        replay_history.updates().iter().map(|u| u.system_diffs().len()).sum::<usize>());
+    println!("   - Total component changes: {}", 
+        replay_history.updates().iter()
+            .flat_map(|u| u.system_diffs())
+            .map(|s| s.component_changes().len())
+            .sum::<usize>());
     
     // Clean up
     let _ = fs::remove_dir_all(test_log_dir);

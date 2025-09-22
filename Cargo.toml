@@ -25,6 +25,10 @@ required-features = []
 name = "replay_benchmark"
 path = "src/bin/replay_benchmark.rs"
 
+[[bin]]
+name = "game"
+path = "src/main.rs"
+
 # [[bin]]
 # name = "comprehensive_benchmark" 
 # path = "src/bin/comprehensive_benchmark.rs"

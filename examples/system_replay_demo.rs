@@ -50,7 +50,7 @@ fn main() {
     
     // For system addition replay, we need to manually add systems since this is a demo
     println!("   - Manually adding systems for demo purposes");
-    fresh_world.add_system_internal(MovementSystem);
+    fresh_world.add_system(MovementSystem);
     
     println!("   - Fresh world now has the same systems as the original");
     println!("   - Running an update on the fresh world to verify it works:");

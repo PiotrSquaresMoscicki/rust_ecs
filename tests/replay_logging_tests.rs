@@ -1,5 +1,4 @@
 use rust_ecs::{World, ReplayLogConfig};
-use rust_ecs::ecs::replay::analysis as replay_analysis;
 
 #[test]
 fn test_complete_replay_logging_workflow() {
