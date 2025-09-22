@@ -105,6 +105,21 @@ impl System for WoodcutterSystem {
                             target_changes.push((entity, old_target, *target));
                         }
                     }
+                } else if is_near_target {
+                    // Near target but target position doesn't have a tree anymore
+                    // Find next nearest tree
+                    if let Some(&nearest_tree) = find_nearest_position(current_pos, &tree_positions) {
+                        if target_pos != nearest_tree {
+                            let old_target = *target;
+                            target.x = nearest_tree.0;
+                            target.y = nearest_tree.1;
+                            target_changes.push((entity, old_target, *target));
+
+                            let old_timer = *wait_timer;
+                            wait_timer.ticks = 10;
+                            timer_changes.push((entity, old_timer, *wait_timer));
+                        }
+                    }
                 } else {
                     // Not at tree yet - ensure target is nearest tree and reset timer to 10
                     if let Some(&nearest_tree) = find_nearest_position(current_pos, &tree_positions) {

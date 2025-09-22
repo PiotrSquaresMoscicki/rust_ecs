@@ -763,22 +763,16 @@ pub fn run_game_with_manual_logging(log_directory: &str, num_updates: u32) -> Re
 /// Initialize a woodcutter demo world with 10 trees, 2 woodcutter huts, and 2 woodcutters
 pub fn initialize_woodcutter_demo() -> World {
     let mut world = World::new();
-    let mut rng = rand::thread_rng();
 
-    // Create 10 trees at random positions
+    // Create 10 trees at fixed positions for reproducibility
     println!("Creating 10 trees...");
-    let mut tree_positions = Vec::new();
-    for i in 0..10 {
-        let mut pos;
-        loop {
-            pos = (rng.gen_range(0..GRID_SIZE), rng.gen_range(0..GRID_SIZE));
-            // Ensure trees don't overlap with each other or future hut positions
-            if !tree_positions.contains(&pos) {
-                break;
-            }
-        }
-        tree_positions.push(pos);
-        
+    let tree_positions = [
+        (0, 0), (9, 0), (0, 9), (9, 9), // corners
+        (4, 4), (5, 5), (3, 6), (6, 3), // middle area
+        (1, 4), (7, 1)  // scattered
+    ];
+    
+    for (i, &pos) in tree_positions.iter().enumerate() {
         let tree_entity = world.create_entity();
         world.add_component(tree_entity, Position { x: pos.0, y: pos.1 });
         world.add_component(tree_entity, Tree);
@@ -795,21 +789,15 @@ pub fn initialize_woodcutter_demo() -> World {
         println!("  Woodcutter Hut {} at ({}, {})", i + 1, pos.0, pos.1);
     }
 
-    // Create 2 woodcutter actors at random positions
+    // Create 2 woodcutter actors at fixed positions
     println!("\nCreating 2 woodcutters...");
-    for i in 0..2 {
-        let mut pos;
-        loop {
-            pos = (rng.gen_range(0..GRID_SIZE), rng.gen_range(0..GRID_SIZE));
-            // Ensure woodcutters don't start on trees or huts
-            if !tree_positions.contains(&pos) && !hut_positions.contains(&pos) {
-                break;
-            }
-        }
-
+    let woodcutter_positions = [(1, 1), (8, 8)]; // Fixed positions for reproducibility
+    
+    for (i, &pos) in woodcutter_positions.iter().enumerate() {
         let woodcutter_entity = world.create_entity();
         world.add_component(woodcutter_entity, Position { x: pos.0, y: pos.1 });
         world.add_component(woodcutter_entity, Woodcutter);
+        world.add_component(woodcutter_entity, Actor); // Add Actor component so MovementSystem can move woodcutters
         
         // Find nearest tree as initial target
         let nearest_tree = tree_positions.iter()
