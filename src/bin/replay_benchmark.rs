@@ -94,7 +94,7 @@ fn create_test_data(num_updates: usize) -> Vec<WorldUpdateDiff> {
         let render_diff = SystemUpdateDiff::new();
         system_diffs.push(render_diff);
 
-        updates.push(WorldUpdateDiff::new().with_system_diffs(system_diffs));
+        updates.push(WorldUpdateDiff::default().with_system_diffs(system_diffs));
     }
 
     updates

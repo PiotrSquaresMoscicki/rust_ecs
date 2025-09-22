@@ -427,7 +427,7 @@ impl GameWorld {
 
             // Switch target when reached
             if actor.position.x == actor.target.x && actor.position.y == actor.target.y {
-                if actor.target.x == home_pos.x && target.y == home_pos.y {
+                if actor.target.x == home_pos.x && actor.target.y == home_pos.y {
                     actor.target = work_pos.clone();
                 } else {
                     actor.target = home_pos.clone();

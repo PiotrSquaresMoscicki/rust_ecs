@@ -198,8 +198,9 @@ pub struct WorldUpdateDiff {
 
 impl WorldUpdateDiff {
     /// Create a new empty world update diff
-    pub fn with_system_diffs(self, system_diffs: Vec<SystemUpdateDiff>) -> Self {
-        Self { system_diffs }
+    pub fn with_system_diffs(mut self, system_diffs: Vec<SystemUpdateDiff>) -> Self {
+        self.system_diffs = system_diffs;
+        self
     }
 
     /// Add a system update diff to this world update diff

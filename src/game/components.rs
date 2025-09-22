@@ -1,5 +1,5 @@
 use crate::ecs::diff::{Diff, DiffComponent};
-use crate::impl_diff;
+use crate::ecs::impl_diff;
 
 // Grid constants
 pub const GRID_SIZE: i32 = 10;
@@ -22,11 +22,11 @@ pub struct Home;
 // Manual implementation for unit structs
 impl Diff for Home {
     type Diff = ();
-    
+
     fn diff(&self, _other: &Self) -> Option<Self::Diff> {
         None // Unit structs are always the same
     }
-    
+
     fn apply_diff(&mut self, _diff: &Self::Diff) {
         // Nothing to apply for unit structs
     }
@@ -39,11 +39,11 @@ pub struct Work;
 
 impl Diff for Work {
     type Diff = ();
-    
+
     fn diff(&self, _other: &Self) -> Option<Self::Diff> {
         None // Unit structs are always the same
     }
-    
+
     fn apply_diff(&mut self, _diff: &Self::Diff) {
         // Nothing to apply for unit structs
     }
@@ -56,11 +56,11 @@ pub struct Actor;
 
 impl Diff for Actor {
     type Diff = ();
-    
+
     fn diff(&self, _other: &Self) -> Option<Self::Diff> {
         None // Unit structs are always the same
     }
-    
+
     fn apply_diff(&mut self, _diff: &Self::Diff) {
         // Nothing to apply for unit structs
     }
@@ -73,11 +73,11 @@ pub struct Obstacle;
 
 impl Diff for Obstacle {
     type Diff = ();
-    
+
     fn diff(&self, _other: &Self) -> Option<Self::Diff> {
         None // Unit structs are always the same
     }
-    
+
     fn apply_diff(&mut self, _diff: &Self::Diff) {
         // Nothing to apply for unit structs
     }

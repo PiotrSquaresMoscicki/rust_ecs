@@ -5,7 +5,7 @@
 mod tests {
     use rust_ecs::ecs::diff::*;
     use rust_ecs::ecs::replay::*;
-    
+
     #[test]
     fn test_binary_diff_config() {
         // Test that binary configuration is created correctly
@@ -48,13 +48,13 @@ mod tests {
         // Test binary serialization for primitive types
         let value1: u32 = 42;
         let value2: u32 = 84;
-        
+
         if let Some(diff) = value1.diff(&value2) {
             // Test binary serialization
             match u32::diff_to_binary(&diff) {
                 Ok(binary_data) => {
                     assert!(!binary_data.is_empty());
-                    
+
                     // Test deserialization
                     match u32::diff_from_binary(&binary_data) {
                         Ok(restored_diff) => {
@@ -71,32 +71,40 @@ mod tests {
     #[test]
     fn test_binary_diff_component_change() {
         use rust_ecs::ecs::core::Entity;
-        
+
         // Test binary diff component change creation
-        let entity = Entity(42);
+        let entity = Entity(1, 42);
         let type_name = "TestComponent".to_string();
         let diff_data = vec![1, 2, 3, 4];
-        
+
         let binary_change = BinaryDiffComponentChange::from_diff_change_raw(
             entity,
             type_name.clone(),
             diff_data.clone(),
             DiffChangeType::Modified,
         );
-        
+
         match binary_change {
-            BinaryDiffComponentChange::Modified { entity: e, type_name: tn, diff_data: dd } => {
+            BinaryDiffComponentChange::Modified {
+                entity: e,
+                type_name: tn,
+                diff_data: dd,
+            } => {
                 assert_eq!(e, entity);
                 assert_eq!(tn, type_name);
                 assert_eq!(dd, diff_data);
             }
             _ => panic!("Expected Modified variant"),
         }
-        
+
         // Test conversion to text format
         let text_change = binary_change.to_diff_change();
         match text_change {
-            DiffComponentChange::Modified { entity: e, type_name: tn, diff_string } => {
+            DiffComponentChange::Modified {
+                entity: e,
+                type_name: tn,
+                diff_string,
+            } => {
                 assert_eq!(e, entity);
                 assert_eq!(tn, type_name);
                 assert!(diff_string.contains("Binary(4 bytes)"));
@@ -105,16 +113,16 @@ mod tests {
         }
     }
 
-    #[test] 
+    #[test]
     fn test_string_binary_diff() {
         let s1 = "hello".to_string();
         let s2 = "world".to_string();
-        
+
         if let Some(diff) = s1.diff(&s2) {
             match String::diff_to_binary(&diff) {
                 Ok(binary_data) => {
                     assert!(!binary_data.is_empty());
-                    
+
                     match String::diff_from_binary(&binary_data) {
                         Ok(restored_diff) => {
                             assert_eq!(diff, restored_diff);
@@ -130,23 +138,29 @@ mod tests {
     #[test]
     fn test_binary_diff_change_types() {
         use rust_ecs::ecs::core::Entity;
-        
-        let entity = Entity(1);
+
+        let entity = Entity(1, 1);
         let type_name = "TestType".to_string();
         let diff_data = vec![0x01, 0x02];
-        
+
         // Test Added type
         let added = BinaryDiffComponentChange::from_diff_change_raw(
-            entity, type_name.clone(), diff_data.clone(), DiffChangeType::Added
+            entity,
+            type_name.clone(),
+            diff_data.clone(),
+            DiffChangeType::Added,
         );
         match added {
             BinaryDiffComponentChange::Added { .. } => {}
             _ => panic!("Expected Added variant"),
         }
-        
+
         // Test Removed type
         let removed = BinaryDiffComponentChange::from_diff_change_raw(
-            entity, type_name.clone(), vec![], DiffChangeType::Removed
+            entity,
+            type_name.clone(),
+            vec![],
+            DiffChangeType::Removed,
         );
         match removed {
             BinaryDiffComponentChange::Removed { .. } => {}
