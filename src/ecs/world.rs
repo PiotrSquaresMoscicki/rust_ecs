@@ -6,10 +6,10 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use crate::ecs::core::{Entity, ComponentChange, ComponentOperation, WorldOperation, Out, In};
-use crate::ecs::diff::{Diff, DiffComponent, DiffComponentChange};
+use crate::ecs::core::{Entity, WorldOperation};
+use crate::ecs::diff::{Diff, DiffComponentChange};
 use crate::ecs::system::{System, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
-use crate::ecs::query::{MixedMultiQuery, MixedQueryComponent};
+use crate::ecs::query::{MixedMultiQuery};
 use crate::ecs::replay::{ReplayLogConfig, AutoReplayLogger};
 
 /// Main ECS world container
