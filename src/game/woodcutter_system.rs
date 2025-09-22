@@ -317,4 +317,60 @@ mod tests {
         // Should target (6,6) which is closer to (8,8) than (4,4)
         assert_eq!((target.x, target.y), (6, 6));
     }
+
+    #[test]
+    fn test_woodcutter_complete_cycle_demonstration() {
+        let mut world = create_woodcutter_test_world();
+
+        // Test the complete cycle: woodcutter starts at (0,0), goes to tree at (2,2), chops it, 
+        // then goes to hut at (8,8), delivers it, then targets next nearest tree
+
+        let woodcutter_entities = world.entities_with_component::<Woodcutter>();
+        let woodcutter_entity = woodcutter_entities[0];
+
+        // Initial state: woodcutter should target nearest tree
+        let initial_target = world.get_component::<Target>(woodcutter_entity).unwrap();
+        assert_eq!((initial_target.x, initial_target.y), (2, 2));
+
+        // Step 1: Move woodcutter to tree and chop it
+        world.remove_component::<Position>(woodcutter_entity);
+        world.add_component(woodcutter_entity, Position { x: 2, y: 2 });
+        world.remove_component::<WaitTimer>(woodcutter_entity);
+        world.add_component(woodcutter_entity, WaitTimer { ticks: 1 });
+
+        let trees_before = world.entities_with_component::<Tree>().len();
+        world.update();
+
+        // After chopping: should be carrying tree, one less tree exists, timer set to 2, targeting hut
+        let carrying = world.get_component::<CarryingTree>(woodcutter_entity);
+        assert!(carrying.is_some());
+        let trees_after = world.entities_with_component::<Tree>().len();
+        assert_eq!(trees_after, trees_before - 1);
+        let timer = world.get_component::<WaitTimer>(woodcutter_entity).unwrap();
+        assert_eq!(timer.ticks, 2);
+        let target = world.get_component::<Target>(woodcutter_entity).unwrap();
+        assert_eq!((target.x, target.y), (8, 8)); // Should target hut
+
+        // Step 2: Move woodcutter to hut and deliver
+        world.remove_component::<Position>(woodcutter_entity);
+        world.add_component(woodcutter_entity, Position { x: 8, y: 8 });
+        world.remove_component::<WaitTimer>(woodcutter_entity);
+        world.add_component(woodcutter_entity, WaitTimer { ticks: 1 });
+
+        world.update();
+
+        // After delivery: should not be carrying, target next nearest tree
+        let carrying_after = world.get_component::<CarryingTree>(woodcutter_entity);
+        assert!(carrying_after.is_none());
+        let final_target = world.get_component::<Target>(woodcutter_entity).unwrap();
+        // Should target (6,6) which is the nearest remaining tree from (8,8)
+        assert_eq!((final_target.x, final_target.y), (6, 6));
+
+        println!("✅ Woodcutter system demonstration complete!");
+        println!("- Started with 3 trees");
+        println!("- Chopped down 1 tree");
+        println!("- Carried tree to hut");
+        println!("- Now targeting next tree at (6,6)");
+        println!("- {} trees remaining", world.entities_with_component::<Tree>().len());
+    }
 }
