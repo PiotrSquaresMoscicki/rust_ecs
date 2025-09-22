@@ -340,7 +340,7 @@ fn visualize_world_history(history: &WorldUpdateHistory) {
             );
 
             // Show component changes
-            for change in system_diff.component_changes() {
+            for change in system_diff.diff_changes() {
                 match change {
                     DiffComponentChange::Added {
                         entity,
