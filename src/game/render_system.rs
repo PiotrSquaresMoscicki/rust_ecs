@@ -24,7 +24,7 @@ impl System for RenderSystem {
         let mut grid = vec![vec!['.'; GRID_SIZE as usize]; GRID_SIZE as usize];
 
         // Place entities on grid
-        for (_entity, position) in world.query_components::<(In<Position>,)>() {
+        for (_entity, (position,)) in world.query_components::<(In<Position>,)>() {
             let x = position.x as usize;
             let y = position.y as usize;
 
@@ -72,7 +72,6 @@ mod tests {
     use super::*;
     use crate::World;
     use super::super::components::*;
-    use std::io::{self, Write};
 
     fn create_test_world_with_entities() -> World {
         let mut world = World::new();

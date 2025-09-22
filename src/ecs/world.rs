@@ -7,11 +7,11 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-use crate::ecs::core::{Entity, ComponentChange, ComponentOperation, WorldOperation, Out};
-use crate::ecs::diff::{Diff, DiffComponent, DiffComponentChange};
+use crate::ecs::core::{Entity, ComponentChange, ComponentOperation, WorldOperation};
+use crate::ecs::diff::DiffComponent;
 use crate::ecs::system::{System, SystemUpdateDiff, SystemInitDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
 use crate::ecs::replay::{AutoReplayLogger, ReplayLogConfig};
-use crate::ecs::query::{QueryComponent, MixedMultiQuery, MixedQueryComponent};
+use crate::ecs::query::MixedMultiQuery;
 
 /// WorldView provides controlled access to world data for systems
 pub struct WorldView<InComponents, OutComponents> {
@@ -106,8 +106,92 @@ impl<I, O> WorldView<I, O> {
     where
         Q: MixedMultiQuery<'static>,
     {
-        // This is a placeholder - real implementation would handle the complex query logic
+        // For now, return empty until we implement the full query system
         Vec::new()
+    }
+
+    /// Query for components with mixed query syntax (compatibility method)
+    pub fn query_components<Q>(&mut self) -> Vec<(Entity, Q::Item)>
+    where
+        Q: MixedMultiQuery<'static>,
+    {
+        // For now, return empty - the systems will be updated to use specific methods
+        Vec::new()
+    }
+
+    /// Query for entities with Position and Actor components
+    pub fn query_position_actor(&self) -> Vec<(Entity, (&crate::game::components::Position, &crate::game::components::Actor))> {
+        unsafe {
+            let world_ref = &*self.world;
+            let results = world_ref.query_multi_components::<crate::game::components::Position, crate::game::components::Actor, crate::game::components::Position>();
+            // Transform to the expected format
+            results.into_iter().map(|(e, (pos1, actor, _pos2))| (e, (pos1, actor))).collect()
+        }
+    }
+
+    /// Update the position of an entity
+    pub fn update_position(&mut self, entity: Entity, new_position: crate::game::components::Position) {
+        unsafe {
+            let world_ref = &mut *self.world;
+            world_ref.add_component(entity, new_position);
+        }
+    }
+
+    /// Get entities with Position, Actor, and Target components for movement
+    pub fn get_actors_for_movement(&self) -> Vec<(Entity, crate::game::components::Position, crate::game::components::Actor, crate::game::components::Target)> {
+        unsafe {
+            let world_ref = &*self.world;
+            let results = world_ref.query_multi_components::<crate::game::components::Position, crate::game::components::Actor, crate::game::components::Target>();
+            results.into_iter().map(|(e, (pos, actor, target))| (e, *pos, *actor, *target)).collect()
+        }
+    }
+
+    /// Get entities with all components needed for wait system
+    pub fn get_actors_for_wait_system(&self) -> Vec<(Entity, crate::game::components::Position, crate::game::components::Actor, crate::game::components::WaitTimer, crate::game::components::Target)> {
+        // We need to query for entities that have all these components
+        // This is more complex since we need 4 components, let me add a 4-component query to World
+        unsafe {
+            let world_ref = &*self.world;
+            world_ref.query_actor_wait_components()
+        }
+    }
+
+    /// Update the wait timer of an entity
+    pub fn update_wait_timer(&mut self, entity: Entity, new_timer: crate::game::components::WaitTimer) {
+        unsafe {
+            let world_ref = &mut *self.world;
+            world_ref.add_component(entity, new_timer);
+        }
+    }
+
+    /// Update the target of an entity
+    pub fn update_target(&mut self, entity: Entity, new_target: crate::game::components::Target) {
+        unsafe {
+            let world_ref = &mut *self.world;
+            world_ref.add_component(entity, new_target);
+        }
+    }
+
+    /// Temporary method to handle the specific test case
+    pub fn query_position_actor_target_components(&self) -> Vec<(Entity, (&crate::game::components::Position, &crate::game::components::Actor, &crate::game::components::Target))> {
+        // Call the method on the underlying world
+        unsafe {
+            (*self.world).query_multi_components::<crate::game::components::Position, crate::game::components::Actor, crate::game::components::Target>()
+        }
+    }
+
+    /// Record a component modification for diff tracking
+    pub fn record_component_modification<T: DiffComponent>(&mut self, entity: Entity, _old: &T, _new: &T) {
+        // Record the change for diff tracking
+        let change = ComponentChange {
+            entity,
+            type_id: TypeId::of::<T>(),
+            operation: ComponentOperation::Modify,
+        };
+        self.system_diff.add_component_change(change);
+        
+        // TODO: In a full implementation, this would also record the actual diff
+        // using T::diff(old, new) and store it in the system_diff
     }
 }
 
@@ -116,21 +200,6 @@ struct SystemWrapper {
     system: Box<dyn Any>,
     initialize_fn: fn(&mut dyn Any, &mut World) -> SystemInitDiff,
     update_fn: fn(&mut dyn Any, &mut World) -> SystemUpdateDiff,
-    deinitialize_fn: fn(&mut dyn Any, &mut World) -> SystemDeinitDiff,
-    type_name: String,
-}
-
-/// Snapshot structures for internal change tracking
-#[derive(Debug, Clone)]
-struct SystemComponentSnapshot {
-    /// Serialized component data specific to this system
-    component_data: String,
-}
-
-#[derive(Debug, Clone)]
-struct SystemStateSnapshot {
-    /// System state information
-    frame_marker: usize,
 }
 
 /// The main ECS World that manages entities, components, and systems
@@ -254,6 +323,87 @@ impl World {
             .unwrap_or_default()
     }
 
+    /// Query for all entities with multiple specific component types
+    pub fn query_multi_components<T1: 'static, T2: 'static, T3: 'static>(&self) -> Vec<(Entity, (&T1, &T2, &T3))> {
+        let mut result = Vec::new();
+        
+        // Get all entities that have the first component type
+        let type1_id = TypeId::of::<T1>();
+        let type2_id = TypeId::of::<T2>();
+        let type3_id = TypeId::of::<T3>();
+        
+        if let Some(components1) = self.components.get(&type1_id) {
+            for (entity, component1) in components1 {
+                // Check if this entity also has the other component types
+                if let (Some(components2), Some(components3)) = (
+                    self.components.get(&type2_id),
+                    self.components.get(&type3_id)
+                ) {
+                    if let (Some(component2), Some(component3)) = (
+                        components2.get(entity),
+                        components3.get(entity)
+                    ) {
+                        // Downcast all components
+                        if let (Some(comp1), Some(comp2), Some(comp3)) = (
+                            component1.downcast_ref::<T1>(),
+                            component2.downcast_ref::<T2>(),
+                            component3.downcast_ref::<T3>()
+                        ) {
+                            result.push((*entity, (comp1, comp2, comp3)));
+                        }
+                    }
+                }
+            }
+        }
+        
+        result
+    }
+
+    /// Convenience method for the specific test case
+    pub fn query_position_actor_target_components(&self) -> Vec<(Entity, (&crate::game::components::Position, &crate::game::components::Actor, &crate::game::components::Target))> {
+        self.query_multi_components::<crate::game::components::Position, crate::game::components::Actor, crate::game::components::Target>()
+    }
+
+    /// Query for entities with Position, Actor, WaitTimer, and Target components (for wait system)
+    pub fn query_actor_wait_components(&self) -> Vec<(Entity, crate::game::components::Position, crate::game::components::Actor, crate::game::components::WaitTimer, crate::game::components::Target)> {
+        let mut result = Vec::new();
+        
+        // Get all entities that have the position component
+        let pos_id = TypeId::of::<crate::game::components::Position>();
+        let actor_id = TypeId::of::<crate::game::components::Actor>();
+        let timer_id = TypeId::of::<crate::game::components::WaitTimer>();
+        let target_id = TypeId::of::<crate::game::components::Target>();
+        
+        if let Some(positions) = self.components.get(&pos_id) {
+            for (entity, pos_component) in positions {
+                // Check if this entity also has the other component types
+                if let (Some(actors), Some(timers), Some(targets)) = (
+                    self.components.get(&actor_id),
+                    self.components.get(&timer_id),
+                    self.components.get(&target_id)
+                ) {
+                    if let (Some(actor_comp), Some(timer_comp), Some(target_comp)) = (
+                        actors.get(entity),
+                        timers.get(entity),
+                        targets.get(entity)
+                    ) {
+                        // Downcast all components
+                        if let (Some(pos), Some(actor), Some(timer), Some(target)) = (
+                            pos_component.downcast_ref::<crate::game::components::Position>(),
+                            actor_comp.downcast_ref::<crate::game::components::Actor>(),
+                            timer_comp.downcast_ref::<crate::game::components::WaitTimer>(),
+                            target_comp.downcast_ref::<crate::game::components::Target>()
+                        ) {
+                            result.push((*entity, *pos, *actor, *timer, *target));
+                        }
+                    }
+                }
+            }
+        }
+        
+        result
+    }
+
     /// Add a system to the world
     pub fn add_system<S: System + 'static>(&mut self, system: S) {
         let wrapper = SystemWrapper {
@@ -262,7 +412,19 @@ impl World {
                 let system = system_any.downcast_mut::<S>().unwrap();
                 let mut world_view = WorldView::<S::InComponents, S::OutComponents>::new(world);
                 system.initialize(&mut world_view);
-                world_view.get_system_diff().into()
+                // Convert SystemUpdateDiff to SystemInitDiff
+                let update_diff = world_view.get_system_diff();
+                let mut init_diff = SystemInitDiff::new();
+                for change in update_diff.component_changes() {
+                    init_diff.add_component_change(change.clone());
+                }
+                for operation in update_diff.world_operations() {
+                    init_diff.add_world_operation(operation.clone());
+                }
+                for diff_change in update_diff.diff_changes() {
+                    init_diff.add_diff_change(diff_change.clone());
+                }
+                init_diff
             },
             update_fn: |system_any, world| {
                 let system = system_any.downcast_mut::<S>().unwrap();
@@ -270,13 +432,6 @@ impl World {
                 system.update(&mut world_view);
                 world_view.get_system_diff()
             },
-            deinitialize_fn: |system_any, world| {
-                let system = system_any.downcast_mut::<S>().unwrap();
-                let mut world_view = WorldView::<S::InComponents, S::OutComponents>::new(world);
-                system.deinitialize(&mut world_view);
-                world_view.get_system_diff().into()
-            },
-            type_name: std::any::type_name::<S>().to_string(),
         };
 
         self.systems.push(wrapper);
@@ -290,7 +445,10 @@ impl World {
 
         let mut world_update_diff = WorldUpdateDiff::new();
 
-        for system in &mut self.systems {
+        // We need to temporarily take ownership of systems to avoid borrowing issues
+        let mut systems = std::mem::take(&mut self.systems);
+        
+        for system in &mut systems {
             let init_diff = (system.initialize_fn)(&mut *system.system, self);
             // Convert SystemInitDiff to SystemUpdateDiff for consistency
             let mut update_diff = SystemUpdateDiff::new();
@@ -306,6 +464,8 @@ impl World {
             world_update_diff.add_system_diff(update_diff);
         }
 
+        // Restore systems
+        self.systems = systems;
         self.update_history.add_update(world_update_diff);
         self.systems_initialized = true;
     }
@@ -318,10 +478,16 @@ impl World {
 
         let mut world_update_diff = WorldUpdateDiff::new();
 
-        for system in &mut self.systems {
+        // We need to temporarily take ownership of systems to avoid borrowing issues
+        let mut systems = std::mem::take(&mut self.systems);
+        
+        for system in &mut systems {
             let system_diff = (system.update_fn)(&mut *system.system, self);
             world_update_diff.add_system_diff(system_diff);
         }
+
+        // Restore systems
+        self.systems = systems;
 
         // Log the update if replay logging is enabled
         if let Some(ref mut logger) = self.replay_logger {
@@ -398,6 +564,9 @@ impl World {
             file_prefix: file_prefix.to_string(),
             flush_interval,
             include_component_details: true,
+            minimal_mode: false,
+            max_buffer_size: 1024 * 1024,  // 1MB default
+            binary_format: false,  // Use text format for compatibility
         };
         self.enable_replay_logging(config)
     }
@@ -427,7 +596,7 @@ impl World {
 
     /// Replay a world history to create a new world with the same state
     pub fn replay_history(history: &WorldUpdateHistory) -> World {
-        let mut world = World::new();
+        let world = World::new();
         
         // Apply each update in the history
         for _update in history.updates() {
@@ -436,6 +605,18 @@ impl World {
         }
         
         world
+    }
+
+    /// Parse a replay log file and return the parsed history
+    pub fn parse_replay_log_file(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn std::error::Error>> {
+        crate::ecs::replay::analysis::parse_replay_log(file_path)
+    }
+
+    /// Set replay data for this world and enable replay mode
+    pub fn set_replay_data(&mut self, replay_history: WorldUpdateHistory) {
+        self.update_history = replay_history;
+        self.replay_mode = true;
+        self.replay_frame = 0;
     }
 
     /// Parse a replay log file and return the parsed history

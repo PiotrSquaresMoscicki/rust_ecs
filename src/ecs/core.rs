@@ -3,11 +3,12 @@
 //! This module contains the fundamental building blocks of the ECS system.
 
 use std::any::TypeId;
+use serde::{Serialize, Deserialize};
 
 /// A unique identifier for entities in the ECS world.
 /// 
 /// Each entity has an ID and generation to handle entity reuse safely.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Entity {
     pub(crate) id: usize,
     pub(crate) generation: usize,

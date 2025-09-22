@@ -5,7 +5,6 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::{Write, BufWriter};
-use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize, Deserialize};
 
@@ -122,15 +121,6 @@ pub struct AutoReplayLogger {
 enum LogEntry {
     Text(String),
     Binary(Vec<u8>),
-}
-
-impl LogEntry {
-    fn size_bytes(&self) -> usize {
-        match self {
-            LogEntry::Text(s) => s.len(),
-            LogEntry::Binary(data) => data.len(),
-        }
-    }
 }
 
 impl AutoReplayLogger {
@@ -556,7 +546,6 @@ impl AutoReplayLogger {
 /// Replay data analysis utilities for developers
 pub mod analysis {
     use super::*;
-    use crate::ecs::diff::DiffComponentChange;
     use crate::ecs::core::Entity;
 
     /// Statistics about a replay log

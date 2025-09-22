@@ -1,4 +1,4 @@
-use crate::{In, Out, System, WorldView};
+use crate::{System, WorldView};
 use std::collections::HashSet;
 use super::components::{Actor, Position, Target, HOME_POS, WORK_POS};
 use super::utils::{calculate_next_move, is_valid_position, is_adjacent};
@@ -23,7 +23,7 @@ impl System for MovementSystem {
 
         // Collect all current actor positions to avoid collisions
         let current_positions: Vec<(i32, i32)> = world
-            .query_components::<(In<Position>, In<Actor>)>()
+            .query_position_actor()
             .into_iter()
             .map(|(_, (pos, _))| (pos.x, pos.y))
             .collect();
@@ -31,10 +31,8 @@ impl System for MovementSystem {
         // Collect changes to apply after the query
         let mut changes = Vec::new();
 
-        // Now we can query and update actor positions in a single query thanks to extended support!
-        for (entity, (position, _actor, target)) in
-            world.query_components::<(Out<Position>, In<Actor>, In<Target>)>()
-        {
+        // Get actors and their positions/targets for movement
+        for (entity, position, _actor, target) in world.get_actors_for_movement() {
             let current_pos = (position.x, position.y);
             let target_pos = (target.x, target.y);
 
@@ -56,18 +54,20 @@ impl System for MovementSystem {
                     && is_valid_position(next_pos)
                     && !temp_obstacles.contains(&next_pos)
                 {
-                    let old_position = *position;
-                    position.x = next_pos.0;
-                    position.y = next_pos.1;
+                    let old_position = position;
+                    let new_position = crate::game::components::Position {
+                        x: next_pos.0,
+                        y: next_pos.1,
+                    };
                     
-                    // Store the change to record later
-                    changes.push((entity, old_position, *position));
+                    changes.push((entity, old_position, new_position));
                 }
             }
         }
-        
-        // Record all component changes
+
+        // Apply all the changes and record them
         for (entity, old_position, new_position) in changes {
+            world.update_position(entity, new_position);
             world.record_component_modification(entity, &old_position, &new_position);
         }
     }
