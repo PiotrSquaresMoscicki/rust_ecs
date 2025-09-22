@@ -8,6 +8,7 @@
 //! - Complete replayability with text-format visualization
 
 use rust_ecs::*;
+use rust_ecs::ecs::Diff;
 
 /// Position component for entities
 #[derive(Debug, Clone, Diff)]

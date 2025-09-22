@@ -8,7 +8,7 @@ use std::io::{Write, BufWriter};
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize, Deserialize};
 
-use crate::ecs::system::{WorldUpdateHistory, WorldUpdateDiff};
+use crate::ecs::system::{WorldUpdateDiff};
 use crate::ecs::diff::BinaryDiffComponentChange;
 
 /// Magic number for binary log files to identify format
@@ -545,8 +545,8 @@ impl AutoReplayLogger {
 
 /// Replay data analysis utilities for developers
 pub mod analysis {
-    use super::*;
     use crate::ecs::core::Entity;
+    use crate::ecs::system::WorldUpdateHistory;
 
     /// Statistics about a replay log
     #[derive(Debug)]
@@ -556,6 +556,55 @@ pub mod analysis {
         pub total_component_changes: usize,
         pub total_world_operations: usize,
         pub unique_entities: std::collections::HashSet<Entity>,
+        pub component_types_involved: std::collections::HashSet<String>,
+    }
+
+    /// Analyze a WorldUpdateHistory and return statistics
+    pub fn analyze_replay_history(history: &WorldUpdateHistory) -> ReplayStats {
+        let mut stats = ReplayStats {
+            total_updates: history.len(),
+            total_system_executions: 0,
+            total_component_changes: 0,
+            total_world_operations: 0,
+            unique_entities: std::collections::HashSet::new(),
+            component_types_involved: std::collections::HashSet::new(),
+        };
+
+        // Analyze each update in the history
+        for update_diff in history.updates() {
+            for system_diff in update_diff.system_diffs() {
+                stats.total_system_executions += 1;
+                stats.total_component_changes += system_diff.component_changes().len();
+                stats.total_world_operations += system_diff.world_operations().len();
+
+                // Collect unique entities and component types from diff changes
+                for diff_change in system_diff.diff_changes() {
+                    match diff_change {
+                        crate::ecs::diff::DiffComponentChange::Added { entity, type_name, .. } => {
+                            stats.unique_entities.insert(*entity);
+                            stats.component_types_involved.insert(type_name.clone());
+                        }
+                        crate::ecs::diff::DiffComponentChange::Modified { entity, type_name, .. } => {
+                            stats.unique_entities.insert(*entity);
+                            stats.component_types_involved.insert(type_name.clone());
+                        }
+                        crate::ecs::diff::DiffComponentChange::Removed { entity, type_name } => {
+                            stats.unique_entities.insert(*entity);
+                            stats.component_types_involved.insert(type_name.clone());
+                        }
+                    }
+                }
+
+                // Also collect from regular component changes
+                for component_change in system_diff.component_changes() {
+                    stats.unique_entities.insert(component_change.entity);
+                    // Note: We can't get the type name from ComponentChange since it only has TypeId
+                    // The type names are better extracted from diff_changes above
+                }
+            }
+        }
+
+        stats
     }
 
     /// Parse a replay log file and return statistics
@@ -568,6 +617,7 @@ pub mod analysis {
             total_component_changes: 0,
             total_world_operations: 0,
             unique_entities: std::collections::HashSet::new(),
+            component_types_involved: std::collections::HashSet::new(),
         };
 
         for line in content.lines() {

@@ -20,5 +20,8 @@ pub use ecs::{
     DiffComponentChange
 };
 
+// Re-export replay analysis utilities
+pub use ecs::replay::analysis as replay_analysis;
+
 // Re-export the derive macro from the derive crate
 pub use rust_ecs_derive::Diff;
