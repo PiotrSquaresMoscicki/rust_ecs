@@ -1,5 +1,4 @@
-use crate::DiffComponent;
-use crate::ecs::diff::Diff;
+use crate::ecs::diff::{Diff, DiffComponent};
 use crate::impl_diff;
 
 // Grid constants
