@@ -118,11 +118,11 @@ fn main() {
     if args.len() > 2 && args[1] == "demo" {
         match args[2].as_str() {
             "woodcutter" => {
-                game::run_woodcutter_demo();
+                game::woodcutter_system::run_woodcutter_demo();
                 return;
             }
             "navigation" => {
-                game::run_navigation_demo();
+                game::navigation_system::run_navigation_demo();
                 return;
             }
             _ => {

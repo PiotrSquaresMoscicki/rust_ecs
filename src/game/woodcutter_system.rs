@@ -1,6 +1,10 @@
-use crate::{In, Out, System, WorldView};
-use super::components::{Position, Target, WaitTimer, Woodcutter, Tree, WoodcutterHut, CarryingTree};
+use crate::{In, Out, System, WorldView, World};
+use super::components::{Position, Target, WaitTimer, Woodcutter, Tree, WoodcutterHut, CarryingTree, Actor};
 use super::utils::is_adjacent;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 /// Woodcutter System - manages woodcutter behavior for tree chopping and delivery
 pub struct WoodcutterSystem;
@@ -186,6 +190,158 @@ fn find_nearest_position(from: (i32, i32), positions: &[(i32, i32)]) -> Option<&
             let dy = (from.1 - y).abs();
             dx + dy // Manhattan distance
         })
+}
+
+/// Initialize a woodcutter demo world with 10 trees, 2 woodcutter huts, and 2 woodcutters
+pub fn initialize_woodcutter_demo() -> World {
+    let mut world = World::new();
+
+    // Create 10 trees at fixed positions for reproducibility
+    println!("Creating 10 trees...");
+    let tree_positions = [
+        (0, 0), (9, 0), (0, 9), (9, 9), // corners
+        (4, 4), (5, 5), (3, 6), (6, 3), // middle area
+        (1, 4), (7, 1)  // scattered
+    ];
+    
+    for (i, &pos) in tree_positions.iter().enumerate() {
+        let tree_entity = world.create_entity();
+        world.add_component(tree_entity, Position { x: pos.0, y: pos.1 });
+        world.add_component(tree_entity, Tree);
+        println!("  Tree {} at ({}, {})", i + 1, pos.0, pos.1);
+    }
+
+    // Create 2 woodcutter huts at fixed positions
+    println!("\nCreating 2 woodcutter huts...");
+    let hut_positions = [(2, 8), (8, 2)]; // Corner positions
+    for (i, &pos) in hut_positions.iter().enumerate() {
+        let hut_entity = world.create_entity();
+        world.add_component(hut_entity, Position { x: pos.0, y: pos.1 });
+        world.add_component(hut_entity, WoodcutterHut);
+        println!("  Woodcutter Hut {} at ({}, {})", i + 1, pos.0, pos.1);
+    }
+
+    // Create 2 woodcutter actors at fixed positions
+    println!("\nCreating 2 woodcutters...");
+    let woodcutter_positions = [(1, 1), (8, 8)]; // Fixed positions for reproducibility
+    
+    for (i, &pos) in woodcutter_positions.iter().enumerate() {
+        let woodcutter_entity = world.create_entity();
+        world.add_component(woodcutter_entity, Position { x: pos.0, y: pos.1 });
+        world.add_component(woodcutter_entity, Woodcutter);
+        world.add_component(woodcutter_entity, Actor); // Add Actor component so MovementSystem can move woodcutters
+        
+        // Find nearest tree as initial target
+        let nearest_tree = tree_positions.iter()
+            .min_by_key(|&&(tx, ty)| {
+                let dx = (pos.0 - tx).abs();
+                let dy = (pos.1 - ty).abs();
+                dx + dy
+            })
+            .unwrap_or(&tree_positions[0]);
+        
+        world.add_component(woodcutter_entity, Target { x: nearest_tree.0, y: nearest_tree.1 });
+        world.add_component(woodcutter_entity, WaitTimer { ticks: 10 });
+        
+        println!("  Woodcutter {} at ({}, {}) targeting tree at ({}, {})", 
+                 i + 1, pos.0, pos.1, nearest_tree.0, nearest_tree.1);
+    }
+
+    // Add systems
+    world.add_system(super::movement_system::MovementSystem);
+    world.add_system(WoodcutterSystem);
+    world.add_system(super::render_system::RenderSystem::default());
+
+    // Initialize systems
+    world.initialize_systems();
+
+    println!("\nWoodcutter demo world initialized!");
+    println!("- 10 trees");
+    println!("- 2 woodcutter huts");
+    println!("- 2 woodcutters");
+    
+    world
+}
+
+/// Log the state of each woodcutter
+pub fn log_woodcutter_states(world: &World, update_count: u32) {
+    println!("=== Update {} - Woodcutter States ===", update_count);
+    
+    let woodcutter_entities = world.entities_with_component::<Woodcutter>();
+    
+    for (i, &entity) in woodcutter_entities.iter().enumerate() {
+        let pos = world.get_component::<Position>(entity).unwrap();
+        let target = world.get_component::<Target>(entity).unwrap();
+        let timer = world.get_component::<WaitTimer>(entity).unwrap();
+        let carrying = world.get_component::<CarryingTree>(entity);
+        
+        println!("Woodcutter {} (Entity {:?}):", i + 1, entity);
+        println!("  Position: ({}, {})", pos.x, pos.y);
+        println!("  Target: ({}, {})", target.x, target.y);
+        println!("  Timer: {} ticks", timer.ticks);
+        println!("  Carrying tree: {}", carrying.is_some());
+        
+        // Determine what the woodcutter is doing
+        let action = if carrying.is_some() {
+            "Carrying tree to hut"
+        } else {
+            "Going to chop tree"
+        };
+        println!("  Action: {}", action);
+        println!();
+    }
+    
+    // Log total trees remaining
+    let tree_count = world.entities_with_component::<Tree>().len();
+    println!("Trees remaining: {}", tree_count);
+    println!();
+}
+
+/// Run the woodcutter demo
+pub fn run_woodcutter_demo() {
+    println!("🌲 Starting Woodcutter Demo 🌲");
+    println!("=====================================");
+    println!("This demo shows 2 woodcutters chopping 10 trees and delivering them to 2 huts");
+    println!("Symbols: T=Tree, W=Woodcutter Hut, C=Woodcutter, H=Home, O=Work/Office");
+    println!("Press Ctrl+C to stop the demo");
+    println!();
+
+    let mut world = initialize_woodcutter_demo();
+
+    // Set up Ctrl+C handler for graceful shutdown
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    
+    ctrlc::set_handler(move || {
+        println!("\nReceived Ctrl+C, shutting down gracefully...");
+        r.store(false, Ordering::SeqCst);
+    }).expect("Error setting Ctrl-C handler");
+
+    let mut update_count = 0;
+    
+    // Demo loop - 1 tick per second for easier observation
+    while running.load(Ordering::SeqCst) {
+        update_count += 1;
+        
+        // Log woodcutter states before update
+        log_woodcutter_states(&world, update_count);
+        
+        // Update the world
+        world.update();
+        
+        // Check if all trees are chopped
+        let tree_count = world.entities_with_component::<Tree>().len();
+        if tree_count == 0 {
+            println!("🎉 All trees have been chopped! Demo complete! 🎉");
+            break;
+        }
+        
+        thread::sleep(Duration::from_millis(1000)); // 1 FPS for better observation
+    }
+
+    println!("Woodcutter demo completed after {} updates", update_count);
+    let final_tree_count = world.entities_with_component::<Tree>().len();
+    println!("Final tree count: {}", final_tree_count);
 }
 
 #[cfg(test)]
