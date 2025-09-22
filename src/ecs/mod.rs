@@ -20,6 +20,3 @@ pub use world::{World, WorldView};
 
 // Re-export the derive macro
 pub use rust_ecs_derive::Diff;
-
-// Re-export the impl_diff macro
-pub use crate::impl_diff;

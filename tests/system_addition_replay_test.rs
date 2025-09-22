@@ -44,7 +44,7 @@ fn test_system_addition_recording_and_replay() {
                     rust_ecs::WorldOperation::AddSystem(system_type) => {
                         // Apply system addition manually for this test
                         if system_type.contains("MovementSystem") {
-                            replay_world.add_system_internal(MovementSystem);
+                            replay_world.add_system(MovementSystem);
                         }
                     }
                     _ => {}
@@ -102,9 +102,9 @@ fn test_multiple_system_additions_replay() {
                 match operation {
                     rust_ecs::WorldOperation::AddSystem(system_type) => {
                         if system_type.contains("MovementSystem") {
-                            replay_world.add_system_internal(MovementSystem);
+                            replay_world.add_system(MovementSystem);
                         } else if system_type.contains("WaitSystem") {
-                            replay_world.add_system_internal(WaitSystem);
+                            replay_world.add_system(WaitSystem);
                         }
                     }
                     _ => {}
@@ -148,9 +148,9 @@ fn test_empty_world_replay() {
                 match operation {
                     rust_ecs::WorldOperation::AddSystem(system_type) => {
                         if system_type.contains("MovementSystem") {
-                            fresh_world.add_system_internal(MovementSystem);
+                            fresh_world.add_system(MovementSystem);
                         } else if system_type.contains("WaitSystem") {
-                            fresh_world.add_system_internal(WaitSystem);
+                            fresh_world.add_system(WaitSystem);
                         }
                     }
                     _ => {}

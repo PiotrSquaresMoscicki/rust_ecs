@@ -1,33 +1,151 @@
-use rust_ecs::{Diff, DiffComponent, In, Out, System, World, WorldView};
+use rust_ecs::{DiffComponent, In, Out, System, World, WorldView};
+use rust_ecs::ecs::diff::Diff;
 use std::env;
 
 mod game;
 
-// Example components with Diff implementation using derive macro
-#[derive(Debug, Diff)]
+// Example components with manual Diff implementation
+#[derive(Debug, Clone, Copy)]
 struct Position {
     x: f32,
     y: f32,
 }
 
-#[derive(Debug, Clone, Diff)]
+#[derive(Debug, Clone)]
 struct Velocity {
     dx: f32,
     dy: f32,
 }
 
-#[derive(Debug, Diff)]
+#[derive(Debug)]
 struct Health {
     current: i32,
     max: i32,
 }
 
-// Demo component to show derive macro in action
-#[derive(Debug, Diff)]
+// Demo component to show manual implementation
+#[derive(Debug)]
 struct Temperature {
     celsius: f32,
     pressure: f32,
 }
+
+// Manual Diff implementations for the example components
+#[derive(Clone, Debug)]
+struct PositionDiff {
+    x: Option<f32>,
+    y: Option<f32>,
+}
+
+impl Diff for Position {
+    type Diff = PositionDiff;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        let mut has_changes = false;
+        let x_diff = if self.x != other.x { has_changes = true; Some(other.x) } else { None };
+        let y_diff = if self.y != other.y { has_changes = true; Some(other.y) } else { None };
+        
+        if has_changes {
+            Some(PositionDiff { x: x_diff, y: y_diff })
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        if let Some(x) = diff.x { self.x = x; }
+        if let Some(y) = diff.y { self.y = y; }
+    }
+}
+
+impl DiffComponent for Position {}
+
+#[derive(Clone, Debug)]
+struct VelocityDiff {
+    dx: Option<f32>,
+    dy: Option<f32>,
+}
+
+impl Diff for Velocity {
+    type Diff = VelocityDiff;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        let mut has_changes = false;
+        let dx_diff = if self.dx != other.dx { has_changes = true; Some(other.dx) } else { None };
+        let dy_diff = if self.dy != other.dy { has_changes = true; Some(other.dy) } else { None };
+        
+        if has_changes {
+            Some(VelocityDiff { dx: dx_diff, dy: dy_diff })
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        if let Some(dx) = diff.dx { self.dx = dx; }
+        if let Some(dy) = diff.dy { self.dy = dy; }
+    }
+}
+
+impl DiffComponent for Velocity {}
+
+#[derive(Clone, Debug)]
+struct HealthDiff {
+    current: Option<i32>,
+    max: Option<i32>,
+}
+
+impl Diff for Health {
+    type Diff = HealthDiff;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        let mut has_changes = false;
+        let current_diff = if self.current != other.current { has_changes = true; Some(other.current) } else { None };
+        let max_diff = if self.max != other.max { has_changes = true; Some(other.max) } else { None };
+        
+        if has_changes {
+            Some(HealthDiff { current: current_diff, max: max_diff })
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        if let Some(current) = diff.current { self.current = current; }
+        if let Some(max) = diff.max { self.max = max; }
+    }
+}
+
+impl DiffComponent for Health {}
+
+#[derive(Clone, Debug)]
+struct TemperatureDiff {
+    celsius: Option<f32>,
+    pressure: Option<f32>,
+}
+
+impl Diff for Temperature {
+    type Diff = TemperatureDiff;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        let mut has_changes = false;
+        let celsius_diff = if self.celsius != other.celsius { has_changes = true; Some(other.celsius) } else { None };
+        let pressure_diff = if self.pressure != other.pressure { has_changes = true; Some(other.pressure) } else { None };
+        
+        if has_changes {
+            Some(TemperatureDiff { celsius: celsius_diff, pressure: pressure_diff })
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        if let Some(celsius) = diff.celsius { self.celsius = celsius; }
+        if let Some(pressure) = diff.pressure { self.pressure = pressure; }
+    }
+}
+
+impl DiffComponent for Temperature {}
 
 // Example system that moves entities based on their velocity
 struct MovementSystem;
@@ -386,13 +504,16 @@ fn demo_replay_analysis() {
     
     // Analyze the replay data
     let history = world.get_update_history();
-    rust_ecs::replay_analysis::print_replay_analysis(history);
+    // TODO: Add replay analysis functionality
+    // rust_ecs::replay_analysis::print_replay_analysis(history);
     
-    // Find anomalous frames (frames with significantly more activity)
-    let anomalous = rust_ecs::replay_analysis::find_anomalous_frames(history, 2.0);
-    if !anomalous.is_empty() {
-        println!("Anomalous frames (2x average activity): {:?}", anomalous);
-    }
+    // TODO: Find anomalous frames (frames with significantly more activity)
+    // let anomalous = rust_ecs::replay_analysis::find_anomalous_frames(history, 2.0);
+    // if !anomalous.is_empty() {
+    //     println!("Anomalous frames (2x average activity): {:?}", anomalous);
+    // }
+    
+    println!("Replay demo completed with {} updates", history.updates().len());
     
     // Clean up
     if let Err(e) = world.disable_replay_logging() {
