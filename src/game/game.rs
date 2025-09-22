@@ -70,10 +70,11 @@ pub fn initialize_game() -> World {
         ); // Start by going to work
         world.add_component(actor_entity, WaitTimer { ticks: 0 });
         world.add_component(actor_entity, ActorState::MovingToWork);
+        world.add_component(actor_entity, Navigation::new()); // Add Navigation for pathfinding
     }
 
     // Add systems - same for both normal and replay modes
-    world.add_system(MovementSystem);
+    world.add_system(NavigationSystem);
     world.add_system(WaitSystem);
     world.add_system(RenderSystem::default());
 
