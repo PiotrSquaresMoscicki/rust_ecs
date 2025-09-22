@@ -1,7 +1,7 @@
 use std::time::Instant;
 use rust_ecs::ecs::replay::{ReplayLogConfig, AutoReplayLogger};
 use rust_ecs::ecs::system::{WorldUpdateDiff, SystemUpdateDiff};
-use rust_ecs::ecs::core::{Entity, ComponentChange, ComponentOperation, WorldOperation};
+use rust_ecs::ecs::core::{Entity, ComponentChange, ComponentOperation};
 use rust_ecs::ecs::diff::DiffComponentChange;
 use std::any::TypeId;
 
@@ -84,7 +84,11 @@ fn create_test_data(num_updates: usize) -> Vec<WorldUpdateDiff> {
         let render_diff = SystemUpdateDiff::new();
         system_diffs.push(render_diff);
         
-        updates.push(WorldUpdateDiff::new(system_diffs));
+        let mut world_update = WorldUpdateDiff::new();
+        for system_diff in system_diffs {
+            world_update.add_system_diff(system_diff);
+        }
+        updates.push(world_update);
     }
     
     updates

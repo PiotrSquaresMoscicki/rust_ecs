@@ -25,7 +25,7 @@ pub fn derive_diff(input: TokenStream) -> TokenStream {
                         .zip(field_types.iter())
                         .map(|(name, ty)| {
                             quote! {
-                                pub #name: Option<<#ty as ::rust_ecs::ecs::diff::Diff>::Diff>
+                                pub #name: Option<<#ty as crate::ecs::diff::Diff>::Diff>
                             }
                         });
 
@@ -84,7 +84,7 @@ pub fn derive_diff(input: TokenStream) -> TokenStream {
                 Fields::Unit => {
                     // Handle unit structs
                     let expanded = quote! {
-                        impl ::rust_ecs::ecs::diff::Diff for #name {
+                        impl crate::ecs::diff::Diff for #name {
                             type Diff = ();
 
                             fn diff(&self, _other: &Self) -> Option<Self::Diff> {
@@ -109,7 +109,7 @@ pub fn derive_diff(input: TokenStream) -> TokenStream {
         Data::Enum(_) => {
             // Handle enums - they diff by value comparison like primitives
             let expanded = quote! {
-                impl ::rust_ecs::ecs::diff::Diff for #name {
+                impl crate::ecs::diff::Diff for #name {
                     type Diff = #name;
 
                     fn diff(&self, other: &Self) -> Option<Self::Diff> {

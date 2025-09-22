@@ -73,7 +73,7 @@ mod tests {
         use rust_ecs::ecs::core::Entity;
         
         // Test binary diff component change creation
-        let entity = Entity(42);
+        let entity = Entity::new(42, 0);
         let type_name = "TestComponent".to_string();
         let diff_data = vec![1, 2, 3, 4];
         
@@ -84,11 +84,11 @@ mod tests {
             DiffChangeType::Modified,
         );
         
-        match binary_change {
+        match &binary_change {
             BinaryDiffComponentChange::Modified { entity: e, type_name: tn, diff_data: dd } => {
-                assert_eq!(e, entity);
-                assert_eq!(tn, type_name);
-                assert_eq!(dd, diff_data);
+                assert_eq!(*e, entity);
+                assert_eq!(tn, &type_name);
+                assert_eq!(dd, &diff_data);
             }
             _ => panic!("Expected Modified variant"),
         }
@@ -131,7 +131,7 @@ mod tests {
     fn test_binary_diff_change_types() {
         use rust_ecs::ecs::core::Entity;
         
-        let entity = Entity(1);
+        let entity = Entity::new(1, 0);
         let type_name = "TestType".to_string();
         let diff_data = vec![0x01, 0x02];
         

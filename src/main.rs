@@ -1,4 +1,6 @@
-use rust_ecs::{Diff, DiffComponent, In, Out, System, World, WorldView};
+use rust_ecs::{DiffComponent, In, Out, System, World, WorldView};
+use rust_ecs::Diff; // This is the derive macro
+// Note: We don't need to import the trait since the derive macro handles it
 use std::env;
 
 mod game;
@@ -386,13 +388,16 @@ fn demo_replay_analysis() {
     
     // Analyze the replay data
     let history = world.get_update_history();
-    rust_ecs::replay_analysis::print_replay_analysis(history);
+    // TODO: Add replay analysis functionality
+    // rust_ecs::replay_analysis::print_replay_analysis(history);
     
-    // Find anomalous frames (frames with significantly more activity)
-    let anomalous = rust_ecs::replay_analysis::find_anomalous_frames(history, 2.0);
-    if !anomalous.is_empty() {
-        println!("Anomalous frames (2x average activity): {:?}", anomalous);
-    }
+    // TODO: Find anomalous frames (frames with significantly more activity)
+    // let anomalous = rust_ecs::replay_analysis::find_anomalous_frames(history, 2.0);
+    // if !anomalous.is_empty() {
+    //     println!("Anomalous frames (2x average activity): {:?}", anomalous);
+    // }
+    
+    println!("Replay demo completed with {} updates", history.updates().len());
     
     // Clean up
     if let Err(e) = world.disable_replay_logging() {
