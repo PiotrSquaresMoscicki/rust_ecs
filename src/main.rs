@@ -121,9 +121,13 @@ fn main() {
                 game::run_woodcutter_demo();
                 return;
             }
+            "navigation" => {
+                game::run_navigation_demo();
+                return;
+            }
             _ => {
                 eprintln!("Unknown demo type: {}", args[2]);
-                eprintln!("Available demos: woodcutter");
+                eprintln!("Available demos: woodcutter, navigation");
                 return;
             }
         }

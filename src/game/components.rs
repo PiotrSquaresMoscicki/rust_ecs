@@ -35,6 +35,52 @@ pub struct WaitTimer {
     pub ticks: u32,
 }
 
+/// Navigation component for entities that need sophisticated pathfinding
+#[derive(Debug, Clone, PartialEq, Eq, Diff)]
+pub struct Navigation {
+    pub path: Vec<(i32, i32)>,
+    pub current_path_index: usize,
+    pub needs_recalculation: bool,
+}
+
+impl Navigation {
+    pub fn new() -> Self {
+        Self {
+            path: Vec::new(),
+            current_path_index: 0,
+            needs_recalculation: true,
+        }
+    }
+
+    pub fn set_path(&mut self, path: Vec<(i32, i32)>) {
+        self.path = path;
+        self.current_path_index = 0;
+        self.needs_recalculation = false;
+    }
+
+    pub fn get_next_position(&self) -> Option<(i32, i32)> {
+        if self.current_path_index < self.path.len() {
+            Some(self.path[self.current_path_index])
+        } else {
+            None
+        }
+    }
+
+    pub fn advance_path(&mut self) {
+        if self.current_path_index < self.path.len() {
+            self.current_path_index += 1;
+        }
+    }
+
+    pub fn request_recalculation(&mut self) {
+        self.needs_recalculation = true;
+    }
+
+    pub fn is_path_complete(&self) -> bool {
+        self.current_path_index >= self.path.len()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Diff)]
 #[allow(dead_code)]
 pub enum ActorState {

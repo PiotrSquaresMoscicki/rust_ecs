@@ -10,3 +10,4 @@ rust_ecs_derive = { path = "./rust_ecs_derive" }
 chrono = { version = "0.4", features = ["serde"] }
 ctrlc = "3.4"
 serde = { version = "1.0", features = ["derive"] }
+pathfinding = "4.0"

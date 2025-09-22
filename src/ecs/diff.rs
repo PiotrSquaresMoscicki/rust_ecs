@@ -97,6 +97,63 @@ impl Diff for u32 {
 
 impl DiffComponent for u32 {}
 
+impl Diff for bool {
+    type Diff = bool;
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        if self != other {
+            Some(*other)
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        *self = *diff;
+    }
+}
+
+impl DiffComponent for bool {}
+
+impl Diff for (i32, i32) {
+    type Diff = (Option<i32>, Option<i32>);
+
+    fn diff(&self, other: &Self) -> Option<Self::Diff> {
+        let mut has_changes = false;
+        let diff = (
+            if self.0 != other.0 {
+                has_changes = true;
+                Some(other.0)
+            } else {
+                None
+            },
+            if self.1 != other.1 {
+                has_changes = true;
+                Some(other.1)
+            } else {
+                None
+            },
+        );
+
+        if has_changes {
+            Some(diff)
+        } else {
+            None
+        }
+    }
+
+    fn apply_diff(&mut self, diff: &Self::Diff) {
+        if let Some(x) = diff.0 {
+            self.0 = x;
+        }
+        if let Some(y) = diff.1 {
+            self.1 = y;
+        }
+    }
+}
+
+impl DiffComponent for (i32, i32) {}
+
 impl Diff for String {
     type Diff = String;
 

@@ -1,17 +1,29 @@
 use crate::{In, System, WorldView};
-use super::components::{Position, GRID_SIZE, HOME_POS, WORK_POS, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter};
+use super::components::{Position, GRID_SIZE, HOME_POS, WORK_POS, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter, Obstacle};
 
-/// Render System - displays the 10x10 grid
-pub struct RenderSystem;
+/// Render System - displays the grid with configurable size
+pub struct RenderSystem {
+    grid_width: usize,
+    grid_height: usize,
+}
+
+impl RenderSystem {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self {
+            grid_width: width,
+            grid_height: height,
+        }
+    }
+}
 
 impl Default for RenderSystem {
     fn default() -> Self {
-        Self
+        Self::new(GRID_SIZE as usize, GRID_SIZE as usize)
     }
 }
 
 impl System for RenderSystem {
-    type InComponents = (Position, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter);
+    type InComponents = (Position, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter, Obstacle);
     type OutComponents = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -21,13 +33,22 @@ impl System for RenderSystem {
         print!("\x1B[2J\x1B[1;1H");
 
         // Create grid
-        let mut grid = vec![vec!['.'; GRID_SIZE as usize]; GRID_SIZE as usize];
+        let mut grid = vec![vec!['.'; self.grid_width]; self.grid_height];
+
+        // Place obstacles/walls on grid first (lowest priority)
+        for (_entity, (position, _obstacle)) in world.query_components::<(In<Position>, In<Obstacle>)>() {
+            let x = position.x as usize;
+            let y = position.y as usize;
+            if x < self.grid_width && y < self.grid_height {
+                grid[y][x] = '#'; // Wall/obstacle
+            }
+        }
 
         // Place trees on grid
         for (_entity, (position, _tree)) in world.query_components::<(In<Position>, In<Tree>)>() {
             let x = position.x as usize;
             let y = position.y as usize;
-            if x < GRID_SIZE as usize && y < GRID_SIZE as usize {
+            if x < self.grid_width && y < self.grid_height {
                 grid[y][x] = 'T';
             }
         }
@@ -36,17 +57,35 @@ impl System for RenderSystem {
         for (_entity, (position, _hut)) in world.query_components::<(In<Position>, In<WoodcutterHut>)>() {
             let x = position.x as usize;
             let y = position.y as usize;
-            if x < GRID_SIZE as usize && y < GRID_SIZE as usize {
+            if x < self.grid_width && y < self.grid_height {
                 grid[y][x] = 'W'; // Woodcutter hut
             }
         }
 
-        // Place actors/woodcutters on grid
+        // Place work/exit positions
+        for (_entity, (position, _work)) in world.query_components::<(In<Position>, In<Work>)>() {
+            let x = position.x as usize;
+            let y = position.y as usize;
+            if x < self.grid_width && y < self.grid_height {
+                grid[y][x] = 'E'; // Exit/Work
+            }
+        }
+
+        // Place home positions
+        for (_entity, (position, _home)) in world.query_components::<(In<Position>, In<Home>)>() {
+            let x = position.x as usize;
+            let y = position.y as usize;
+            if x < self.grid_width && y < self.grid_height {
+                grid[y][x] = 'H'; // Home
+            }
+        }
+
+        // Place actors/woodcutters on grid (highest priority)
         for (_entity, (position, _actor)) in world.query_components::<(In<Position>, In<Actor>)>() {
             let x = position.x as usize;
             let y = position.y as usize;
-            if x < GRID_SIZE as usize && y < GRID_SIZE as usize {
-                if grid[y][x] == '.' {
+            if x < self.grid_width && y < self.grid_height {
+                if grid[y][x] != 'H' { // Don't overwrite home
                     grid[y][x] = 'A'; // Actor
                 }
             }
@@ -56,25 +95,25 @@ impl System for RenderSystem {
         for (_entity, (position, _woodcutter)) in world.query_components::<(In<Position>, In<Woodcutter>)>() {
             let x = position.x as usize;
             let y = position.y as usize;
-            if x < GRID_SIZE as usize && y < GRID_SIZE as usize {
-                if grid[y][x] == '.' {
+            if x < self.grid_width && y < self.grid_height {
+                if grid[y][x] != 'H' && grid[y][x] != 'A' { // Don't overwrite home or actor
                     grid[y][x] = 'C'; // Woodcutter (C for Cutter)
                 }
             }
         }
 
-        // Ensure home and work are always visible at their fixed positions
-        if HOME_POS.0 >= 0 && HOME_POS.0 < GRID_SIZE && HOME_POS.1 >= 0 && HOME_POS.1 < GRID_SIZE {
-            grid[HOME_POS.1 as usize][HOME_POS.0 as usize] = 'H';
+        // Print grid with appropriate legend
+        if self.grid_width == 10 && self.grid_height == 10 {
+            // Navigation demo
+            println!("Navigation Demo - Labyrinth Pathfinding");
+            println!("# = Wall, A = Actor, E = Exit, . = Open space");
+        } else {
+            // Default/woodcutter demo
+            println!("Simulation Game - Actors and Woodcutters");
+            println!("H = Home, E = Work/Office, A = Actor, C = Woodcutter, T = Tree, W = Woodcutter Hut");
         }
-        if WORK_POS.0 >= 0 && WORK_POS.0 < GRID_SIZE && WORK_POS.1 >= 0 && WORK_POS.1 < GRID_SIZE {
-            grid[WORK_POS.1 as usize][WORK_POS.0 as usize] = 'O'; // O for Office/Work
-        }
-
-        // Print grid - updated output
-        println!("Simulation Game - Actors and Woodcutters");
-        println!("H = Home, O = Work/Office, A = Actor, C = Woodcutter, T = Tree, W = Woodcutter Hut");
         println!();
+        
         for row in &grid {
             for cell in row {
                 print!("{} ", cell);
@@ -118,7 +157,11 @@ mod tests {
     fn test_render_system_creation() {
         let render_system = RenderSystem::default();
         // Test that the system can be created without panicking
-        assert_eq!(std::mem::size_of_val(&render_system), 0); // Zero-sized struct
+        assert!(std::mem::size_of_val(&render_system) > 0); // Now contains grid dimensions
+        
+        // Test custom creation
+        let custom_render_system = RenderSystem::new(15, 20);
+        assert!(std::mem::size_of_val(&custom_render_system) > 0);
     }
 
     #[test]
