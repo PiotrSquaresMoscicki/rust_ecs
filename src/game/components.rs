@@ -44,3 +44,16 @@ pub enum ActorState {
     WaitingAtWork,
     WaitingAtHome,
 }
+
+// Woodcutter system components
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct Tree;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct WoodcutterHut;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct Woodcutter;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct CarryingTree;
