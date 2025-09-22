@@ -32,3 +32,7 @@ Thumbs.db
 game_logs/
 demo_replay_logs/
 test_logs/
+replay_logs/
+debug_logs/
+test_replay_logs/
+test_replay_integration_logs/
