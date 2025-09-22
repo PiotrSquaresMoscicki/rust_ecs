@@ -15,13 +15,22 @@ pub trait System {
     type OutComponents;
 
     /// Called once before the first update to initialize system state
-    fn initialize(&mut self, world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>);
+    fn initialize(
+        &mut self,
+        world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>,
+    );
 
     /// Called every frame to update the system
-    fn update(&mut self, world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>);
+    fn update(
+        &mut self,
+        world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>,
+    );
 
     /// Called when the system is being removed or the world is shutting down
-    fn deinitialize(&mut self, world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>);
+    fn deinitialize(
+        &mut self,
+        world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>,
+    );
 }
 
 /// Records changes made during system initialization
@@ -181,7 +190,7 @@ impl SystemDeinitDiff {
 }
 
 /// Records all changes made during a world update
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct WorldUpdateDiff {
     /// System-specific changes that occurred during this update
     system_diffs: Vec<SystemUpdateDiff>,
@@ -189,10 +198,8 @@ pub struct WorldUpdateDiff {
 
 impl WorldUpdateDiff {
     /// Create a new empty world update diff
-    pub fn new() -> Self {
-        Self {
-            system_diffs: Vec::new(),
-        }
+    pub fn with_system_diffs(self, system_diffs: Vec<SystemUpdateDiff>) -> Self {
+        Self { system_diffs }
     }
 
     /// Add a system update diff to this world update diff
