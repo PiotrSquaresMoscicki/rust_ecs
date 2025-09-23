@@ -1,4 +1,4 @@
-use rust_ecs::{World, game::game::{MovementSystem, WaitSystem, RenderSystem}};
+use rust_ecs::{World, game::game::{WaitSystem, RenderSystem}};
 
 #[test]
 fn test_system_addition_recording_and_replay() {
@@ -6,7 +6,7 @@ fn test_system_addition_recording_and_replay() {
     
     // Create a world and add systems
     let mut original_world = World::new();
-    original_world.add_system(MovementSystem);
+    original_world.add_system(WaitSystem);
     
     // Get the recorded history
     let history = original_world.get_update_history();
@@ -24,7 +24,7 @@ fn test_system_addition_recording_and_replay() {
     let operation = &system_diff.world_operations()[0];
     match operation {
         rust_ecs::WorldOperation::AddSystem(system_type) => {
-            assert!(system_type.contains("MovementSystem"), "Should record MovementSystem addition");
+            assert!(system_type.contains("WaitSystem"), "Should record WaitSystem addition");
         }
         _ => panic!("Expected AddSystem operation, got {:?}", operation),
     }
@@ -43,8 +43,8 @@ fn test_system_addition_recording_and_replay() {
                 match operation {
                     rust_ecs::WorldOperation::AddSystem(system_type) => {
                         // Apply system addition manually for this test
-                        if system_type.contains("MovementSystem") {
-                            replay_world.add_system_internal(MovementSystem);
+                        if system_type.contains("WaitSystem") {
+                            replay_world.add_system_internal(WaitSystem);
                         }
                     }
                     _ => {}
@@ -69,7 +69,7 @@ fn test_system_addition_recording_and_replay() {
     
     // The update should have system diffs from the replayed system
     let update = &replay_history.updates()[0];
-    assert!(update.system_diffs().len() >= 1, "Update should have at least 1 system diff from the replayed MovementSystem");
+    assert!(update.system_diffs().len() >= 1, "Update should have at least 1 system diff from the replayed WaitSystem");
     
     println!("✅ System addition recording and replay test passed");
 }
@@ -80,7 +80,7 @@ fn test_multiple_system_additions_replay() {
     let mut original_world = World::new();
     
     // Add multiple systems
-    original_world.add_system(MovementSystem);
+    original_world.add_system(WaitSystem);
     original_world.add_system(WaitSystem);
     original_world.add_system(RenderSystem::default());
     
@@ -101,8 +101,8 @@ fn test_multiple_system_additions_replay() {
             for operation in system_diff.world_operations() {
                 match operation {
                     rust_ecs::WorldOperation::AddSystem(system_type) => {
-                        if system_type.contains("MovementSystem") {
-                            replay_world.add_system_internal(MovementSystem);
+                        if system_type.contains("WaitSystem") {
+                            replay_world.add_system_internal(WaitSystem);
                         } else if system_type.contains("WaitSystem") {
                             replay_world.add_system_internal(WaitSystem);
                         }
@@ -129,7 +129,7 @@ fn test_empty_world_replay() {
     let mut original_world = World::new();
     
     // Add a system
-    original_world.add_system(MovementSystem);
+    original_world.add_system(WaitSystem);
     
     // Run some updates
     original_world.update();
@@ -147,8 +147,8 @@ fn test_empty_world_replay() {
             for operation in system_diff.world_operations() {
                 match operation {
                     rust_ecs::WorldOperation::AddSystem(system_type) => {
-                        if system_type.contains("MovementSystem") {
-                            fresh_world.add_system_internal(MovementSystem);
+                        if system_type.contains("WaitSystem") {
+                            fresh_world.add_system_internal(WaitSystem);
                         } else if system_type.contains("WaitSystem") {
                             fresh_world.add_system_internal(WaitSystem);
                         }
