@@ -62,12 +62,12 @@ impl System for RenderSystem {
             }
         }
 
-        // Place work/exit positions
+        // Place work positions
         for (_entity, (position, _work)) in world.query_components::<(In<Position>, In<Work>)>() {
             let x = position.x as usize;
             let y = position.y as usize;
             if x < self.grid_width && y < self.grid_height {
-                grid[y][x] = 'E'; // Exit/Work
+                grid[y][x] = 'W'; // Work
             }
         }
 

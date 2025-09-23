@@ -1,5 +1,5 @@
 use crate::{In, Out, System, WorldView};
-use super::components::{Actor, Position, Target, WaitTimer, HOME_POS, WORK_POS, WAIT_TICKS};
+use super::components::{Actor, Position, Target, WaitTimer, HOME_POS, WORK_POS, WAIT_TICKS, Navigation};
 use super::utils::is_adjacent;
 
 /// Wait System - handles wait timers and target switching
@@ -7,8 +7,8 @@ use super::utils::is_adjacent;
 pub struct WaitSystem;
 
 impl System for WaitSystem {
-    type InComponents = (Actor, WaitTimer, Target, Position);
-    type OutComponents = (WaitTimer, Target);
+    type InComponents = (Actor, WaitTimer, Target, Position, Navigation);
+    type OutComponents = (WaitTimer, Target, Navigation);
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 
@@ -16,10 +16,11 @@ impl System for WaitSystem {
         // Collect changes to apply after the query
         let mut wait_timer_changes = Vec::new();
         let mut target_changes = Vec::new();
+        let mut navigation_changes = Vec::new();
 
         // Now we can query all actor components together thanks to extended query support!
-        for (entity, (position, _actor, wait_timer, target)) in 
-            world.query_components::<(In<Position>, In<Actor>, Out<WaitTimer>, Out<Target>)>()
+        for (entity, (position, _actor, wait_timer, target, navigation)) in 
+            world.query_components::<(In<Position>, In<Actor>, Out<WaitTimer>, Out<Target>, Out<Navigation>)>()
         {
             let current_pos = (position.x, position.y);
             let target_pos = (target.x, target.y);
@@ -55,6 +56,11 @@ impl System for WaitSystem {
                 
                 // Store target change
                 target_changes.push((entity, old_target, *target));
+                
+                // Signal navigation recalculation for new target
+                let old_navigation = navigation.clone();
+                navigation.request_recalculation();
+                navigation_changes.push((entity, old_navigation, navigation.clone()));
             }
         }
         
@@ -65,6 +71,10 @@ impl System for WaitSystem {
         
         for (entity, old_target, new_target) in target_changes {
             world.record_component_modification(entity, &old_target, &new_target);
+        }
+        
+        for (entity, old_navigation, new_navigation) in navigation_changes {
+            world.record_component_modification(entity, &old_navigation, &new_navigation);
         }
     }
 
@@ -86,6 +96,7 @@ mod tests {
         world.add_component(actor_entity, Actor);
         world.add_component(actor_entity, Target { x: HOME_POS.0, y: HOME_POS.1 });
         world.add_component(actor_entity, WaitTimer { ticks: 3 });
+        world.add_component(actor_entity, Navigation::new()); // Add Navigation component
         
         // Add the wait system
         world.add_system(WaitSystem);
@@ -123,6 +134,7 @@ mod tests {
         world.add_component(actor_entity, Actor);
         world.add_component(actor_entity, Target { x: HOME_POS.0, y: HOME_POS.1 });
         world.add_component(actor_entity, WaitTimer { ticks: 0 });
+        world.add_component(actor_entity, Navigation::new()); // Add Navigation component
         
         world.add_system(WaitSystem);
         world.initialize_systems();
@@ -149,6 +161,7 @@ mod tests {
         world.add_component(actor_entity, Actor);
         world.add_component(actor_entity, Target { x: WORK_POS.0, y: WORK_POS.1 });
         world.add_component(actor_entity, WaitTimer { ticks: 0 });
+        world.add_component(actor_entity, Navigation::new()); // Add Navigation component
         
         world.add_system(WaitSystem);
         world.initialize_systems();
@@ -175,6 +188,7 @@ mod tests {
         world.add_component(actor_entity, Actor);
         world.add_component(actor_entity, Target { x: HOME_POS.0, y: HOME_POS.1 });
         world.add_component(actor_entity, WaitTimer { ticks: 3 });
+        world.add_component(actor_entity, Navigation::new()); // Add Navigation component
         
         world.add_system(WaitSystem);
         world.initialize_systems();
