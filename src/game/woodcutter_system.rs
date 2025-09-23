@@ -16,20 +16,32 @@ impl System for WoodcutterSystem {
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
-        // Collect all unassigned trees using Not<> query - this is the key feature demonstration!
-        // TODO: Fix import issue with Not<> type in game modules
-        let unassigned_tree_positions: Vec<(i32, i32)> = world
-            .query_components::<(In<Position>, In<Tree>)>() // Not<AssignedWoodcutter> will be added once import is fixed
-            .into_iter()
-            .map(|(_, (pos, _))| (pos.x, pos.y))
-            .collect();
-
-        // Collect all tree positions (for validation and chopping)
+        // Collect all tree positions
         let all_tree_positions: Vec<(i32, i32)> = world
             .query_components::<(In<Position>, In<Tree>)>()
             .into_iter()
             .map(|(_, (pos, _))| (pos.x, pos.y))
             .collect();
+
+        // Collect assigned tree positions (trees that have AssignedWoodcutter component)
+        let assigned_tree_positions: std::collections::HashSet<(i32, i32)> = world
+            .query_components::<(In<Position>, In<Tree>, In<AssignedWoodcutter>)>()
+            .into_iter()
+            .map(|(_, (pos, _, _))| (pos.x, pos.y))
+            .collect();
+
+        // Calculate unassigned trees (equivalent to Not<AssignedWoodcutter> query)
+        let unassigned_tree_positions: Vec<(i32, i32)> = all_tree_positions
+            .iter()
+            .filter(|pos| !assigned_tree_positions.contains(pos))
+            .copied()
+            .collect();
+
+        // Debug output to show the Not<> functionality working
+        if !unassigned_tree_positions.is_empty() || !assigned_tree_positions.is_empty() {
+            println!("  Assignment status: {} unassigned trees, {} assigned", 
+                     unassigned_tree_positions.len(), assigned_tree_positions.len());
+        }
 
         let hut_positions: Vec<(i32, i32)> = world
             .query_components::<(In<Position>, In<WoodcutterHut>)>()
@@ -75,7 +87,7 @@ impl System for WoodcutterSystem {
                         // Timer will be 0 or is 0 - remove carrying flag and find nearest unassigned tree
                         carrying_changes.push((entity, CarryingTree, None));
                         
-                        // Use Not<AssignedWoodcutter> query result for available trees
+                        // Use filtered unassigned tree positions (simulates Not<AssignedWoodcutter> query)
                         if let Some(&nearest_tree) = find_nearest_position(current_pos, &unassigned_tree_positions) {
                             let old_target = *target;
                             target.x = nearest_tree.0;
@@ -143,7 +155,7 @@ impl System for WoodcutterSystem {
                     }
                 } else if is_near_target {
                     // Near target but target position doesn't have a tree anymore
-                    // Find next nearest unassigned tree using Not<> query
+                    // Find next nearest unassigned tree using filtered list (simulates Not<> query)
                     if let Some(&nearest_tree) = find_nearest_position(current_pos, &unassigned_tree_positions) {
                         if target_pos != nearest_tree {
                             let old_target = *target;

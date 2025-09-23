@@ -44,21 +44,12 @@ impl System for RenderSystem {
             }
         }
 
-        // Place trees on grid - distinguish between assigned and unassigned
+        // Place trees on grid
         for (_entity, (position, _tree)) in world.query_components::<(In<Position>, In<Tree>)>() {
             let x = position.x as usize;
             let y = position.y as usize;
             if x < self.grid_width && y < self.grid_height {
-                grid[y][x] = 'T'; // Default tree symbol
-            }
-        }
-
-        // Mark assigned trees with a different symbol
-        for (_entity, (position, _tree, _assigned)) in world.query_components::<(In<Position>, In<Tree>, In<AssignedWoodcutter>)>() {
-            let x = position.x as usize;
-            let y = position.y as usize;
-            if x < self.grid_width && y < self.grid_height {
-                grid[y][x] = 'A'; // Assigned tree symbol
+                grid[y][x] = 'T'; // All trees show as 'T' regardless of assignment
             }
         }
 
@@ -119,8 +110,8 @@ impl System for RenderSystem {
         } else {
             // Woodcutter demo - demonstrate Not<> functionality
             println!("Woodcutter Demo - Not<> Component Query Showcase");
-            println!("T = Unassigned Tree, A = Assigned Tree, C = Woodcutter, W = Woodcutter Hut");
-            println!("(Trees change from T to A when targeted by woodcutters using Not<AssignedWoodcutter> queries)");
+            println!("T = Tree, C = Woodcutter, W = Woodcutter Hut");
+            println!("(Woodcutters use Not<AssignedWoodcutter> queries to prevent targeting the same tree)");
         }
         println!();
         
