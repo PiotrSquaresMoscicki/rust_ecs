@@ -63,7 +63,7 @@ pub use rust_ecs_derive::Diff;
 
 // Re-export the most commonly used types from the ECS module for convenience
 pub use ecs::{
-    Entity, Out, In, ComponentChange, ComponentOperation, WorldOperation,
+    Entity, Out, In, Not, ComponentChange, ComponentOperation, WorldOperation,
     DiffComponent, DiffComponentChange,
     System, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory,
     QueryComponent, MixedMultiQuery, MixedQueryComponent,
@@ -684,5 +684,169 @@ mod tests {
         assert_eq!(c.value, 30); // Modified
         assert_eq!(d.value, 4);  // Unchanged
         assert_eq!(e.value, 5);  // Unchanged
+    }
+
+    #[test]
+    fn test_not_component_query() {
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+
+        // Create some test components for the scenario
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct Tree { id: u32 }
+        
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct FallenTree { id: u32 }
+        
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct AssignedWoodcutter { woodcutter_id: u32 }
+
+        // Create entities with different component combinations
+        let entity1 = world_view.create_entity(); // Tree + FallenTree (no AssignedWoodcutter)
+        let entity2 = world_view.create_entity(); // Tree + FallenTree + AssignedWoodcutter
+        let entity3 = world_view.create_entity(); // Only Tree (no FallenTree, no AssignedWoodcutter)
+        let entity4 = world_view.create_entity(); // Only FallenTree (no Tree, no AssignedWoodcutter)
+
+        // Add components
+        world_view.add_component(entity1, Tree { id: 1 });
+        world_view.add_component(entity1, FallenTree { id: 1 });
+        // No AssignedWoodcutter for entity1
+
+        world_view.add_component(entity2, Tree { id: 2 });
+        world_view.add_component(entity2, FallenTree { id: 2 });
+        world_view.add_component(entity2, AssignedWoodcutter { woodcutter_id: 1 });
+
+        world_view.add_component(entity3, Tree { id: 3 });
+        // No FallenTree, no AssignedWoodcutter for entity3
+
+        world_view.add_component(entity4, FallenTree { id: 4 });
+        // No Tree, no AssignedWoodcutter for entity4
+
+        // Test the main scenario: entities with Tree AND FallenTree but NOT AssignedWoodcutter
+        let results = world_view.query_components::<(In<Tree>, In<FallenTree>, Not<AssignedWoodcutter>)>();
+        
+        // Should only return entity1 (has Tree + FallenTree, but no AssignedWoodcutter)
+        assert_eq!(results.len(), 1);
+        let (entity, (tree, fallen_tree, _not_assigned)) = &results[0];
+        assert_eq!(*entity, entity1);
+        assert_eq!(tree.id, 1);
+        assert_eq!(fallen_tree.id, 1);
+
+        // Test another query: entities with Tree but NOT FallenTree
+        let tree_not_fallen = world_view.query_components::<(In<Tree>, Not<FallenTree>)>();
+        
+        // Should only return entity3 (has Tree but no FallenTree)
+        assert_eq!(tree_not_fallen.len(), 1);
+        let (entity, (tree, _not_fallen)) = &tree_not_fallen[0];
+        assert_eq!(*entity, entity3);
+        assert_eq!(tree.id, 3);
+
+        // Test query: entities with FallenTree but NOT Tree
+        let fallen_not_tree = world_view.query_components::<(In<FallenTree>, Not<Tree>)>();
+        
+        // Should only return entity4 (has FallenTree but no Tree)
+        assert_eq!(fallen_not_tree.len(), 1);
+        let (entity, (fallen_tree, _not_tree)) = &fallen_not_tree[0];
+        assert_eq!(*entity, entity4);
+        assert_eq!(fallen_tree.id, 4);
+
+        // Test query: entities NOT assigned (without any positive components)
+        let not_assigned = world_view.query_components::<(Not<AssignedWoodcutter>,)>();
+        
+        // Should return entity1, entity3, and entity4 (all except entity2)
+        assert_eq!(not_assigned.len(), 3);
+        let returned_entities: Vec<Entity> = not_assigned.iter().map(|(e, _)| *e).collect();
+        assert!(returned_entities.contains(&entity1));
+        assert!(returned_entities.contains(&entity3));
+        assert!(returned_entities.contains(&entity4));
+        assert!(!returned_entities.contains(&entity2));
+    }
+
+    #[test]
+    fn test_not_component_edge_cases() {
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct ComponentA { value: i32 }
+        
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct ComponentB { value: i32 }
+
+        // Test query with only Not<> components
+        let entity1 = world_view.create_entity();
+        let entity2 = world_view.create_entity();
+        
+        // entity1 has no components, entity2 has ComponentA
+        world_view.add_component(entity2, ComponentA { value: 42 });
+
+        // Query for entities that don't have ComponentA
+        let not_a_results = world_view.query_components::<(Not<ComponentA>,)>();
+        assert_eq!(not_a_results.len(), 1);
+        assert_eq!(not_a_results[0].0, entity1);
+
+        // Query for entities that don't have ComponentB (should return both)
+        let not_b_results = world_view.query_components::<(Not<ComponentB>,)>();
+        assert_eq!(not_b_results.len(), 2);
+        let returned_entities: Vec<Entity> = not_b_results.iter().map(|(e, _)| *e).collect();
+        assert!(returned_entities.contains(&entity1));
+        assert!(returned_entities.contains(&entity2));
+
+        // Test mixing Not<> with Out<> for mutable access
+        world_view.add_component(entity1, ComponentB { value: 100 });
+        
+        let mut mixed_results = world_view.query_components::<(Out<ComponentB>, Not<ComponentA>)>();
+        assert_eq!(mixed_results.len(), 1);
+        let (entity, (comp_b, _not_a)) = &mut mixed_results[0];
+        assert_eq!(*entity, entity1);
+        assert_eq!(comp_b.value, 100);
+        
+        // Modify the component through the mutable reference
+        comp_b.value = 200;
+        
+        // Verify the change was applied
+        let verification = world_view.get_component::<ComponentB>(entity1);
+        assert_eq!(verification.unwrap().value, 200);
+    }
+
+    #[test]
+    fn test_problem_statement_scenario() {
+        // Test the exact scenario from the problem statement:
+        // query_components::<In<Tree>, In<FallenTree>, Not<AssignedWoodcutter>>()
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct Tree2 { species_id: u32 }
+        
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct FallenTree { fallen_at: u32 }
+        
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct AssignedWoodcutter { worker_id: u32 }
+        
+        let entity1 = world_view.create_entity(); // Tree + FallenTree, no AssignedWoodcutter
+        let entity2 = world_view.create_entity(); // Tree + FallenTree + AssignedWoodcutter
+        let entity3 = world_view.create_entity(); // Only Tree
+        let _entity4 = world_view.create_entity(); // No components
+
+        world_view.add_component(entity1, Tree2 { species_id: 1 });
+        world_view.add_component(entity1, FallenTree { fallen_at: 1000 });
+
+        world_view.add_component(entity2, Tree2 { species_id: 2 });
+        world_view.add_component(entity2, FallenTree { fallen_at: 2000 });
+        world_view.add_component(entity2, AssignedWoodcutter { worker_id: 1 });
+
+        world_view.add_component(entity3, Tree2 { species_id: 3 });
+
+        // Test the exact query from the problem statement
+        let results = world_view.query_components::<(In<Tree2>, In<FallenTree>, Not<AssignedWoodcutter>)>();
+        
+        // Should only return entity1
+        assert_eq!(results.len(), 1);
+        let (entity, (tree, fallen_tree, _not_assigned)) = &results[0];
+        assert_eq!(*entity, entity1);
+        assert_eq!(tree.species_id, 1);
+        assert_eq!(fallen_tree.fallen_at, 1000);
     }
 }
