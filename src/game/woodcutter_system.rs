@@ -37,6 +37,18 @@ impl System for WoodcutterSystem {
                      unassigned_tree_positions.len());
         }
 
+        // Track trees that get assigned during this frame to prevent race conditions
+        let mut frame_assigned_trees: std::collections::HashSet<(i32, i32)> = std::collections::HashSet::new();
+
+        // Helper function to get currently available trees (excluding those assigned this frame)
+        let get_available_trees = |frame_assigned: &std::collections::HashSet<(i32, i32)>| -> Vec<(i32, i32)> {
+            unassigned_tree_positions
+                .iter()
+                .filter(|pos| !frame_assigned.contains(pos))
+                .copied()
+                .collect()
+        };
+
         let hut_positions: Vec<(i32, i32)> = world
             .query_components::<(In<Position>, In<WoodcutterHut>)>()
             .into_iter()
@@ -82,14 +94,16 @@ impl System for WoodcutterSystem {
                         carrying_changes.push((entity, CarryingTree, None));
                         
                         // Use actual Not<> query for available trees (the key feature!)
-                        if let Some(&nearest_tree) = find_nearest_position(current_pos, &unassigned_tree_positions) {
+                        let available_trees = get_available_trees(&frame_assigned_trees);
+                        if let Some(&nearest_tree) = find_nearest_position(current_pos, &available_trees) {
                             let old_target = *target;
                             target.x = nearest_tree.0;
                             target.y = nearest_tree.1;
                             target_changes.push((entity, old_target, *target));
                             
-                            // Assign this woodcutter to the tree
+                            // Assign this woodcutter to the tree and track it for this frame
                             assignment_changes.push((nearest_tree, Some(AssignedWoodcutter { woodcutter_id: entity.entity_index as u32 })));
+                            frame_assigned_trees.insert(nearest_tree);
                             
                             // Signal navigation recalculation for new target
                             let old_navigation = navigation.clone();
@@ -150,15 +164,17 @@ impl System for WoodcutterSystem {
                 } else if is_near_target {
                     // Near target but target position doesn't have a tree anymore
                     // Find next nearest unassigned tree using actual Not<> query
-                    if let Some(&nearest_tree) = find_nearest_position(current_pos, &unassigned_tree_positions) {
+                    let available_trees = get_available_trees(&frame_assigned_trees);
+                    if let Some(&nearest_tree) = find_nearest_position(current_pos, &available_trees) {
                         if target_pos != nearest_tree {
                             let old_target = *target;
                             target.x = nearest_tree.0;
                             target.y = nearest_tree.1;
                             target_changes.push((entity, old_target, *target));
 
-                            // Assign this woodcutter to the new tree
+                            // Assign this woodcutter to the new tree and track it for this frame
                             assignment_changes.push((nearest_tree, Some(AssignedWoodcutter { woodcutter_id: entity.entity_index as u32 })));
+                            frame_assigned_trees.insert(nearest_tree);
 
                             let old_timer = *wait_timer;
                             wait_timer.ticks = 10;
@@ -172,7 +188,8 @@ impl System for WoodcutterSystem {
                     }
                 } else {
                     // Not at tree yet - ensure target is nearest unassigned tree using Not<> query
-                    if let Some(&nearest_tree) = find_nearest_position(current_pos, &unassigned_tree_positions) {
+                    let available_trees = get_available_trees(&frame_assigned_trees);
+                    if let Some(&nearest_tree) = find_nearest_position(current_pos, &available_trees) {
                         if target_pos != nearest_tree {
                             // Remove assignment from old target if it was assigned to this woodcutter
                             if all_tree_positions.contains(&target_pos) {
@@ -184,8 +201,9 @@ impl System for WoodcutterSystem {
                             target.y = nearest_tree.1;
                             target_changes.push((entity, old_target, *target));
 
-                            // Assign this woodcutter to the new tree
+                            // Assign this woodcutter to the new tree and track it for this frame
                             assignment_changes.push((nearest_tree, Some(AssignedWoodcutter { woodcutter_id: entity.entity_index as u32 })));
+                            frame_assigned_trees.insert(nearest_tree);
 
                             let old_timer = *wait_timer;
                             wait_timer.ticks = 10;
