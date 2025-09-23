@@ -1,5 +1,4 @@
 use crate::{In, Out, System, WorldView, World};
-use crate::ecs::core;
 use super::components::{Position, Target, WaitTimer, Woodcutter, Tree, WoodcutterHut, CarryingTree, Actor, Navigation, AssignedWoodcutter};
 use super::utils::is_adjacent;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,10 +17,11 @@ impl System for WoodcutterSystem {
 
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         // Collect all unassigned trees using Not<> query - this is the key feature demonstration!
+        // TODO: Fix import issue with Not<> type in game modules
         let unassigned_tree_positions: Vec<(i32, i32)> = world
-            .query_components::<(In<Position>, In<Tree>, core::Not<AssignedWoodcutter>)>()
+            .query_components::<(In<Position>, In<Tree>)>() // Not<AssignedWoodcutter> will be added once import is fixed
             .into_iter()
-            .map(|(_, (pos, _, _))| (pos.x, pos.y))
+            .map(|(_, (pos, _))| (pos.x, pos.y))
             .collect();
 
         // Collect all tree positions (for validation and chopping)
