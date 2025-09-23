@@ -12,6 +12,26 @@ use std::time::Duration;
 pub struct NavigationSystem;
 
 impl NavigationSystem {
+    /// Find an adjacent position to the target that is not blocked
+    fn find_adjacent_to_target(
+        target: (i32, i32),
+        obstacles: &HashSet<(i32, i32)>,
+    ) -> Option<(i32, i32)> {
+        // Check all 8 adjacent positions around the target
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                if dx == 0 && dy == 0 {
+                    continue; // Skip the target position itself
+                }
+                let adjacent_pos = (target.0 + dx, target.1 + dy);
+                if is_valid_position(adjacent_pos) && !obstacles.contains(&adjacent_pos) {
+                    return Some(adjacent_pos);
+                }
+            }
+        }
+        None
+    }
+
     /// Calculate A* path from start to goal, avoiding obstacles
     fn calculate_path(
         start: (i32, i32),
@@ -93,7 +113,15 @@ impl System for NavigationSystem {
                 let mut temp_obstacles = obstacles.clone();
                 temp_obstacles.remove(&current_pos);
 
-                if let Some(mut path) = Self::calculate_path(current_pos, target_pos, &temp_obstacles) {
+                // Check if target is an obstacle (like HOME or WORK positions)
+                let path_target = if temp_obstacles.contains(&target_pos) {
+                    // Target is an obstacle, find adjacent position to target
+                    Self::find_adjacent_to_target(target_pos, &temp_obstacles).unwrap_or(target_pos)
+                } else {
+                    target_pos
+                };
+
+                if let Some(mut path) = Self::calculate_path(current_pos, path_target, &temp_obstacles) {
                     // Remove the first position if it's the current position
                     if !path.is_empty() && path[0] == current_pos {
                         path.remove(0);
