@@ -1,4 +1,4 @@
-use rust_ecs::{World, game::{MovementSystem, WaitSystem, RenderSystem, initialize_game}};
+use rust_ecs::{World, game::{WaitSystem, RenderSystem, initialize_game}};
 
 fn main() {
     println!("=== Demonstrating System Addition Recording and Replay ===\n");
@@ -7,8 +7,8 @@ fn main() {
     println!("1. Creating a world and manually adding systems:");
     let mut original_world = World::new();
     
-    println!("   - Adding MovementSystem");
-    original_world.add_system(MovementSystem);
+    println!("   - Adding WaitSystem");
+    original_world.add_system(WaitSystem);
     
     println!("   - Adding WaitSystem");
     original_world.add_system(WaitSystem);
@@ -50,7 +50,7 @@ fn main() {
     
     // For system addition replay, we need to manually add systems since this is a demo
     println!("   - Manually adding systems for demo purposes");
-    fresh_world.add_system_internal(MovementSystem);
+    fresh_world.add_system_internal(WaitSystem);
     
     println!("   - Fresh world now has the same systems as the original");
     println!("   - Running an update on the fresh world to verify it works:");

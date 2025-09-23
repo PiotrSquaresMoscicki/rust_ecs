@@ -10,7 +10,6 @@ use std::time::Duration;
 use super::components::*;
 
 // Re-export systems for backward compatibility
-pub use super::movement_system::MovementSystem;
 pub use super::navigation_system::NavigationSystem;
 pub use super::wait_system::WaitSystem;
 pub use super::render_system::RenderSystem;
