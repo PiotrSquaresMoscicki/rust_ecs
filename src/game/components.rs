@@ -103,3 +103,8 @@ pub struct Woodcutter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
 pub struct CarryingTree;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct AssignedWoodcutter {
+    pub woodcutter_id: u32,
+}

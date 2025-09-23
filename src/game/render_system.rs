@@ -1,5 +1,5 @@
 use crate::{In, System, WorldView};
-use super::components::{Position, GRID_SIZE, HOME_POS, WORK_POS, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter, Obstacle};
+use super::components::{Position, GRID_SIZE, HOME_POS, WORK_POS, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter, Obstacle, AssignedWoodcutter};
 
 /// Render System - displays the grid with configurable size
 pub struct RenderSystem {
@@ -23,7 +23,7 @@ impl Default for RenderSystem {
 }
 
 impl System for RenderSystem {
-    type InComponents = (Position, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter, Obstacle);
+    type InComponents = (Position, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter, Obstacle, AssignedWoodcutter);
     type OutComponents = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -44,12 +44,21 @@ impl System for RenderSystem {
             }
         }
 
-        // Place trees on grid
+        // Place trees on grid - distinguish between assigned and unassigned
         for (_entity, (position, _tree)) in world.query_components::<(In<Position>, In<Tree>)>() {
             let x = position.x as usize;
             let y = position.y as usize;
             if x < self.grid_width && y < self.grid_height {
-                grid[y][x] = 'T';
+                grid[y][x] = 'T'; // Default tree symbol
+            }
+        }
+
+        // Mark assigned trees with a different symbol
+        for (_entity, (position, _tree, _assigned)) in world.query_components::<(In<Position>, In<Tree>, In<AssignedWoodcutter>)>() {
+            let x = position.x as usize;
+            let y = position.y as usize;
+            if x < self.grid_width && y < self.grid_height {
+                grid[y][x] = 'A'; // Assigned tree symbol
             }
         }
 
@@ -108,9 +117,10 @@ impl System for RenderSystem {
             println!("Navigation Demo - Labyrinth Pathfinding");
             println!("# = Wall, A = Actor, E = Exit, . = Open space");
         } else {
-            // Default/woodcutter demo
-            println!("Simulation Game - Actors and Woodcutters");
-            println!("H = Home, E = Work/Office, A = Actor, C = Woodcutter, T = Tree, W = Woodcutter Hut");
+            // Woodcutter demo - demonstrate Not<> functionality
+            println!("Woodcutter Demo - Not<> Component Query Showcase");
+            println!("T = Unassigned Tree, A = Assigned Tree, C = Woodcutter, W = Woodcutter Hut");
+            println!("(Trees change from T to A when targeted by woodcutters using Not<AssignedWoodcutter> queries)");
         }
         println!();
         
