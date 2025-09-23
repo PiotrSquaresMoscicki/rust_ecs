@@ -1,4 +1,4 @@
-use rust_ecs::{Diff, DiffComponent, In, Out, System, World, WorldView};
+use rust_ecs::{Diff, DiffComponent, In, Out, Not, System, World, WorldView};
 use std::env;
 
 mod game;

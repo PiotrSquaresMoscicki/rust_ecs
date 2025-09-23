@@ -1,4 +1,4 @@
-use crate::{In, Out, System, WorldView, World};
+use crate::{In, Out, Not, System, WorldView, World};
 use super::components::{Position, Target, WaitTimer, Woodcutter, Tree, WoodcutterHut, CarryingTree, Actor, Navigation, AssignedWoodcutter};
 use super::utils::is_adjacent;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,31 +16,25 @@ impl System for WoodcutterSystem {
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
-        // Collect all tree positions
+        // Use the actual Not<> component query to find unassigned trees!
+        // This demonstrates the key functionality requested in the original issue
+        let unassigned_tree_positions: Vec<(i32, i32)> = world
+            .query_components::<(In<Position>, In<Tree>, Not<AssignedWoodcutter>)>()
+            .into_iter()
+            .map(|(_, (pos, _, _))| (pos.x, pos.y))
+            .collect();
+
+        // Collect all tree positions (for validation and chopping)
         let all_tree_positions: Vec<(i32, i32)> = world
             .query_components::<(In<Position>, In<Tree>)>()
             .into_iter()
             .map(|(_, (pos, _))| (pos.x, pos.y))
             .collect();
 
-        // Collect assigned tree positions (trees that have AssignedWoodcutter component)
-        let assigned_tree_positions: std::collections::HashSet<(i32, i32)> = world
-            .query_components::<(In<Position>, In<Tree>, In<AssignedWoodcutter>)>()
-            .into_iter()
-            .map(|(_, (pos, _, _))| (pos.x, pos.y))
-            .collect();
-
-        // Calculate unassigned trees (equivalent to Not<AssignedWoodcutter> query)
-        let unassigned_tree_positions: Vec<(i32, i32)> = all_tree_positions
-            .iter()
-            .filter(|pos| !assigned_tree_positions.contains(pos))
-            .copied()
-            .collect();
-
         // Debug output to show the Not<> functionality working
-        if !unassigned_tree_positions.is_empty() || !assigned_tree_positions.is_empty() {
-            println!("  Assignment status: {} unassigned trees, {} assigned", 
-                     unassigned_tree_positions.len(), assigned_tree_positions.len());
+        if !unassigned_tree_positions.is_empty() {
+            println!("  🌲 Not<> Query Result: {} unassigned trees found", 
+                     unassigned_tree_positions.len());
         }
 
         let hut_positions: Vec<(i32, i32)> = world
@@ -87,7 +81,7 @@ impl System for WoodcutterSystem {
                         // Timer will be 0 or is 0 - remove carrying flag and find nearest unassigned tree
                         carrying_changes.push((entity, CarryingTree, None));
                         
-                        // Use filtered unassigned tree positions (simulates Not<AssignedWoodcutter> query)
+                        // Use actual Not<> query for available trees (the key feature!)
                         if let Some(&nearest_tree) = find_nearest_position(current_pos, &unassigned_tree_positions) {
                             let old_target = *target;
                             target.x = nearest_tree.0;
@@ -155,7 +149,7 @@ impl System for WoodcutterSystem {
                     }
                 } else if is_near_target {
                     // Near target but target position doesn't have a tree anymore
-                    // Find next nearest unassigned tree using filtered list (simulates Not<> query)
+                    // Find next nearest unassigned tree using actual Not<> query
                     if let Some(&nearest_tree) = find_nearest_position(current_pos, &unassigned_tree_positions) {
                         if target_pos != nearest_tree {
                             let old_target = *target;
@@ -177,7 +171,7 @@ impl System for WoodcutterSystem {
                         }
                     }
                 } else {
-                    // Not at tree yet - ensure target is nearest unassigned tree and reset timer to 10
+                    // Not at tree yet - ensure target is nearest unassigned tree using Not<> query
                     if let Some(&nearest_tree) = find_nearest_position(current_pos, &unassigned_tree_positions) {
                         if target_pos != nearest_tree {
                             // Remove assignment from old target if it was assigned to this woodcutter
