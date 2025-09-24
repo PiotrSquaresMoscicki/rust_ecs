@@ -25,6 +25,7 @@ impl Default for RenderSystem {
 impl System for RenderSystem {
     type InComponents = (Position, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter, Obstacle, AssignedWoodcutter);
     type OutComponents = ();
+    type Dependencies = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 
