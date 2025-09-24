@@ -4,7 +4,7 @@
 //! and systems, along with the WorldView that provides controlled access for systems.
 
 use std::any::{Any, TypeId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ecs::core::{Entity, WorldOperation};
 use crate::ecs::diff::{Diff, DiffComponentChange};
@@ -38,6 +38,8 @@ pub struct World {
     replay_frame: usize,
     /// Replay data for use during replay mode
     replay_data: Option<WorldUpdateHistory>,
+    /// Set of TypeIds for Event<T> components that need cleanup
+    event_type_ids: std::collections::HashSet<TypeId>,
 }
 
 impl Default for World {
@@ -67,6 +69,7 @@ impl World {
             replay_mode: false,
             replay_frame: 0,
             replay_data: None,
+            event_type_ids: std::collections::HashSet::new(),
         }
     }
 
@@ -159,8 +162,16 @@ impl World {
 
     /// Add a component to an entity
     pub fn add_component<T: 'static>(&mut self, entity: Entity, component: T) {
+        let type_id = TypeId::of::<T>();
+        
+        // Check if this is an Event<T> component by examining the type name
+        let type_name = std::any::type_name::<T>();
+        if type_name.contains("Event<") {
+            self.event_type_ids.insert(type_id);
+        }
+        
         self.components
-            .entry(TypeId::of::<T>())
+            .entry(type_id)
             .or_default()
             .push((entity, Box::new(component)));
     }
@@ -209,6 +220,15 @@ impl World {
                     None
                 }
             })
+    }
+
+    /// Remove all Event<T> components from all entities
+    /// This is called automatically at the end of each frame
+    fn cleanup_events(&mut self) {
+        // Remove all Event<T> components using the tracked type IDs
+        for &type_id in &self.event_type_ids {
+            self.components.remove(&type_id);
+        }
     }
 
     /// Sort systems according to their dependencies using topological sort
@@ -315,6 +335,9 @@ impl World {
         }
 
         self.systems = systems;
+        
+        // Clean up all Event<T> components at end of frame
+        self.cleanup_events();
         
         // Increment replay frame if in replay mode
         if self.replay_mode {

@@ -76,6 +76,59 @@ pub struct In<T>(std::marker::PhantomData<T>);
 /// A wrapper to mark that entities should NOT have a specific component
 pub struct Not<T>(std::marker::PhantomData<T>);
 
+/// A trait to mark components as events that should be automatically cleaned up
+pub trait EventMarker {
+    /// Returns true to indicate this is an event component
+    fn is_event() -> bool where Self: Sized { true }
+}
+
+/// A wrapper for event components that are automatically cleaned up each frame
+/// Events are short-lived components that systems can dispatch and consume
+/// They are automatically removed at the end of each frame after all systems have run
+#[derive(Debug, Clone)]
+pub struct Event<T> {
+    /// The actual event data
+    pub data: T,
+}
+
+impl<T> EventMarker for Event<T> {}
+
+impl<T> Event<T> {
+    /// Create a new event with the provided data
+    pub fn new(data: T) -> Self {
+        Event { data }
+    }
+
+    /// Get a reference to the event data
+    pub fn get(&self) -> &T {
+        &self.data
+    }
+
+    /// Get a mutable reference to the event data
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.data
+    }
+
+    /// Consume the event and return the inner data
+    pub fn into_inner(self) -> T {
+        self.data
+    }
+}
+
+impl<T> std::ops::Deref for Event<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<T> std::ops::DerefMut for Event<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
 /// Enumeration of component operations that can occur during system execution
 #[derive(Debug, Clone)]
 pub enum ComponentOperation {

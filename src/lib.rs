@@ -63,7 +63,7 @@ pub use rust_ecs_derive::Diff;
 
 // Re-export the most commonly used types from the ECS module for convenience
 pub use ecs::{
-    Entity, Out, In, Not, ComponentChange, ComponentOperation, WorldOperation,
+    Entity, Out, In, Not, Event, ComponentChange, ComponentOperation, WorldOperation,
     DiffComponent, DiffComponentChange,
     System, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory,
     QueryComponent, MixedMultiQuery, MixedQueryComponent,
@@ -1070,5 +1070,222 @@ mod tests {
         world.initialize_systems();
         world.update();
         world.deinitialize_systems();
+    }
+
+    // Test components for Event<T> functionality
+    #[derive(Debug, PartialEq, Clone)]
+    struct ShotsFired {
+        pub damage: i32,
+        pub target_id: usize,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    struct Soldier {
+        pub id: usize,
+        pub health: i32,
+    }
+
+    #[test]
+    fn test_event_creation_and_querying() {
+        let mut world = World::new();
+        
+        // Create entities
+        let soldier_entity = world.create_entity();
+        let target_entity = world.create_entity();
+        
+        // Add basic components
+        world.add_component(soldier_entity, Soldier { id: 1, health: 100 });
+        world.add_component(target_entity, Soldier { id: 2, health: 80 });
+        
+        // Dispatch an event
+        let shots_fired_event = Event::new(ShotsFired { damage: 25, target_id: 2 });
+        world.add_component(soldier_entity, shots_fired_event);
+        
+        // Verify we can query for the event using world.get_component
+        let retrieved_event = world.get_component::<Event<ShotsFired>>(soldier_entity);
+        assert!(retrieved_event.is_some());
+        assert_eq!(retrieved_event.unwrap().data.damage, 25);
+        assert_eq!(retrieved_event.unwrap().data.target_id, 2);
+    }
+
+    #[test]
+    fn test_event_querying_with_mixed_components() {
+        let mut world = World::new();
+        
+        // Create entities
+        let soldier1 = world.create_entity();
+        let soldier2 = world.create_entity();
+        let _civilian = world.create_entity();
+        
+        // Add components
+        world.add_component(soldier1, Soldier { id: 1, health: 100 });
+        world.add_component(soldier2, Soldier { id: 2, health: 80 });
+        world.add_component(soldier1, Event::new(ShotsFired { damage: 30, target_id: 2 }));
+        
+        // Test querying for soldiers with ShotsFired events
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        let results = world_view.query_components::<(In<Soldier>, In<Event<ShotsFired>>)>();
+        
+        // Should find one entity (soldier1) with both Soldier and Event<ShotsFired>
+        assert_eq!(results.len(), 1);
+        let (entity, (soldier, event)) = &results[0];
+        assert_eq!(*entity, soldier1);
+        assert_eq!(soldier.id, 1);
+        assert_eq!(event.damage, 30);
+        assert_eq!(event.target_id, 2);
+    }
+
+    #[test]
+    fn test_event_automatic_cleanup() {
+        let mut world = World::new();
+        
+        // Create entity and add event
+        let entity = world.create_entity();
+        world.add_component(entity, Event::new(ShotsFired { damage: 20, target_id: 1 }));
+        
+        // Verify event exists
+        assert!(world.get_component::<Event<ShotsFired>>(entity).is_some());
+        
+        // Run one frame update (this should clean up events)
+        world.update();
+        
+        // Verify event was automatically removed
+        assert!(world.get_component::<Event<ShotsFired>>(entity).is_none());
+    }
+
+    struct EventTestSystem {
+        pub processed_events: Vec<ShotsFired>,
+    }
+
+    impl System for EventTestSystem {
+        type InComponents = ();
+        type OutComponents = ();
+        type Dependencies = ();
+
+        fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+
+        fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
+            // Query for all entities with both Soldier and Event<ShotsFired>
+            let results = world.query_components::<(In<Soldier>, In<Event<ShotsFired>>)>();
+            
+            for (_entity, (_soldier, event)) in results {
+                self.processed_events.push(event.data.clone());
+            }
+        }
+
+        fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+    }
+
+    #[test]
+    fn test_event_system_processing_and_cleanup() {
+        let mut world = World::new();
+        let event_system = EventTestSystem { processed_events: Vec::new() };
+        
+        // Create entities
+        let soldier1 = world.create_entity();
+        let soldier2 = world.create_entity();
+        
+        // Add components
+        world.add_component(soldier1, Soldier { id: 1, health: 100 });
+        world.add_component(soldier2, Soldier { id: 2, health: 80 });
+        
+        // Dispatch events
+        world.add_component(soldier1, Event::new(ShotsFired { damage: 25, target_id: 2 }));
+        world.add_component(soldier2, Event::new(ShotsFired { damage: 15, target_id: 1 }));
+        
+        // Add system to world
+        world.add_system(event_system);
+        world.initialize_systems();
+        
+        // Verify events exist before update
+        assert!(world.get_component::<Event<ShotsFired>>(soldier1).is_some());
+        assert!(world.get_component::<Event<ShotsFired>>(soldier2).is_some());
+        
+        // Run one frame - this should process events and then clean them up
+        world.update();
+        
+        // Verify events were automatically cleaned up
+        assert!(world.get_component::<Event<ShotsFired>>(soldier1).is_none());
+        assert!(world.get_component::<Event<ShotsFired>>(soldier2).is_none());
+        
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_multiple_event_types() {
+        #[derive(Debug, PartialEq, Clone)]
+        struct ExplosionEvent {
+            radius: f32,
+            damage: i32,
+        }
+
+        let mut world = World::new();
+        let entity = world.create_entity();
+        
+        // Add multiple different event types
+        world.add_component(entity, Event::new(ShotsFired { damage: 30, target_id: 1 }));
+        world.add_component(entity, Event::new(ExplosionEvent { radius: 5.0, damage: 50 }));
+        
+        // Verify both events exist
+        assert!(world.get_component::<Event<ShotsFired>>(entity).is_some());
+        assert!(world.get_component::<Event<ExplosionEvent>>(entity).is_some());
+        
+        // Run update to clean up
+        world.update();
+        
+        // Verify both events were cleaned up
+        assert!(world.get_component::<Event<ShotsFired>>(entity).is_none());
+        assert!(world.get_component::<Event<ExplosionEvent>>(entity).is_none());
+    }
+
+    #[test]
+    fn test_problem_statement_exact_scenario() {
+        // This test demonstrates the exact scenario from the problem statement:
+        // "I want to dispatch an event of type ShotsFired so I add component of type Event<ShotsFired> 
+        // to an entity I want to dispatch the event for. Then the system that wants to react on 
+        // ShotsFired event queries the event like this 
+        // `for (entity, (soldier, shots_fired) in query_components::<Soldier, Event<ShotsFired>>()`"
+
+        let mut world = World::new();
+        
+        // Create entities
+        let soldier1 = world.create_entity();
+        let soldier2 = world.create_entity();
+        
+        // Add Soldier components
+        world.add_component(soldier1, Soldier { id: 1, health: 100 });
+        world.add_component(soldier2, Soldier { id: 2, health: 80 });
+        
+        // Dispatch ShotsFired event by adding Event<ShotsFired> component to soldier1
+        world.add_component(soldier1, Event::new(ShotsFired { damage: 25, target_id: 2 }));
+        
+        // System that reacts to ShotsFired events
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        
+        // Query exactly as specified in the problem statement:
+        // for (entity, (soldier, shots_fired)) in query_components::<(In<Soldier>, In<Event<ShotsFired>>)>()
+        let results = world_view.query_components::<(In<Soldier>, In<Event<ShotsFired>>)>();
+        
+        // Verify we found the soldier with the ShotsFired event
+        assert_eq!(results.len(), 1);
+        let (entity, (soldier, shots_fired)) = &results[0];
+        assert_eq!(*entity, soldier1);
+        assert_eq!(soldier.id, 1);
+        assert_eq!(shots_fired.damage, 25);
+        assert_eq!(shots_fired.target_id, 2);
+        
+        // Verify events exist before frame end
+        assert!(world.get_component::<Event<ShotsFired>>(soldier1).is_some());
+        
+        // Run one frame - the world automatically removes all Event<> components at end of frame
+        world.update();
+        
+        // Verify events were automatically cleaned up after the frame
+        assert!(world.get_component::<Event<ShotsFired>>(soldier1).is_none());
+        
+        // This demonstrates the complete lifecycle:
+        // 1. Event<ShotsFired> dispatched by adding to entity
+        // 2. System queries for entities with both Soldier and Event<ShotsFired>  
+        // 3. Event automatically removed at end of frame without manual cleanup
     }
 }
