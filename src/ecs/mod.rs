@@ -11,7 +11,7 @@ pub mod replay;
 pub mod world;
 
 // Re-export the most commonly used types
-pub use core::{Entity, Out, In, Not, ComponentChange, ComponentOperation, WorldOperation};
+pub use core::{Entity, Out, In, Not, ComponentChange, ComponentOperation, WorldOperation, Event, ComponentAdded, ComponentRemoved};
 pub use diff::{Diff, DiffComponent, DiffComponentChange};
 pub use system::{System, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
 pub use query::{QueryComponent, MixedMultiQuery, MixedQueryComponent};

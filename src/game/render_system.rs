@@ -1,5 +1,5 @@
 use crate::{In, System, WorldView};
-use super::components::{Position, GRID_SIZE, HOME_POS, WORK_POS, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter, Obstacle, AssignedWoodcutter};
+use super::components::{Position, GRID_SIZE, Home, Work, Actor, Tree, WoodcutterHut, Woodcutter, Obstacle, AssignedWoodcutter};
 
 /// Render System - displays the grid with configurable size
 pub struct RenderSystem {

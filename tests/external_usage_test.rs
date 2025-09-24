@@ -8,9 +8,9 @@ fn test_library_imports() {
     let entity = world.create_entity();
     assert!(entity.entity_index == 0);
     
-    // Test add function from lib
-    let result = add(3, 4);
-    assert_eq!(result, 7);
+    // Test that basic ECS operations work
+    let entity_count = world.entity_count();
+    assert_eq!(entity_count, 1);
     
     // Test game module access
     let _pos = game::components::Position { x: 10, y: 5 };

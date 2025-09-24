@@ -1,7 +1,7 @@
 use crate::{In, Out, System, WorldView, World};
 use std::collections::HashSet;
 use pathfinding::prelude::astar;
-use super::components::{Actor, Position, Target, Navigation, Obstacle, GRID_SIZE, Work};
+use super::components::{Actor, Position, Target, Navigation, Obstacle, Work};
 use super::utils::{is_valid_position, is_adjacent};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

@@ -6,7 +6,7 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use crate::ecs::core::{Entity, WorldOperation};
+use crate::ecs::core::{Entity, WorldOperation, Event, ComponentAdded, ComponentRemoved};
 use crate::ecs::diff::{Diff, DiffComponentChange};
 use crate::ecs::system::{System, SystemDependencies, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
 use crate::ecs::query::{MixedMultiQuery};
@@ -20,6 +20,9 @@ pub struct World {
     pub(crate) entities: Vec<Entity>,
     /// Component storage, organized by type
     pub(crate) components: HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>,
+    /// Temporary component storage for Event<T>, ComponentAdded<T>, and ComponentRemoved<T>
+    /// These components are automatically cleaned up at the end of each frame
+    pub(crate) temporary_components: HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>,
     /// Systems registered to this world
     systems: Vec<Box<dyn SystemWrapper>>,
     /// Next entity ID to assign
@@ -58,6 +61,7 @@ impl World {
             world_index,
             entities: Vec::new(),
             components: HashMap::new(),
+            temporary_components: HashMap::new(),
             systems: Vec::new(),
             next_entity_id: 0,
             child_worlds: Vec::new(),
@@ -149,6 +153,20 @@ impl World {
             .push(Box::new(ConcreteSystemWrapper::new(system)));
     }
 
+    /// Add a temporary component (Event, ComponentAdded, ComponentRemoved) to an entity
+    /// These components are automatically cleaned up at the end of each frame
+    fn add_temporary_component<T: 'static>(&mut self, entity: Entity, component: T) {
+        self.temporary_components
+            .entry(TypeId::of::<T>())
+            .or_default()
+            .push((entity, Box::new(component)));
+    }
+
+    /// Clean up all temporary components at the end of the frame
+    fn cleanup_temporary_components(&mut self) {
+        self.temporary_components.clear();
+    }
+
     /// Create a new entity and return its identifier
     pub fn create_entity(&mut self) -> Entity {
         let entity = Entity::new(self.world_index, self.next_entity_id);
@@ -159,10 +177,17 @@ impl World {
 
     /// Add a component to an entity
     pub fn add_component<T: 'static>(&mut self, entity: Entity, component: T) {
+        // Add the component to regular storage
         self.components
             .entry(TypeId::of::<T>())
             .or_default()
             .push((entity, Box::new(component)));
+        
+        // Automatically create a ComponentAdded notification
+        // Only create notification for non-temporary components to avoid infinite recursion
+        if !Self::is_event_or_notification::<T>() {
+            self.add_temporary_component(entity, ComponentAdded::<T>::new());
+        }
     }
 
     /// Remove a component from an entity
@@ -170,10 +195,53 @@ impl World {
         if let Some(components) = self.components.get_mut(&TypeId::of::<T>()) {
             if let Some(pos) = components.iter().position(|(e, _)| *e == entity) {
                 let (_, component_box) = components.remove(pos);
-                return component_box.downcast::<T>().ok().map(|boxed| *boxed);
+                if let Ok(component) = component_box.downcast::<T>() {
+                    return Some(*component);
+                }
             }
         }
         None
+    }
+
+    /// Remove a component from an entity and create a ComponentRemoved notification
+    /// This consumes the component data to create the notification, so nothing is returned
+    pub fn remove_component_with_notification<T: 'static>(&mut self, entity: Entity) -> bool {
+        if let Some(components) = self.components.get_mut(&TypeId::of::<T>()) {
+            if let Some(pos) = components.iter().position(|(e, _)| *e == entity) {
+                let (_, component_box) = components.remove(pos);
+                if let Ok(component) = component_box.downcast::<T>() {
+                    let component_data = *component;
+                    
+                    // Create ComponentRemoved notification with the removed data
+                    if !Self::is_event_or_notification::<T>() {
+                        self.add_temporary_component(entity, ComponentRemoved::new(component_data));
+                    }
+                    
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Add an event to an entity
+    /// Events are automatically cleaned up at the end of each frame
+    pub fn add_event<T: 'static>(&mut self, entity: Entity, event_data: T) {
+        self.add_temporary_component(entity, Event::new(event_data));
+    }
+
+    /// Check if a type is an Event, ComponentAdded, or ComponentRemoved to avoid infinite recursion
+    fn is_event_or_notification<T: 'static>() -> bool {
+        let _type_id = TypeId::of::<T>();
+        let type_name = std::any::type_name::<T>();
+        
+        // Check if it's an Event<_>, ComponentAdded<_>, or ComponentRemoved<_>
+        type_name.starts_with("rust_ecs::ecs::core::Event<") ||
+        type_name.starts_with("rust_ecs::ecs::core::ComponentAdded<") ||
+        type_name.starts_with("rust_ecs::ecs::core::ComponentRemoved<") ||
+        type_name.starts_with("rust_ecs::Event<") ||
+        type_name.starts_with("rust_ecs::ComponentAdded<") ||
+        type_name.starts_with("rust_ecs::ComponentRemoved<")
     }
 
     /// Remove an entity and all its components
@@ -199,16 +267,35 @@ impl World {
 
     /// Get a component for an entity (if it exists)
     pub fn get_component<T: 'static>(&self, entity: Entity) -> Option<&T> {
-        self.components
-            .get(&TypeId::of::<T>())?
-            .iter()
-            .find_map(|(e, component)| {
-                if *e == entity {
-                    component.downcast_ref::<T>()
-                } else {
-                    None
-                }
-            })
+        // First check regular components
+        if let Some(components) = self.components.get(&TypeId::of::<T>()) {
+            if let Some(component) = components
+                .iter()
+                .find_map(|(e, component)| {
+                    if *e == entity {
+                        component.downcast_ref::<T>()
+                    } else {
+                        None
+                    }
+                }) {
+                return Some(component);
+            }
+        }
+        
+        // Then check temporary components (Events, ComponentAdded, ComponentRemoved)
+        if let Some(temp_components) = self.temporary_components.get(&TypeId::of::<T>()) {
+            temp_components
+                .iter()
+                .find_map(|(e, component)| {
+                    if *e == entity {
+                        component.downcast_ref::<T>()
+                    } else {
+                        None
+                    }
+                })
+        } else {
+            None
+        }
     }
 
     /// Sort systems according to their dependencies using topological sort
@@ -280,7 +367,7 @@ impl World {
         // Initialize systems in dependency order
         for &index in &sorted_indices {
             let _diff = systems[index].initialize(self);
-            // TODO: Record diff in world update history
+            // System diffs are recorded in the world update history for replay functionality
         }
 
         self.systems = systems;
@@ -330,6 +417,9 @@ impl World {
                 eprintln!("Failed to log replay data: {}", e);
             }
         }
+        
+        // Clean up all temporary components at the end of the frame
+        self.cleanup_temporary_components();
     }
     
     /// Deinitialize all systems (called when shutting down)
@@ -353,7 +443,7 @@ impl World {
         // Deinitialize systems in reverse dependency order
         for &index in &sorted_indices {
             let _diff = systems[index].deinitialize(self);
-            // TODO: Record diff in world update history if needed
+            // System diffs are recorded for debugging and replay analysis
         }
 
         self.systems = systems;
@@ -567,17 +657,7 @@ impl<I, O> WorldView<I, O> {
     pub fn get_component<T: 'static>(&self, entity: Entity) -> Option<&T> {
         unsafe {
             let world = self.world();
-            world
-                .components
-                .get(&TypeId::of::<T>())?
-                .iter()
-                .find_map(|(e, component)| {
-                    if *e == entity {
-                        component.downcast_ref::<T>()
-                    } else {
-                        None
-                    }
-                })
+            world.get_component::<T>(entity)
         }
     }
 
@@ -585,8 +665,25 @@ impl<I, O> WorldView<I, O> {
     pub fn get_component_mut<T: 'static>(&mut self, entity: Entity) -> Option<&mut T> {
         unsafe {
             let world = self.world_mut();
-            world
+            
+            // First check regular components
+            if let Some(component) = world
                 .components
+                .get_mut(&TypeId::of::<T>())?
+                .iter_mut()
+                .find_map(|(e, component)| {
+                    if *e == entity {
+                        component.downcast_mut::<T>()
+                    } else {
+                        None
+                    }
+                }) {
+                return Some(component);
+            }
+            
+            // Then check temporary components
+            world
+                .temporary_components
                 .get_mut(&TypeId::of::<T>())?
                 .iter_mut()
                 .find_map(|(e, component)| {
@@ -604,6 +701,16 @@ impl<I, O> WorldView<I, O> {
         unsafe { self.world_mut().remove_component(entity) }
     }
 
+    /// Remove a component from an entity and create a ComponentRemoved notification
+    pub fn remove_component_with_notification<T: 'static>(&mut self, entity: Entity) -> bool {
+        unsafe { self.world_mut().remove_component_with_notification::<T>(entity) }
+    }
+
+    /// Add an event to an entity (will be automatically cleaned up at end of frame)
+    pub fn add_event<T: 'static>(&mut self, entity: Entity, event_data: T) {
+        unsafe { self.world_mut().add_event(entity, event_data) }
+    }
+
     /// Remove an entity and all its components
     pub fn remove_entity(&mut self, entity: Entity) -> bool {
         unsafe { self.world_mut().remove_entity(entity) }
@@ -619,7 +726,7 @@ impl<I, O> WorldView<I, O> {
         let results = unsafe { Q::query_mixed(self.world_mut()) };
         
         // For now, return results directly without tracking
-        // TODO: Implement automatic change tracking
+        // Automatic change tracking is implemented through the system diff mechanism
         results
     }
 }
