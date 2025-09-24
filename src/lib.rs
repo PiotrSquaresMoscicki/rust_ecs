@@ -1002,4 +1002,73 @@ mod tests {
         world.update();
         world.deinitialize_systems();
     }
+
+    #[test]
+    fn test_system_dependencies_circular_detection() {
+        // This test demonstrates that circular dependencies are handled gracefully
+        // (falls back to registration order with warning)
+        
+        struct CircularA;
+        impl System for CircularA {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = (CircularB,);
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct CircularB;
+        impl System for CircularB {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = (CircularA,);
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        world.add_system(CircularA);
+        world.add_system(CircularB);
+        
+        // Should handle circular dependencies gracefully (prints warning and uses registration order)
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_system_dependencies_missing_dependency() {
+        // This test demonstrates that missing dependencies are handled gracefully
+        
+        struct MissingDepSystem;
+        impl System for MissingDepSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = (NonExistentSystem,);
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct NonExistentSystem;
+        impl System for NonExistentSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        world.add_system(MissingDepSystem); // Add system that depends on NonExistentSystem
+        // But don't add NonExistentSystem
+        
+        // Should handle missing dependencies gracefully (prints warning and uses registration order)
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
+    }
 }
