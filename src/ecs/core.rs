@@ -129,6 +129,50 @@ impl<T> std::ops::DerefMut for Event<T> {
     }
 }
 
+/// Event automatically created when a component is added to an entity
+/// This event is automatically cleaned up at the end of each frame
+#[derive(Debug, Clone)]
+pub struct ComponentAdded<T> {
+    /// The entity that received the component
+    pub entity: Entity,
+    /// Reference to the component data that was added
+    pub component_type: std::marker::PhantomData<T>,
+}
+
+impl<T> ComponentAdded<T> {
+    /// Create a new ComponentAdded event
+    pub fn new(entity: Entity) -> Self {
+        ComponentAdded {
+            entity,
+            component_type: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> EventMarker for ComponentAdded<T> {}
+
+/// Event automatically created when a component is removed from an entity
+/// This event is automatically cleaned up at the end of each frame
+#[derive(Debug, Clone)]
+pub struct ComponentRemoved<T> {
+    /// The entity that had the component removed
+    pub entity: Entity,
+    /// Phantom data to maintain type information
+    pub component_type: std::marker::PhantomData<T>,
+}
+
+impl<T> ComponentRemoved<T> {
+    /// Create a new ComponentRemoved event
+    pub fn new(entity: Entity) -> Self {
+        ComponentRemoved { 
+            entity,
+            component_type: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> EventMarker for ComponentRemoved<T> {}
+
 /// Enumeration of component operations that can occur during system execution
 #[derive(Debug, Clone)]
 pub enum ComponentOperation {

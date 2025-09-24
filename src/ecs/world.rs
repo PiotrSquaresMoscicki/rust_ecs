@@ -6,7 +6,7 @@
 use std::any::{Any, TypeId};
 use std::collections::{HashMap, HashSet};
 
-use crate::ecs::core::{Entity, WorldOperation};
+use crate::ecs::core::{Entity, WorldOperation, Event, ComponentAdded, ComponentRemoved};
 use crate::ecs::diff::{Diff, DiffComponentChange};
 use crate::ecs::system::{System, SystemDependencies, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
 use crate::ecs::query::{MixedMultiQuery};
@@ -174,6 +174,29 @@ impl World {
             .entry(type_id)
             .or_default()
             .push((entity, Box::new(component)));
+            
+        // Automatically create ComponentAdded<T> event, but avoid infinite recursion
+        // by not creating events for Event types, ComponentAdded types, or ComponentRemoved types
+        if !type_name.contains("Event<") && 
+           !type_name.contains("ComponentAdded<") && 
+           !type_name.contains("ComponentRemoved<") {
+            self.add_component_added_event::<T>(entity);
+        }
+    }
+    
+    /// Internal method to add ComponentAdded event without recursion
+    fn add_component_added_event<T: 'static>(&mut self, entity: Entity) {
+        let event = Event::new(ComponentAdded::<T>::new(entity));
+        let event_type_id = TypeId::of::<Event<ComponentAdded<T>>>();
+        
+        // Mark this as an event type for cleanup
+        self.event_type_ids.insert(event_type_id);
+        
+        // Add the event directly without triggering another ComponentAdded event
+        self.components
+            .entry(event_type_id)
+            .or_default()
+            .push((entity, Box::new(event)));
     }
 
     /// Remove a component from an entity
@@ -181,10 +204,38 @@ impl World {
         if let Some(components) = self.components.get_mut(&TypeId::of::<T>()) {
             if let Some(pos) = components.iter().position(|(e, _)| *e == entity) {
                 let (_, component_box) = components.remove(pos);
-                return component_box.downcast::<T>().ok().map(|boxed| *boxed);
+                
+                if let Ok(boxed_component) = component_box.downcast::<T>() {
+                    let component = *boxed_component;
+                    
+                    // Automatically create ComponentRemoved<T> event, but avoid infinite recursion
+                    let type_name = std::any::type_name::<T>();
+                    if !type_name.contains("Event<") && 
+                       !type_name.contains("ComponentAdded<") && 
+                       !type_name.contains("ComponentRemoved<") {
+                        self.add_component_removed_event::<T>(entity);
+                    }
+                    
+                    return Some(component);
+                }
             }
         }
         None
+    }
+    
+    /// Internal method to add ComponentRemoved event without recursion
+    fn add_component_removed_event<T: 'static>(&mut self, entity: Entity) {
+        let event = Event::new(ComponentRemoved::<T>::new(entity));
+        let event_type_id = TypeId::of::<Event<ComponentRemoved<T>>>();
+        
+        // Mark this as an event type for cleanup
+        self.event_type_ids.insert(event_type_id);
+        
+        // Add the event directly without triggering another ComponentAdded event
+        self.components
+            .entry(event_type_id)
+            .or_default()
+            .push((entity, Box::new(event)));
     }
 
     /// Remove an entity and all its components

@@ -63,7 +63,7 @@ pub use rust_ecs_derive::Diff;
 
 // Re-export the most commonly used types from the ECS module for convenience
 pub use ecs::{
-    Entity, Out, In, Not, Event, ComponentChange, ComponentOperation, WorldOperation,
+    Entity, Out, In, Not, Event, ComponentAdded, ComponentRemoved, ComponentChange, ComponentOperation, WorldOperation,
     DiffComponent, DiffComponentChange,
     System, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory,
     QueryComponent, MixedMultiQuery, MixedQueryComponent,
@@ -1287,5 +1287,187 @@ mod tests {
         // 1. Event<ShotsFired> dispatched by adding to entity
         // 2. System queries for entities with both Soldier and Event<ShotsFired>  
         // 3. Event automatically removed at end of frame without manual cleanup
+    }
+
+    #[test]
+    fn test_component_added_events() {
+        let mut world = World::new();
+        
+        // Create entity
+        let entity = world.create_entity();
+        
+        // Add a component - this should automatically create ComponentAdded<Soldier> event
+        world.add_component(entity, Soldier { id: 1, health: 100 });
+        
+        // Query for ComponentAdded events
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        let added_events = world_view.query_components::<(In<Event<ComponentAdded<Soldier>>>,)>();
+        
+        // Should find one ComponentAdded<Soldier> event
+        assert_eq!(added_events.len(), 1);
+        let (_event_entity, component_added) = &added_events[0];
+        assert_eq!(component_added.entity, entity);
+        
+        // Events should be cleaned up after frame
+        world.update();
+        
+        let added_events_after = world_view.query_components::<(In<Event<ComponentAdded<Soldier>>>,)>();
+        assert_eq!(added_events_after.len(), 0);
+    }
+
+    #[test]
+    fn test_component_removed_events() {
+        let mut world = World::new();
+        
+        // Create entity and add component
+        let entity = world.create_entity();
+        world.add_component(entity, Soldier { id: 1, health: 100 });
+        
+        // Clear any existing events from the add operation
+        world.update();
+        
+        // Remove the component - this should automatically create ComponentRemoved<Soldier> event
+        let removed_component = world.remove_component::<Soldier>(entity);
+        assert!(removed_component.is_some());
+        
+        // Query for ComponentRemoved events
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        let removed_events = world_view.query_components::<(In<Event<ComponentRemoved<Soldier>>>,)>();
+        
+        // Should find one ComponentRemoved<Soldier> event
+        assert_eq!(removed_events.len(), 1);
+        let (_event_entity, component_removed) = &removed_events[0];
+        assert_eq!(component_removed.entity, entity);
+        
+        // Events should be cleaned up after frame
+        world.update();
+        
+        let removed_events_after = world_view.query_components::<(In<Event<ComponentRemoved<Soldier>>>,)>();
+        assert_eq!(removed_events_after.len(), 0);
+    }
+
+    #[test]
+    fn test_component_lifecycle_events_system_integration() {
+        struct ComponentLifecycleSystem {
+            additions_processed: usize,
+            removals_processed: usize,
+        }
+
+        impl System for ComponentLifecycleSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = ();
+
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+
+            fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
+                // Process ComponentAdded events
+                let added_events = world.query_components::<(In<Event<ComponentAdded<Soldier>>>,)>();
+                for (_entity, _event) in &added_events {
+                    self.additions_processed += 1;
+                }
+
+                // Process ComponentRemoved events
+                let removed_events = world.query_components::<(In<Event<ComponentRemoved<Soldier>>>,)>();
+                for (_entity, _event) in &removed_events {
+                    self.removals_processed += 1;
+                }
+            }
+
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        let lifecycle_system = ComponentLifecycleSystem {
+            additions_processed: 0,
+            removals_processed: 0,
+        };
+        
+        world.add_system(lifecycle_system);
+        world.initialize_systems();
+
+        // Create entities and add/remove components
+        let entity1 = world.create_entity();
+        let entity2 = world.create_entity();
+        
+        world.add_component(entity1, Soldier { id: 1, health: 100 });
+        world.add_component(entity2, Soldier { id: 2, health: 80 });
+        
+        // Run frame - should process ComponentAdded events
+        world.update();
+        
+        // Remove a component
+        world.remove_component::<Soldier>(entity1);
+        
+        // Run frame - should process ComponentRemoved event
+        world.update();
+        
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_no_infinite_recursion_with_event_components() {
+        let mut world = World::new();
+        let entity = world.create_entity();
+        
+        // Adding Event<T> components should not create ComponentAdded events
+        world.add_component(entity, Event::new(ShotsFired { damage: 25, target_id: 2 }));
+        
+        // Query for ComponentAdded events - should not find any for Event<T> types
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        let added_events = world_view.query_components::<(In<Event<ComponentAdded<Event<ShotsFired>>>>,)>();
+        assert_eq!(added_events.len(), 0);
+        
+        // Similarly, removing Event<T> components should not create ComponentRemoved events
+        world.remove_component::<Event<ShotsFired>>(entity);
+        
+        let removed_events = world_view.query_components::<(In<Event<ComponentRemoved<Event<ShotsFired>>>>,)>();
+        assert_eq!(removed_events.len(), 0);
+    }
+
+    #[test]
+    fn test_multiple_component_types_lifecycle_events() {
+        #[derive(Debug, PartialEq, Clone)]
+        struct Health {
+            value: i32,
+        }
+
+        let mut world = World::new();
+        let entity = world.create_entity();
+        
+        // Add multiple component types
+        world.add_component(entity, Soldier { id: 1, health: 100 });
+        world.add_component(entity, Health { value: 100 });
+        
+        // Query for both types of ComponentAdded events
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        let soldier_added_events = world_view.query_components::<(In<Event<ComponentAdded<Soldier>>>,)>();
+        assert_eq!(soldier_added_events.len(), 1);
+        
+        let health_added_events = world_view.query_components::<(In<Event<ComponentAdded<Health>>>,)>();
+        assert_eq!(health_added_events.len(), 1);
+        
+        // Clear events
+        world.update();
+        
+        // Remove both components
+        world.remove_component::<Soldier>(entity);
+        world.remove_component::<Health>(entity);
+        
+        // Query for both types of ComponentRemoved events
+        let soldier_removed_events = world_view.query_components::<(In<Event<ComponentRemoved<Soldier>>>,)>();
+        assert_eq!(soldier_removed_events.len(), 1);
+        
+        let health_removed_events = world_view.query_components::<(In<Event<ComponentRemoved<Health>>>,)>();
+        assert_eq!(health_removed_events.len(), 1);
+        
+        // Events should be cleaned up after frame
+        world.update();
+        
+        let soldier_removed_after = world_view.query_components::<(In<Event<ComponentRemoved<Soldier>>>,)>();
+        assert_eq!(soldier_removed_after.len(), 0);
+        
+        let health_removed_after = world_view.query_components::<(In<Event<ComponentRemoved<Health>>>,)>();
+        assert_eq!(health_removed_after.len(), 0);
     }
 }
