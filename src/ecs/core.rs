@@ -116,20 +116,26 @@ pub struct ComponentChange {
 /// They are automatically removed after all systems have been updated.
 /// 
 /// Example usage:
-/// ```rust
+/// ```
+/// use rust_ecs::*;
+/// 
 /// // Define an event type
+/// #[derive(Debug, Clone)]
 /// struct ShotsFired {
 ///     damage: i32,
 ///     target_id: u32,
 /// }
 /// 
-/// // Dispatch the event by adding it to an entity
-/// world.add_component(entity, Event::new(ShotsFired { damage: 10, target_id: 5 }));
+/// // Create world and entity
+/// let mut world = World::new();
+/// let entity = world.create_entity();
 /// 
-/// // React to the event in another system
-/// for (entity, shots_fired) in world.query_components::<Event<ShotsFired>>() {
-///     // Handle the event
-/// }
+/// // Dispatch the event by adding it to an entity
+/// world.add_event(entity, ShotsFired { damage: 10, target_id: 5 });
+/// 
+/// // The event is now available for querying
+/// let event = world.get_component::<Event<ShotsFired>>(entity);
+/// assert!(event.is_some());
 /// ```
 #[derive(Debug, Clone)]
 pub struct Event<T> {
@@ -164,11 +170,19 @@ impl<T> Event<T> {
 /// It gets cleaned up at the end of each frame.
 /// 
 /// Example usage:
-/// ```rust
-/// // React to component additions in a system
-/// for (entity, component_added) in world.query_components::<ComponentAdded<Position>>() {
-///     println!("Position component was added to entity {:?}", entity);
-/// }
+/// ```
+/// use rust_ecs::*;
+/// 
+/// // Create world and entity
+/// let mut world = World::new();
+/// let entity = world.create_entity();
+/// 
+/// // Add a component (automatically creates ComponentAdded notification)
+/// world.add_component(entity, game::components::Position { x: 10, y: 20 });
+/// 
+/// // The ComponentAdded notification is now available for querying
+/// let added = world.get_component::<ComponentAdded<game::components::Position>>(entity);
+/// assert!(added.is_some());
 /// ```
 #[derive(Debug, Clone)]
 pub struct ComponentAdded<T> {
@@ -198,12 +212,23 @@ impl<T> Default for ComponentAdded<T> {
 /// It gets cleaned up at the end of each frame.
 /// 
 /// Example usage:
-/// ```rust
-/// // React to component removals in a system
-/// for (entity, component_removed) in world.query_components::<ComponentRemoved<Position>>() {
-///     let old_position = component_removed.get_data();
-///     println!("Position {:?} was removed from entity {:?}", old_position, entity);
-/// }
+/// ```
+/// use rust_ecs::*;
+/// 
+/// // Create world and entity
+/// let mut world = World::new();
+/// let entity = world.create_entity();
+/// 
+/// // Add a component first
+/// world.add_component(entity, game::components::Position { x: 10, y: 20 });
+/// 
+/// // Remove the component with notification
+/// let was_removed = world.remove_component_with_notification::<game::components::Position>(entity);
+/// assert!(was_removed);
+/// 
+/// // The ComponentRemoved notification is now available for querying
+/// let removed = world.get_component::<ComponentRemoved<game::components::Position>>(entity);
+/// assert!(removed.is_some());
 /// ```
 #[derive(Debug, Clone)]
 pub struct ComponentRemoved<T> {
