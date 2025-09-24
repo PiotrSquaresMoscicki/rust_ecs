@@ -76,6 +76,9 @@ pub struct In<T>(std::marker::PhantomData<T>);
 /// A wrapper to mark that entities should NOT have a specific component
 pub struct Not<T>(std::marker::PhantomData<T>);
 
+/// A wrapper to query for components implementing a specific trait
+pub struct TraitQuery<T: ?Sized>(std::marker::PhantomData<T>);
+
 /// Enumeration of component operations that can occur during system execution
 #[derive(Debug, Clone)]
 pub enum ComponentOperation {

@@ -23,6 +23,8 @@ pub struct World {
     /// Temporary component storage for Event<T>, ComponentAdded<T>, and ComponentRemoved<T>
     /// These components are automatically cleaned up at the end of each frame
     pub(crate) temporary_components: HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>,
+    /// Trait implementation registry - maps trait TypeId to component TypeIds that implement it
+    pub(crate) trait_registry: HashMap<TypeId, Vec<TypeId>>,
     /// Systems registered to this world
     systems: Vec<Box<dyn SystemWrapper>>,
     /// Next entity ID to assign
@@ -62,6 +64,7 @@ impl World {
             entities: Vec::new(),
             components: HashMap::new(),
             temporary_components: HashMap::new(),
+            trait_registry: HashMap::new(),
             systems: Vec::new(),
             next_entity_id: 0,
             child_worlds: Vec::new(),
@@ -568,6 +571,42 @@ impl World {
             .map(|components| components.iter().map(|(entity, _)| *entity).collect())
             .unwrap_or_default()
     }
+
+    /// Register that a component type implements a trait
+    /// This is required for trait-based querying to work
+    pub fn register_trait_impl<Component: 'static, Trait: 'static + ?Sized>(&mut self) {
+        self.trait_registry
+            .entry(TypeId::of::<Trait>())
+            .or_default()
+            .push(TypeId::of::<Component>());
+    }
+
+    /// Get all entities that have components implementing a specific trait
+    pub fn entities_with_trait<Trait: 'static + ?Sized>(&self) -> Vec<Entity> {
+        let mut entities = Vec::new();
+        
+        if let Some(component_types) = self.trait_registry.get(&TypeId::of::<Trait>()) {
+            for component_type_id in component_types {
+                if let Some(components) = self.components.get(component_type_id) {
+                    for (entity, _) in components {
+                        entities.push(*entity);
+                    }
+                }
+                // Also check temporary components
+                if let Some(temp_components) = self.temporary_components.get(component_type_id) {
+                    for (entity, _) in temp_components {
+                        entities.push(*entity);
+                    }
+                }
+            }
+        }
+        
+        // Remove duplicates while preserving order
+        let mut seen = std::collections::HashSet::new();
+        entities.retain(|&entity| seen.insert(entity));
+        
+        entities
+    }
 }
 
 /// WorldView provides controlled access to world data for systems
@@ -728,6 +767,17 @@ impl<I, O> WorldView<I, O> {
         // For now, return results directly without tracking
         // Automatic change tracking is implemented through the system diff mechanism
         results
+    }
+
+    /// Register that a component type implements a trait
+    /// This is required for trait-based querying to work
+    pub fn register_trait_impl<Component: 'static, Trait: 'static + ?Sized>(&mut self) {
+        unsafe { self.world_mut().register_trait_impl::<Component, Trait>() }
+    }
+
+    /// Get all entities that have components implementing a specific trait
+    pub fn entities_with_trait<Trait: 'static + ?Sized>(&self) -> Vec<Entity> {
+        unsafe { self.world().entities_with_trait::<Trait>() }
     }
 }
 

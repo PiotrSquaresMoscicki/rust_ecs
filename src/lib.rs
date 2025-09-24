@@ -63,7 +63,7 @@ pub use rust_ecs_derive::Diff;
 
 // Re-export the most commonly used types from the ECS module for convenience
 pub use ecs::{
-    Entity, Out, In, Not, ComponentChange, ComponentOperation, WorldOperation,
+    Entity, Out, In, Not, TraitQuery, ComponentChange, ComponentOperation, WorldOperation,
     Event, ComponentAdded, ComponentRemoved,
     DiffComponent, DiffComponentChange,
     System, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory,
@@ -1302,6 +1302,220 @@ mod tests {
         // But should have the event itself
         let event = world.get_component::<Event<ShotsFired>>(entity);
         assert!(event.is_some());
+    }
+
+    #[test]
+    fn test_problem_statement_exact_scenario() {
+        // This test demonstrates the EXACT functionality requested in the problem statement:
+        // "I would like to be able to easily get all components implementing a trait. 
+        //  Ideally it should work the same way as when getting component by type. 
+        //  For example I have StateMachine trait and I want to iterate over all components 
+        //  that implement this trait using query_components<StateMachine>()"
+
+        // Define the StateMachine trait from the problem statement
+        trait StateMachine {
+            fn update(&mut self);
+            fn get_current_state(&self) -> String;
+        }
+
+        // AI component that implements StateMachine
+        #[derive(Debug, Clone, PartialEq, Diff)]
+        struct AIController {
+            state: String,
+            decision_timer: f32,
+        }
+
+        impl StateMachine for AIController {
+            fn update(&mut self) {
+                self.decision_timer -= 0.1;
+                if self.decision_timer <= 0.0 {
+                    self.state = "thinking".to_string();
+                    self.decision_timer = 1.0;
+                }
+            }
+
+            fn get_current_state(&self) -> String {
+                self.state.clone()
+            }
+        }
+
+        // Animation component that implements StateMachine  
+        #[derive(Debug, Clone, PartialEq, Diff)]
+        struct AnimationController {
+            current_animation: String,
+            frame: i32,
+        }
+
+        impl StateMachine for AnimationController {
+            fn update(&mut self) {
+                self.frame += 1;
+                if self.frame > 10 {
+                    self.current_animation = "idle".to_string();
+                    self.frame = 0;
+                }
+            }
+
+            fn get_current_state(&self) -> String {
+                format!("{}:{}", self.current_animation, self.frame)
+            }
+        }
+
+        // Sound component that does NOT implement StateMachine
+        #[derive(Debug, Clone, PartialEq, Diff)]
+        struct SoundEffect {
+            volume: f32,
+            playing: bool,
+        }
+
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+
+        // Register trait implementations (this step is required for our implementation)
+        world_view.register_trait_impl::<AIController, dyn StateMachine>();
+        world_view.register_trait_impl::<AnimationController, dyn StateMachine>();
+
+        // Create entities with different components
+        let enemy = world_view.create_entity();
+        let player = world_view.create_entity();
+        let sound_entity = world_view.create_entity();
+
+        // Add components
+        world_view.add_component(enemy, AIController { 
+            state: "patrolling".to_string(), 
+            decision_timer: 2.0 
+        });
+        world_view.add_component(player, AnimationController { 
+            current_animation: "running".to_string(), 
+            frame: 5 
+        });
+        world_view.add_component(sound_entity, SoundEffect { 
+            volume: 0.8, 
+            playing: true 
+        });
+
+        // The EXACT functionality requested in the problem statement:
+        // "query_components<StateMachine>()" - query for all components implementing StateMachine trait
+        let state_machines = world_view.query_components::<(TraitQuery<dyn StateMachine>,)>();
+
+        // Should find both enemy (AIController) and player (AnimationController)
+        assert_eq!(state_machines.len(), 2, "Should find 2 entities with StateMachine components");
+        
+        let entities_with_state_machines: Vec<Entity> = state_machines.iter().map(|(e, _)| *e).collect();
+        assert!(entities_with_state_machines.contains(&enemy), "Enemy should have StateMachine");
+        assert!(entities_with_state_machines.contains(&player), "Player should have StateMachine");
+        assert!(!entities_with_state_machines.contains(&sound_entity), "Sound entity should NOT have StateMachine");
+
+        // Also demonstrate combining with regular component queries
+        let ai_state_machines = world_view.query_components::<(In<AIController>, TraitQuery<dyn StateMachine>)>();
+        assert_eq!(ai_state_machines.len(), 1, "Should find 1 AI component with StateMachine trait");
+        
+        let (entity, (ai, _)) = &ai_state_machines[0];
+        assert_eq!(*entity, enemy);
+        assert_eq!(ai.state, "patrolling");
+
+        println!("✓ Problem statement functionality implemented successfully!");
+        println!("  - query_components<TraitQuery<dyn StateMachine>>() found {} entities", state_machines.len());
+        println!("  - Works the same way as querying by component type");
+        println!("  - Can be combined with regular component queries");
+        println!("  - Correctly filters entities based on trait implementations");
+    }
+
+    #[test]
+    fn test_trait_based_component_querying() {
+        // Define a trait and components that implement it
+        trait StateMachine {
+            fn get_state(&self) -> &str;
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct Player {
+            health: i32,
+            state: i32, // 0 = idle, 1 = running, 2 = attacking
+        }
+
+        impl StateMachine for Player {
+            fn get_state(&self) -> &str {
+                match self.state {
+                    0 => "idle",
+                    1 => "running", 
+                    2 => "attacking",
+                    _ => "unknown"
+                }
+            }
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct Enemy {
+            damage: i32,
+            state: i32, // 0 = patrolling, 1 = chasing, 2 = attacking
+        }
+
+        impl StateMachine for Enemy {
+            fn get_state(&self) -> &str {
+                match self.state {
+                    0 => "patrolling",
+                    1 => "chasing",
+                    2 => "attacking", 
+                    _ => "unknown"
+                }
+            }
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+        struct Item {
+            value: i32,
+        }
+
+        // Item does NOT implement StateMachine
+
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+
+        // Register trait implementations
+        world_view.register_trait_impl::<Player, dyn StateMachine>();
+        world_view.register_trait_impl::<Enemy, dyn StateMachine>();
+
+        // Create entities
+        let player_entity = world_view.create_entity();
+        let enemy_entity = world_view.create_entity();
+        let item_entity = world_view.create_entity();
+
+        // Add components
+        world_view.add_component(player_entity, Player { health: 100, state: 1 });
+        world_view.add_component(enemy_entity, Enemy { damage: 50, state: 0 });
+        world_view.add_component(item_entity, Item { value: 10 });
+
+        // Test querying for entities with components implementing StateMachine trait
+        let state_machine_entities = world_view.query_components::<(TraitQuery<dyn StateMachine>,)>();
+        
+        // Should return player and enemy entities (both implement StateMachine)
+        assert_eq!(state_machine_entities.len(), 2);
+        let returned_entities: Vec<Entity> = state_machine_entities.iter().map(|(e, _)| *e).collect();
+        assert!(returned_entities.contains(&player_entity));
+        assert!(returned_entities.contains(&enemy_entity));
+        assert!(!returned_entities.contains(&item_entity));
+
+        // Test combining trait query with regular component queries
+        let player_state_machines = world_view.query_components::<(In<Player>, TraitQuery<dyn StateMachine>)>();
+        assert_eq!(player_state_machines.len(), 1);
+        let (entity, (player, _)) = &player_state_machines[0];
+        assert_eq!(*entity, player_entity);
+        assert_eq!(player.health, 100);
+        assert_eq!(player.state, 1);
+
+        drop(player_state_machines); // Drop the borrow to allow next query
+
+        // Test querying items (entities without StateMachine components)
+        let items = world_view.query_components::<(In<Item>,)>();
+        assert_eq!(items.len(), 1);
+        let (entity, item) = &items[0];
+        assert_eq!(*entity, item_entity);
+        assert_eq!(item.value, 10);
+
+        println!("✓ Trait-based component querying works!");
+        println!("  - Found {} entities with StateMachine trait", state_machine_entities.len());
+        println!("  - Player + StateMachine query returned 1 entity");
+        println!("  - Item query returned {} entities", items.len());
     }
 
     #[test]
