@@ -80,25 +80,12 @@ pub mod replay_analysis {
     pub use crate::ecs::replay::{analyze_replay_history, print_replay_analysis, find_anomalous_frames, read_replay_log, parse_replay_log, ReplayStats};
 }
 
-/// A dummy function to demonstrate the library.
-/// Returns the sum of two numbers.
-pub fn add(a: i32, b: i32) -> i32 {
-    a + b
-}
-
 // Game module - declared after ECS so it can use ECS types
 pub mod game;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_add_function() {
-        assert_eq!(add(2, 3), 5);
-        assert_eq!(add(-1, 1), 0);
-        assert_eq!(add(0, 0), 0);
-    }
 
     #[test]
     fn test_world_creation() {

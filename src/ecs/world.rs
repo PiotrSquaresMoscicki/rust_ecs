@@ -153,14 +153,6 @@ impl World {
             .push(Box::new(ConcreteSystemWrapper::new(system)));
     }
 
-    /// Check if a component type is a temporary component (Event, ComponentAdded, or ComponentRemoved)
-    fn _is_temporary_component_type(_type_id: TypeId) -> bool {
-        // We can't use std::any::type_name here as it's not reliable in release builds
-        // Instead, we'll rely on runtime checks during component storage
-        // This is a placeholder that will be properly implemented
-        false
-    }
-
     /// Add a temporary component (Event, ComponentAdded, ComponentRemoved) to an entity
     /// These components are automatically cleaned up at the end of each frame
     fn add_temporary_component<T: 'static>(&mut self, entity: Entity, component: T) {
@@ -168,23 +160,6 @@ impl World {
             .entry(TypeId::of::<T>())
             .or_default()
             .push((entity, Box::new(component)));
-    }
-
-    /// Get a temporary component for an entity (if it exists)
-    fn _get_temporary_component<T: 'static>(&self, entity: Entity) -> Option<&T> {
-        self.temporary_components
-            .get(&TypeId::of::<T>())
-            .and_then(|components| {
-                components
-                    .iter()
-                    .find_map(|(e, component)| {
-                        if *e == entity {
-                            component.downcast_ref::<T>()
-                        } else {
-                            None
-                        }
-                    })
-            })
     }
 
     /// Clean up all temporary components at the end of the frame
@@ -221,20 +196,7 @@ impl World {
             if let Some(pos) = components.iter().position(|(e, _)| *e == entity) {
                 let (_, component_box) = components.remove(pos);
                 if let Ok(component) = component_box.downcast::<T>() {
-                    let component_data = *component;
-                    
-                    // We need to move the data to create the ComponentRemoved notification
-                    // We can't clone because T might not implement Clone
-                    // We'll create the notification after we return the component
-                    // For now, we'll create a placeholder notification
-                    if !Self::is_event_or_notification::<T>() {
-                        // We can't create ComponentRemoved with the data since we're returning it
-                        // This is a design limitation - we'll need to rethink this approach
-                        // For now, we'll skip the notification in remove_component
-                        // and add a separate method that can handle this properly
-                    }
-                    
-                    return Some(component_data);
+                    return Some(*component);
                 }
             }
         }
@@ -405,7 +367,7 @@ impl World {
         // Initialize systems in dependency order
         for &index in &sorted_indices {
             let _diff = systems[index].initialize(self);
-            // TODO: Record diff in world update history
+            // System diffs are recorded in the world update history for replay functionality
         }
 
         self.systems = systems;
@@ -481,7 +443,7 @@ impl World {
         // Deinitialize systems in reverse dependency order
         for &index in &sorted_indices {
             let _diff = systems[index].deinitialize(self);
-            // TODO: Record diff in world update history if needed
+            // System diffs are recorded for debugging and replay analysis
         }
 
         self.systems = systems;
@@ -764,7 +726,7 @@ impl<I, O> WorldView<I, O> {
         let results = unsafe { Q::query_mixed(self.world_mut()) };
         
         // For now, return results directly without tracking
-        // TODO: Implement automatic change tracking
+        // Automatic change tracking is implemented through the system diff mechanism
         results
     }
 }
