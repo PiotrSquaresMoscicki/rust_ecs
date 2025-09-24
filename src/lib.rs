@@ -149,6 +149,7 @@ mod tests {
     impl System for TestSystem {
         type InComponents = ();
         type OutComponents = ();
+        type Dependencies = ();
 
         fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
             // Test system initialization
@@ -848,5 +849,226 @@ mod tests {
         assert_eq!(*entity, entity1);
         assert_eq!(tree.species_id, 1);
         assert_eq!(fallen_tree.fallen_at, 1000);
+    }
+
+    #[test]
+    fn test_system_dependencies_single() {
+        struct SystemA;
+        impl System for SystemA {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct SystemB;
+        impl System for SystemB {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = (SystemA,);
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        world.add_system(SystemB); // Add B first
+        world.add_system(SystemA); // Add A second
+        
+        // Should initialize in dependency order: A then B
+        world.initialize_systems();
+        // Should update in dependency order: A then B
+        world.update();
+        // Should deinitialize in reverse order: B then A
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_system_dependencies_multiple() {
+        struct SystemX;
+        impl System for SystemX {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct SystemY;
+        impl System for SystemY {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct SystemZ;
+        impl System for SystemZ {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = (SystemX, SystemY);
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        world.add_system(SystemZ); // Add Z first (depends on X and Y)
+        world.add_system(SystemY); // Add Y second
+        world.add_system(SystemX); // Add X third
+        
+        // Should initialize in dependency order: X and Y first, then Z
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_system_dependencies_chain() {
+        struct ChainA;
+        impl System for ChainA {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct ChainB;
+        impl System for ChainB {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = (ChainA,);
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct ChainC;
+        impl System for ChainC {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = (ChainB,);
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        world.add_system(ChainC); // Add C first (depends on B)
+        world.add_system(ChainA); // Add A second (no dependencies)
+        world.add_system(ChainB); // Add B third (depends on A)
+        
+        // Should initialize in dependency order: A -> B -> C
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_system_dependencies_no_dependencies() {
+        struct IndependentSystem1;
+        impl System for IndependentSystem1 {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct IndependentSystem2;
+        impl System for IndependentSystem2 {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        world.add_system(IndependentSystem1);
+        world.add_system(IndependentSystem2);
+        
+        // Should work fine with no dependencies
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_system_dependencies_circular_detection() {
+        // This test demonstrates that circular dependencies are handled gracefully
+        // (falls back to registration order with warning)
+        
+        struct CircularA;
+        impl System for CircularA {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = (CircularB,);
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct CircularB;
+        impl System for CircularB {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = (CircularA,);
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        world.add_system(CircularA);
+        world.add_system(CircularB);
+        
+        // Should handle circular dependencies gracefully (prints warning and uses registration order)
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_system_dependencies_missing_dependency() {
+        // This test demonstrates that missing dependencies are handled gracefully
+        
+        struct MissingDepSystem;
+        impl System for MissingDepSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = (NonExistentSystem,);
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct NonExistentSystem;
+        impl System for NonExistentSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type Dependencies = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        world.add_system(MissingDepSystem); // Add system that depends on NonExistentSystem
+        // But don't add NonExistentSystem
+        
+        // Should handle missing dependencies gracefully (prints warning and uses registration order)
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
     }
 }

@@ -23,6 +23,7 @@ fn test_library_imports() {
     impl System for TestSystem {
         type InComponents = ();
         type OutComponents = ();
+        type Dependencies = ();
         
         fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
         fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}

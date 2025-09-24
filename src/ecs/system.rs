@@ -5,6 +5,56 @@
 
 use crate::ecs::core::{ComponentChange, WorldOperation};
 use crate::ecs::diff::DiffComponentChange;
+use std::any::TypeId;
+
+/// Trait to represent system dependencies
+/// This is implemented for tuples of system types
+pub trait SystemDependencies {
+    /// Get the TypeIds of all dependent system types
+    fn dependency_type_ids() -> Vec<TypeId>;
+}
+
+/// Base case: no dependencies
+impl SystemDependencies for () {
+    fn dependency_type_ids() -> Vec<TypeId> {
+        Vec::new()
+    }
+}
+
+/// Single dependency - tuple with one element
+impl<A: 'static> SystemDependencies for (A,) {
+    fn dependency_type_ids() -> Vec<TypeId> {
+        vec![TypeId::of::<A>()]
+    }
+}
+
+/// Two dependencies
+impl<A: 'static, B: 'static> SystemDependencies for (A, B) {
+    fn dependency_type_ids() -> Vec<TypeId> {
+        vec![TypeId::of::<A>(), TypeId::of::<B>()]
+    }
+}
+
+/// Three dependencies
+impl<A: 'static, B: 'static, C: 'static> SystemDependencies for (A, B, C) {
+    fn dependency_type_ids() -> Vec<TypeId> {
+        vec![TypeId::of::<A>(), TypeId::of::<B>(), TypeId::of::<C>()]
+    }
+}
+
+/// Four dependencies
+impl<A: 'static, B: 'static, C: 'static, D: 'static> SystemDependencies for (A, B, C, D) {
+    fn dependency_type_ids() -> Vec<TypeId> {
+        vec![TypeId::of::<A>(), TypeId::of::<B>(), TypeId::of::<C>(), TypeId::of::<D>()]
+    }
+}
+
+/// Five dependencies
+impl<A: 'static, B: 'static, C: 'static, D: 'static, E: 'static> SystemDependencies for (A, B, C, D, E) {
+    fn dependency_type_ids() -> Vec<TypeId> {
+        vec![TypeId::of::<A>(), TypeId::of::<B>(), TypeId::of::<C>(), TypeId::of::<D>(), TypeId::of::<E>()]
+    }
+}
 
 /// The System trait defines the contract for all systems in the ECS.
 /// Systems declare their input and output components for change tracking.
@@ -13,6 +63,8 @@ pub trait System {
     type InComponents;
     /// Components that the system will read from and write to
     type OutComponents;
+    /// Systems that this system depends on - they will be initialized, updated, and deinitialized first
+    type Dependencies: SystemDependencies;
 
     /// Called once before the first update to initialize system state
     fn initialize(&mut self, world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>);

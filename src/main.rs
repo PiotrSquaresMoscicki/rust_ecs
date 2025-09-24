@@ -33,6 +33,7 @@ struct MovementSystem;
 impl System for MovementSystem {
     type InComponents = (Velocity,);
     type OutComponents = (Position,);
+    type Dependencies = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("MovementSystem initialized");
@@ -71,6 +72,7 @@ struct HealthSystem;
 impl System for HealthSystem {
     type InComponents = ();
     type OutComponents = (Health,);
+    type Dependencies = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("HealthSystem initialized");
@@ -93,6 +95,37 @@ impl System for HealthSystem {
 
     fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("HealthSystem deinitialized");
+    }
+}
+
+// Example system that depends on MovementSystem - it should initialize/update after MovementSystem
+struct PhysicsSystem;
+
+impl System for PhysicsSystem {
+    type InComponents = (Position, Velocity);
+    type OutComponents = ();
+    type Dependencies = (MovementSystem,);
+
+    fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
+        println!("PhysicsSystem initialized (depends on MovementSystem)");
+    }
+
+    fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
+        println!("PhysicsSystem processing physics (after MovementSystem)");
+
+        let results = world.query_components::<(In<Position>, In<Velocity>)>();
+        for (entity, (position, velocity)) in &results {
+            // Do some physics calculations that depend on updated positions/velocities
+            let speed = (velocity.dx * velocity.dx + velocity.dy * velocity.dy).sqrt();
+            if speed > 0.1 {
+                println!("  Entity {:?} at ({:.1}, {:.1}) moving at speed {:.2}", 
+                    entity, position.x, position.y, speed);
+            }
+        }
+    }
+
+    fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
+        println!("PhysicsSystem deinitialized (depends on MovementSystem)");
     }
 }
 
@@ -188,21 +221,30 @@ fn run_ecs_demo() {
 
     println!("Added components to entities");
 
-    // Register systems
-    world.add_system(MovementSystem);
-    world.add_system(HealthSystem);
+    // Register systems - note the order: PhysicsSystem depends on MovementSystem
+    println!("\n--- System Dependency Demo ---");
+    println!("Adding systems: HealthSystem, PhysicsSystem (depends on MovementSystem), MovementSystem");
+    println!("Expected order: MovementSystem -> PhysicsSystem, HealthSystem (no dependencies)");
+    
+    world.add_system(HealthSystem);         // No dependencies
+    world.add_system(PhysicsSystem);        // Depends on MovementSystem
+    world.add_system(MovementSystem);       // No dependencies
     println!("Registered systems");
 
-    // Initialize systems - one time function call before the first update
+    // Initialize systems - should be ordered by dependencies
+    println!("\nInitializing systems (should respect dependencies):");
     world.initialize_systems();
     println!("Initialized all systems");
 
     // Run a few update frames
     println!("\nRunning simulation...");
-    for frame in 1..=5 {
-        println!("Frame {}", frame);
+    for frame in 1..=3 {
+        println!("\nFrame {}", frame);
         world.update();
     }
+
+    println!("\nDeinitializing systems (should be in reverse dependency order):");
+    world.deinitialize_systems();
 
     println!("\nSimulation complete!");
 

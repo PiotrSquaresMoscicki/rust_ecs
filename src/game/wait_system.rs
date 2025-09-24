@@ -9,6 +9,7 @@ pub struct WaitSystem;
 impl System for WaitSystem {
     type InComponents = (Actor, WaitTimer, Target, Position, Navigation);
     type OutComponents = (WaitTimer, Target, Navigation);
+    type Dependencies = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 

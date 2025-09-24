@@ -72,6 +72,7 @@ impl NavigationSystem {
 impl System for NavigationSystem {
     type InComponents = (Actor, Position, Target);
     type OutComponents = (Position, Navigation);
+    type Dependencies = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 

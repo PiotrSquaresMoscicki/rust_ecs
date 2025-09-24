@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use crate::ecs::core::{Entity, WorldOperation};
 use crate::ecs::diff::{Diff, DiffComponentChange};
-use crate::ecs::system::{System, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
+use crate::ecs::system::{System, SystemDependencies, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
 use crate::ecs::query::{MixedMultiQuery};
 use crate::ecs::replay::{ReplayLogConfig, AutoReplayLogger};
 
@@ -211,13 +211,75 @@ impl World {
             })
     }
 
+    /// Sort systems according to their dependencies using topological sort
+    /// Returns the indices of systems in dependency order, or Err if there are circular dependencies
+    fn sort_systems_by_dependencies(&self) -> Result<Vec<usize>, String> {
+        let n = self.systems.len();
+        let mut in_degree = vec![0; n];
+        let mut adj_list: Vec<Vec<usize>> = vec![Vec::new(); n];
+        
+        // Build adjacency list and calculate in-degrees
+        for i in 0..n {
+            let dependencies = self.systems[i].dependency_type_ids();
+            for dep_type_id in dependencies {
+                // Find the system with the matching type
+                if let Some(dep_index) = self.systems.iter().position(|s| s.system_type_id() == dep_type_id) {
+                    adj_list[dep_index].push(i);
+                    in_degree[i] += 1;
+                } else {
+                    return Err(format!("Dependency not found: {:?}", dep_type_id));
+                }
+            }
+        }
+        
+        // Topological sort using Kahn's algorithm
+        let mut queue = Vec::new();
+        let mut result = Vec::new();
+        
+        // Add all nodes with no incoming edges
+        for i in 0..n {
+            if in_degree[i] == 0 {
+                queue.push(i);
+            }
+        }
+        
+        while let Some(current) = queue.pop() {
+            result.push(current);
+            
+            // For each neighbor of current
+            for neighbor in &adj_list[current] {
+                in_degree[*neighbor] -= 1;
+                if in_degree[*neighbor] == 0 {
+                    queue.push(*neighbor);
+                }
+            }
+        }
+        
+        // Check for circular dependencies
+        if result.len() != n {
+            return Err("Circular dependency detected".to_string());
+        }
+        
+        Ok(result)
+    }
+
     /// Initialize all systems (called once before the first update)
     pub fn initialize_systems(&mut self) {
+        // Sort systems by dependencies
+        let sorted_indices = match self.sort_systems_by_dependencies() {
+            Ok(indices) => indices,
+            Err(err) => {
+                eprintln!("Warning: Failed to resolve system dependencies: {}. Initializing in registration order.", err);
+                (0..self.systems.len()).collect()
+            }
+        };
+
         // We need to work around the borrowing issue by taking ownership temporarily
         let mut systems = std::mem::take(&mut self.systems);
 
-        for system in &mut systems {
-            let _diff = system.initialize(self);
+        // Initialize systems in dependency order
+        for &index in &sorted_indices {
+            let _diff = systems[index].initialize(self);
             // TODO: Record diff in world update history
         }
 
@@ -228,16 +290,26 @@ impl World {
     pub fn update(&mut self) {
         let mut world_update_diff = WorldUpdateDiff::new();
 
+        // Sort systems by dependencies
+        let sorted_indices = match self.sort_systems_by_dependencies() {
+            Ok(indices) => indices,
+            Err(err) => {
+                eprintln!("Warning: Failed to resolve system dependencies: {}. Updating in registration order.", err);
+                (0..self.systems.len()).collect()
+            }
+        };
+
         // We need to work around the borrowing issue by taking ownership temporarily
         let mut systems = std::mem::take(&mut self.systems);
 
-        for system in &mut systems {
+        // Update systems in dependency order
+        for &index in &sorted_indices {
             let system_diff = if self.replay_mode {
                 // In replay mode, use system-level snapshot/restore
-                system.update_with_replay(self, self.replay_frame)
+                systems[index].update_with_replay(self, self.replay_frame)
             } else {
                 // In normal mode, just update normally
-                system.update(self)
+                systems[index].update(self)
             };
             world_update_diff.record(system_diff);
         }
@@ -258,6 +330,33 @@ impl World {
                 eprintln!("Failed to log replay data: {}", e);
             }
         }
+    }
+    
+    /// Deinitialize all systems (called when shutting down)
+    /// Systems are deinitialized in reverse dependency order
+    pub fn deinitialize_systems(&mut self) {
+        // Sort systems by dependencies, then reverse for deinitialization
+        let sorted_indices = match self.sort_systems_by_dependencies() {
+            Ok(mut indices) => {
+                indices.reverse(); // Deinitialize in reverse order
+                indices
+            },
+            Err(err) => {
+                eprintln!("Warning: Failed to resolve system dependencies: {}. Deinitializing in reverse registration order.", err);
+                (0..self.systems.len()).rev().collect()
+            }
+        };
+
+        // We need to work around the borrowing issue by taking ownership temporarily
+        let mut systems = std::mem::take(&mut self.systems);
+
+        // Deinitialize systems in reverse dependency order
+        for &index in &sorted_indices {
+            let _diff = systems[index].deinitialize(self);
+            // TODO: Record diff in world update history if needed
+        }
+
+        self.systems = systems;
     }
 
     /// Enable replay mode for this world
@@ -532,6 +631,10 @@ trait SystemWrapper {
     fn update_with_replay(&mut self, world: &mut World, frame_number: usize) -> SystemUpdateDiff;
     #[allow(dead_code)]
     fn deinitialize(&mut self, world: &mut World) -> SystemDeinitDiff;
+    /// Get the TypeId of this system
+    fn system_type_id(&self) -> TypeId;
+    /// Get the TypeIds of systems this system depends on
+    fn dependency_type_ids(&self) -> Vec<TypeId>;
 }
 
 /// Concrete implementation of SystemWrapper for a specific system type
@@ -545,7 +648,7 @@ impl<S: System> ConcreteSystemWrapper<S> {
     }
 }
 
-impl<S: System> SystemWrapper for ConcreteSystemWrapper<S> {
+impl<S: System + 'static> SystemWrapper for ConcreteSystemWrapper<S> {
     fn initialize(&mut self, world: &mut World) -> SystemInitDiff {
         let mut world_view = WorldView::new(world);
         self.system.initialize(&mut world_view);
@@ -590,5 +693,13 @@ impl<S: System> SystemWrapper for ConcreteSystemWrapper<S> {
         }
         
         deinit_diff
+    }
+
+    fn system_type_id(&self) -> TypeId {
+        TypeId::of::<S>()
+    }
+
+    fn dependency_type_ids(&self) -> Vec<TypeId> {
+        S::Dependencies::dependency_type_ids()
     }
 }
