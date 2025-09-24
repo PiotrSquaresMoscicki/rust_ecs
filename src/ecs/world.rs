@@ -4,9 +4,9 @@
 //! and systems, along with the WorldView that provides controlled access for systems.
 
 use std::any::{Any, TypeId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use crate::ecs::core::{Entity, WorldOperation};
+use crate::ecs::core::{Entity, WorldOperation, ComponentAdded, ComponentRemoved};
 use crate::ecs::diff::{Diff, DiffComponentChange};
 use crate::ecs::system::{System, SystemDependencies, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
 use crate::ecs::query::{MixedMultiQuery};
@@ -38,6 +38,8 @@ pub struct World {
     replay_frame: usize,
     /// Replay data for use during replay mode
     replay_data: Option<WorldUpdateHistory>,
+    /// Registry of temporary component types that should be cleaned up each frame
+    temporary_component_types: HashSet<TypeId>,
 }
 
 impl Default for World {
@@ -67,6 +69,7 @@ impl World {
             replay_mode: false,
             replay_frame: 0,
             replay_data: None,
+            temporary_component_types: HashSet::new(),
         }
     }
 
@@ -159,10 +162,25 @@ impl World {
 
     /// Add a component to an entity
     pub fn add_component<T: 'static>(&mut self, entity: Entity, component: T) {
+        // Register the component type if it's temporary
+        self.register_temporary_component_type::<T>();
+        
         self.components
             .entry(TypeId::of::<T>())
             .or_default()
             .push((entity, Box::new(component)));
+    }
+    
+    /// Register a component type as temporary if it implements TemporaryComponent
+    fn register_temporary_component_type<T: 'static>(&mut self) {
+        // Check if this is one of our known temporary component types
+        // We can't directly check for trait implementation, so we'll check type names
+        let type_name = std::any::type_name::<T>();
+        if type_name.contains("Event<") || 
+           type_name.contains("ComponentAdded<") || 
+           type_name.contains("ComponentRemoved<") {
+            self.temporary_component_types.insert(TypeId::of::<T>());
+        }
     }
 
     /// Remove a component from an entity
@@ -330,6 +348,9 @@ impl World {
                 eprintln!("Failed to log replay data: {}", e);
             }
         }
+        
+        // Clean up temporary components at the end of the frame
+        self.cleanup_temporary_components();
     }
     
     /// Deinitialize all systems (called when shutting down)
@@ -478,6 +499,32 @@ impl World {
             .map(|components| components.iter().map(|(entity, _)| *entity).collect())
             .unwrap_or_default()
     }
+
+    /// Debug method to inspect component types (for testing)
+    pub fn debug_component_types(&self) {
+        println!("DEBUG: Component types in world:");
+        for (type_id, components) in &self.components {
+            println!("  TypeId: {:?}, Count: {}", type_id, components.len());
+        }
+    }
+
+    /// Clean up all Event<T>, ComponentAdded<T>, and ComponentRemoved<T> components
+    /// This should be called at the end of each frame
+    fn cleanup_temporary_components(&mut self) {
+        let mut types_to_remove = Vec::new();
+        
+        // Collect all temporary component types that need to be cleaned up
+        for &type_id in &self.temporary_component_types {
+            if self.components.contains_key(&type_id) {
+                types_to_remove.push(type_id);
+            }
+        }
+        
+        // Remove all temporary components
+        for type_id in types_to_remove {
+            self.components.remove(&type_id);
+        }
+    }
 }
 
 /// WorldView provides controlled access to world data for systems
@@ -560,7 +607,14 @@ impl<I, O> WorldView<I, O> {
 
     /// Add a component to an entity
     pub fn add_component<T: 'static>(&mut self, entity: Entity, component: T) {
-        unsafe { self.world_mut().add_component(entity, component) }
+        unsafe { 
+            let world = self.world_mut();
+            world.add_component(entity, component);
+            
+            // Generate a ComponentAdded<T> event for this component addition
+            let component_added = ComponentAdded::<T>::new();
+            world.add_component(entity, component_added);
+        }
     }
 
     /// Get a component for an entity (if it exists)
@@ -600,8 +654,18 @@ impl<I, O> WorldView<I, O> {
     }
 
     /// Remove a component from an entity
-    pub fn remove_component<T: 'static>(&mut self, entity: Entity) -> Option<T> {
-        unsafe { self.world_mut().remove_component(entity) }
+    pub fn remove_component<T: 'static + Clone>(&mut self, entity: Entity) -> Option<T> {
+        unsafe { 
+            if let Some(removed_component) = self.world_mut().remove_component::<T>(entity) {
+                // Generate a ComponentRemoved<T> event with the removed component's data
+                let component_removed = ComponentRemoved::new(removed_component.clone());
+                self.world_mut().add_component(entity, component_removed);
+                
+                Some(removed_component)
+            } else {
+                None
+            }
+        }
     }
 
     /// Remove an entity and all its components

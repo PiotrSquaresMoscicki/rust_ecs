@@ -109,3 +109,130 @@ pub struct ComponentChange {
     pub component_type: TypeId,
     pub operation: ComponentOperation,
 }
+
+/// A wrapper for event components that are automatically cleaned up at the end of each frame
+/// 
+/// Events are short-lived components used for communication between systems.
+/// When you add Event<T> to an entity, it will be automatically removed at the end of the frame
+/// after all systems have been updated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Event<T> {
+    pub data: T,
+}
+
+impl<T> Event<T> {
+    /// Create a new event with the given data
+    pub fn new(data: T) -> Self {
+        Self { data }
+    }
+    
+    /// Get a reference to the event data
+    pub fn get(&self) -> &T {
+        &self.data
+    }
+    
+    /// Get a mutable reference to the event data
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.data
+    }
+    
+    /// Consume the event and return the inner data
+    pub fn into_inner(self) -> T {
+        self.data
+    }
+}
+
+impl<T> std::ops::Deref for Event<T> {
+    type Target = T;
+    
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<T> std::ops::DerefMut for Event<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+/// A marker component that indicates a component of type T was just added to an entity
+/// 
+/// This component is automatically generated when a component is added to an entity
+/// and is automatically cleaned up at the end of the frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentAdded<T> {
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T> ComponentAdded<T> {
+    /// Create a new ComponentAdded marker
+    pub fn new() -> Self {
+        Self {
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Default for ComponentAdded<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A wrapper component that contains the data of a component that was just removed from an entity
+/// 
+/// This component is automatically generated when a component is removed from an entity
+/// and contains the data of the removed component. It is automatically cleaned up at the end of the frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentRemoved<T> {
+    pub data: T,
+}
+
+impl<T> ComponentRemoved<T> {
+    /// Create a new ComponentRemoved with the removed component's data
+    pub fn new(data: T) -> Self {
+        Self { data }
+    }
+    
+    /// Get a reference to the removed component's data
+    pub fn get(&self) -> &T {
+        &self.data
+    }
+    
+    /// Consume this wrapper and return the removed component's data
+    pub fn into_inner(self) -> T {
+        self.data
+    }
+}
+
+impl<T> std::ops::Deref for ComponentRemoved<T> {
+    type Target = T;
+    
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<T> std::ops::DerefMut for ComponentRemoved<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+/// Trait for components that should be automatically cleaned up at the end of each frame
+pub trait TemporaryComponent {
+    /// Returns true if this component type should be automatically cleaned up
+    fn is_temporary() -> bool {
+        true
+    }
+}
+
+// Implement TemporaryComponent for Event<T>
+impl<T> TemporaryComponent for Event<T> {}
+
+// Implement TemporaryComponent for ComponentAdded<T>
+impl<T> TemporaryComponent for ComponentAdded<T> {}
+
+// Implement TemporaryComponent for ComponentRemoved<T>
+impl<T> TemporaryComponent for ComponentRemoved<T> {}
