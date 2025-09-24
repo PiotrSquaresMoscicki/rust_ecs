@@ -80,7 +80,7 @@ fn main() {
     world_view.add_component(static_object, Transform { x: 10.0, y: 20.0 });
 
     // Query for all entities with components implementing StateMachine
-    let state_machines = world_view.query_components::<(TraitQuery<dyn StateMachine>,)>();
+    let state_machines = world_view.query_components::<(InTrait<dyn StateMachine>,)>();
     println!("Found {} entities with StateMachine components:", state_machines.len());
     
     for (entity, _) in &state_machines {
@@ -88,7 +88,7 @@ fn main() {
     }
 
     // Query for specific combinations
-    let ai_controllers = world_view.query_components::<(In<AIController>, TraitQuery<dyn StateMachine>)>();
+    let ai_controllers = world_view.query_components::<(In<AIController>, InTrait<dyn StateMachine>)>();
     println!("\nFound {} AI controllers with StateMachine trait:", ai_controllers.len());
     
     for (entity, (ai, _)) in &ai_controllers {

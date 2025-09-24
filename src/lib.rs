@@ -63,7 +63,7 @@ pub use rust_ecs_derive::Diff;
 
 // Re-export the most commonly used types from the ECS module for convenience
 pub use ecs::{
-    Entity, Out, In, Not, TraitQuery, ComponentChange, ComponentOperation, WorldOperation,
+    Entity, Out, In, Not, TraitQuery, InTrait, OutTrait, ComponentChange, ComponentOperation, WorldOperation,
     Event, ComponentAdded, ComponentRemoved,
     DiffComponent, DiffComponentChange,
     System, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory,
@@ -1395,7 +1395,7 @@ mod tests {
 
         // The EXACT functionality requested in the problem statement:
         // "query_components<StateMachine>()" - query for all components implementing StateMachine trait
-        let state_machines = world_view.query_components::<(TraitQuery<dyn StateMachine>,)>();
+        let state_machines = world_view.query_components::<(InTrait<dyn StateMachine>,)>();
 
         // Should find both enemy (AIController) and player (AnimationController)
         assert_eq!(state_machines.len(), 2, "Should find 2 entities with StateMachine components");
@@ -1406,7 +1406,7 @@ mod tests {
         assert!(!entities_with_state_machines.contains(&sound_entity), "Sound entity should NOT have StateMachine");
 
         // Also demonstrate combining with regular component queries
-        let ai_state_machines = world_view.query_components::<(In<AIController>, TraitQuery<dyn StateMachine>)>();
+        let ai_state_machines = world_view.query_components::<(In<AIController>, InTrait<dyn StateMachine>)>();
         assert_eq!(ai_state_machines.len(), 1, "Should find 1 AI component with StateMachine trait");
         
         let (entity, (ai, _)) = &ai_state_machines[0];
@@ -1414,7 +1414,7 @@ mod tests {
         assert_eq!(ai.state, "patrolling");
 
         println!("✓ Problem statement functionality implemented successfully!");
-        println!("  - query_components<TraitQuery<dyn StateMachine>>() found {} entities", state_machines.len());
+        println!("  - query_components<InTrait<dyn StateMachine>>() found {} entities", state_machines.len());
         println!("  - Works the same way as querying by component type");
         println!("  - Can be combined with regular component queries");
         println!("  - Correctly filters entities based on trait implementations");
@@ -1486,7 +1486,7 @@ mod tests {
         world_view.add_component(item_entity, Item { value: 10 });
 
         // Test querying for entities with components implementing StateMachine trait
-        let state_machine_entities = world_view.query_components::<(TraitQuery<dyn StateMachine>,)>();
+        let state_machine_entities = world_view.query_components::<(InTrait<dyn StateMachine>,)>();
         
         // Should return player and enemy entities (both implement StateMachine)
         assert_eq!(state_machine_entities.len(), 2);
@@ -1496,7 +1496,7 @@ mod tests {
         assert!(!returned_entities.contains(&item_entity));
 
         // Test combining trait query with regular component queries
-        let player_state_machines = world_view.query_components::<(In<Player>, TraitQuery<dyn StateMachine>)>();
+        let player_state_machines = world_view.query_components::<(In<Player>, InTrait<dyn StateMachine>)>();
         assert_eq!(player_state_machines.len(), 1);
         let (entity, (player, _)) = &player_state_machines[0];
         assert_eq!(*entity, player_entity);

@@ -79,6 +79,12 @@ pub struct Not<T>(std::marker::PhantomData<T>);
 /// A wrapper to query for components implementing a specific trait
 pub struct TraitQuery<T: ?Sized>(std::marker::PhantomData<T>);
 
+/// A wrapper to mark immutable access to components implementing a specific trait
+pub struct InTrait<T: ?Sized>(std::marker::PhantomData<T>);
+
+/// A wrapper to mark mutable access to components implementing a specific trait
+pub struct OutTrait<T: ?Sized>(std::marker::PhantomData<T>);
+
 /// Enumeration of component operations that can occur during system execution
 #[derive(Debug, Clone)]
 pub enum ComponentOperation {

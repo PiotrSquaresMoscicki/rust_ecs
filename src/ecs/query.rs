@@ -2,7 +2,7 @@
 //!
 //! This module provides the query system for accessing components in the ECS.
 
-use crate::ecs::core::{Entity, Out, In, Not, TraitQuery};
+use crate::ecs::core::{Entity, Out, In, Not, TraitQuery, InTrait, OutTrait};
 use std::collections::HashSet;
 
 /// Trait for component types that can be queried immutably
@@ -92,6 +92,94 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for Out<T> {
     }
 }
 
+// Implement MixedQueryComponent for TraitQuery<T> - returns () when entity has components implementing the trait
+impl<'a, T: 'static + ?Sized> MixedQueryComponent<'a> for TraitQuery<T> {
+    type Item = ();
+
+    fn get_mixed_component(world: &'a mut crate::ecs::world::World, entity: Entity) -> Option<Self::Item> {
+        use std::any::TypeId;
+        
+        // Check if entity has any components implementing this trait
+        if let Some(component_types) = world.trait_registry.get(&TypeId::of::<T>()) {
+            for component_type_id in component_types {
+                // Check regular components
+                if let Some(components) = world.components.get(component_type_id) {
+                    if components.iter().any(|(e, _)| *e == entity) {
+                        return Some(());
+                    }
+                }
+                // Check temporary components
+                if let Some(temp_components) = world.temporary_components.get(component_type_id) {
+                    if temp_components.iter().any(|(e, _)| *e == entity) {
+                        return Some(());
+                    }
+                }
+            }
+        }
+        
+        None
+    }
+}
+
+// Implement MixedQueryComponent for InTrait<T> - returns () when entity has components implementing the trait
+impl<'a, T: 'static + ?Sized> MixedQueryComponent<'a> for InTrait<T> {
+    type Item = ();
+
+    fn get_mixed_component(world: &'a mut crate::ecs::world::World, entity: Entity) -> Option<Self::Item> {
+        use std::any::TypeId;
+        
+        // Check if entity has any components implementing this trait
+        if let Some(component_types) = world.trait_registry.get(&TypeId::of::<T>()) {
+            for component_type_id in component_types {
+                // Check regular components
+                if let Some(components) = world.components.get(component_type_id) {
+                    if components.iter().any(|(e, _)| *e == entity) {
+                        return Some(());
+                    }
+                }
+                // Check temporary components
+                if let Some(temp_components) = world.temporary_components.get(component_type_id) {
+                    if temp_components.iter().any(|(e, _)| *e == entity) {
+                        return Some(());
+                    }
+                }
+            }
+        }
+        
+        None
+    }
+}
+
+// Implement MixedQueryComponent for OutTrait<T> - returns () when entity has components implementing the trait
+// Note: For trait queries, OutTrait<> and InTrait<> have the same behavior since we can't return mutable references to trait objects
+impl<'a, T: 'static + ?Sized> MixedQueryComponent<'a> for OutTrait<T> {
+    type Item = ();
+
+    fn get_mixed_component(world: &'a mut crate::ecs::world::World, entity: Entity) -> Option<Self::Item> {
+        use std::any::TypeId;
+        
+        // Check if entity has any components implementing this trait
+        if let Some(component_types) = world.trait_registry.get(&TypeId::of::<T>()) {
+            for component_type_id in component_types {
+                // Check regular components
+                if let Some(components) = world.components.get(component_type_id) {
+                    if components.iter().any(|(e, _)| *e == entity) {
+                        return Some(());
+                    }
+                }
+                // Check temporary components
+                if let Some(temp_components) = world.temporary_components.get(component_type_id) {
+                    if temp_components.iter().any(|(e, _)| *e == entity) {
+                        return Some(());
+                    }
+                }
+            }
+        }
+        
+        None
+    }
+}
+
 // Implement MixedQueryComponent for Not<T> - returns () when component is NOT present
 impl<'a, T: 'static> MixedQueryComponent<'a> for Not<T> {
     type Item = ();
@@ -122,34 +210,7 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for Not<T> {
     }
 }
 
-// Implement MixedQueryComponent for TraitQuery<T> - returns () when entity has components implementing the trait
-impl<'a, T: 'static + ?Sized> MixedQueryComponent<'a> for TraitQuery<T> {
-    type Item = ();
 
-    fn get_mixed_component(world: &'a mut crate::ecs::world::World, entity: Entity) -> Option<Self::Item> {
-        use std::any::TypeId;
-        
-        // Check if entity has any components implementing this trait
-        if let Some(component_types) = world.trait_registry.get(&TypeId::of::<T>()) {
-            for component_type_id in component_types {
-                // Check regular components
-                if let Some(components) = world.components.get(component_type_id) {
-                    if components.iter().any(|(e, _)| *e == entity) {
-                        return Some(());
-                    }
-                }
-                // Check temporary components
-                if let Some(temp_components) = world.temporary_components.get(component_type_id) {
-                    if temp_components.iter().any(|(e, _)| *e == entity) {
-                        return Some(());
-                    }
-                }
-            }
-        }
-        
-        None
-    }
-}
 
 // Concrete implementations for 1 component
 impl<'a, A> MixedMultiQuery<'a> for (A,)
