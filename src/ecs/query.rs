@@ -2,7 +2,7 @@
 //!
 //! This module provides the query system for accessing components in the ECS.
 
-use crate::ecs::core::{Entity, Out, In};
+use crate::ecs::core::{Entity, Out, In, Not};
 
 /// Trait for component types that can be queried immutably
 pub trait QueryComponent<'a> {
@@ -71,6 +71,28 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for Out<T> {
                     None
                 }
             })
+    }
+}
+
+// Implement MixedQueryComponent for Not<T> - returns () when component is NOT present
+impl<'a, T: 'static> MixedQueryComponent<'a> for Not<T> {
+    type Item = ();
+
+    fn get_mixed_component(world: &'a mut crate::ecs::world::World, entity: Entity) -> Option<Self::Item> {
+        use std::any::TypeId;
+        // Check if the component exists for this entity
+        let has_component = world
+            .components
+            .get(&TypeId::of::<T>())
+            .map(|components| components.iter().any(|(e, _)| *e == entity))
+            .unwrap_or(false);
+        
+        // Return Some(()) if the component does NOT exist
+        if !has_component {
+            Some(())
+        } else {
+            None
+        }
     }
 }
 

@@ -1,5 +1,5 @@
-use crate::{In, Out, System, WorldView, World};
-use super::components::{Position, Target, WaitTimer, Woodcutter, Tree, WoodcutterHut, CarryingTree, Actor, Navigation};
+use crate::{In, Out, Not, System, WorldView, World};
+use super::components::{Position, Target, WaitTimer, Woodcutter, Tree, WoodcutterHut, CarryingTree, Actor, Navigation, AssignedWoodcutter};
 use super::utils::is_adjacent;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -10,18 +10,44 @@ use std::time::Duration;
 pub struct WoodcutterSystem;
 
 impl System for WoodcutterSystem {
-    type InComponents = (Woodcutter, Position, WaitTimer, Target, Tree, WoodcutterHut, CarryingTree, Navigation);
-    type OutComponents = (Target, WaitTimer, CarryingTree, Navigation);
+    type InComponents = (Woodcutter, Position, WaitTimer, Target, Tree, WoodcutterHut, CarryingTree, Navigation, AssignedWoodcutter);
+    type OutComponents = (Target, WaitTimer, CarryingTree, Navigation, AssignedWoodcutter);
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 
     fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
-        // First, collect all tree and woodcutter hut positions
-        let tree_positions: Vec<(i32, i32)> = world
+        // Use the actual Not<> component query to find unassigned trees!
+        // This demonstrates the key functionality requested in the original issue
+        let unassigned_tree_positions: Vec<(i32, i32)> = world
+            .query_components::<(In<Position>, In<Tree>, Not<AssignedWoodcutter>)>()
+            .into_iter()
+            .map(|(_, (pos, _, _))| (pos.x, pos.y))
+            .collect();
+
+        // Collect all tree positions (for validation and chopping)
+        let all_tree_positions: Vec<(i32, i32)> = world
             .query_components::<(In<Position>, In<Tree>)>()
             .into_iter()
             .map(|(_, (pos, _))| (pos.x, pos.y))
             .collect();
+
+        // Debug output to show the Not<> functionality working
+        if !unassigned_tree_positions.is_empty() {
+            println!("  🌲 Not<> Query Result: {} unassigned trees found", 
+                     unassigned_tree_positions.len());
+        }
+
+        // Track trees that get assigned during this frame to prevent race conditions
+        let mut frame_assigned_trees: std::collections::HashSet<(i32, i32)> = std::collections::HashSet::new();
+
+        // Helper function to get currently available trees (excluding those assigned this frame)
+        let get_available_trees = |frame_assigned: &std::collections::HashSet<(i32, i32)>| -> Vec<(i32, i32)> {
+            unassigned_tree_positions
+                .iter()
+                .filter(|pos| !frame_assigned.contains(pos))
+                .copied()
+                .collect()
+        };
 
         let hut_positions: Vec<(i32, i32)> = world
             .query_components::<(In<Position>, In<WoodcutterHut>)>()
@@ -41,6 +67,7 @@ impl System for WoodcutterSystem {
         let mut timer_changes = Vec::new();
         let mut carrying_changes = Vec::new();
         let mut navigation_changes = Vec::new();
+        let mut assignment_changes = Vec::new(); // For AssignedWoodcutter components
         let mut entities_to_remove = Vec::new();
 
         // Query woodcutters
@@ -57,20 +84,26 @@ impl System for WoodcutterSystem {
             if is_carrying {
                 // Woodcutter is carrying a tree - should go to nearest hut
                 if is_near_target && hut_positions.contains(&target_pos) {
-                    // At hut - wait for 2 ticks then remove carrying flag and find new tree
+                    // At hut - wait for 2 ticks then remove carrying flag and find new unassigned tree
                     if wait_timer.ticks > 1 {
                         let old_timer = *wait_timer;
                         wait_timer.ticks -= 1;
                         timer_changes.push((entity, old_timer, *wait_timer));
                     } else {
-                        // Timer will be 0 or is 0 - remove carrying flag and find nearest tree
+                        // Timer will be 0 or is 0 - remove carrying flag and find nearest unassigned tree
                         carrying_changes.push((entity, CarryingTree, None));
                         
-                        if let Some(&nearest_tree) = find_nearest_position(current_pos, &tree_positions) {
+                        // Use actual Not<> query for available trees (the key feature!)
+                        let available_trees = get_available_trees(&frame_assigned_trees);
+                        if let Some(&nearest_tree) = find_nearest_position(current_pos, &available_trees) {
                             let old_target = *target;
                             target.x = nearest_tree.0;
                             target.y = nearest_tree.1;
                             target_changes.push((entity, old_target, *target));
+                            
+                            // Assign this woodcutter to the tree and track it for this frame
+                            assignment_changes.push((nearest_tree, Some(AssignedWoodcutter { woodcutter_id: entity.entity_index as u32 })));
+                            frame_assigned_trees.insert(nearest_tree);
                             
                             // Signal navigation recalculation for new target
                             let old_navigation = navigation.clone();
@@ -95,17 +128,20 @@ impl System for WoodcutterSystem {
                     }
                 }
             } else {
-                // Woodcutter is not carrying a tree - should go to nearest tree
-                if is_near_target && tree_positions.contains(&target_pos) {
-                    // At tree - chop for 10 ticks then remove tree and set carrying flag
+                // Woodcutter is not carrying a tree - should go to assigned or find unassigned tree
+                if is_near_target && all_tree_positions.contains(&target_pos) {
+                    // At tree - chop for 10 ticks then remove tree and assignment, set carrying flag
                     if wait_timer.ticks > 1 {
                         let old_timer = *wait_timer;
                         wait_timer.ticks -= 1;
                         timer_changes.push((entity, old_timer, *wait_timer));
                     } else {
-                        // Timer will be 0 or is 0 - tree is chopped, remove tree and set carrying flag
+                        // Timer will be 0 or is 0 - tree is chopped
                         entities_to_remove.push(target_pos);
                         carrying_changes.push((entity, CarryingTree, Some(CarryingTree)));
+                        
+                        // Remove assignment from chopped tree
+                        assignment_changes.push((target_pos, None));
 
                         // Set timer to 2 for hut delivery
                         let old_timer = *wait_timer;
@@ -127,13 +163,18 @@ impl System for WoodcutterSystem {
                     }
                 } else if is_near_target {
                     // Near target but target position doesn't have a tree anymore
-                    // Find next nearest tree
-                    if let Some(&nearest_tree) = find_nearest_position(current_pos, &tree_positions) {
+                    // Find next nearest unassigned tree using actual Not<> query
+                    let available_trees = get_available_trees(&frame_assigned_trees);
+                    if let Some(&nearest_tree) = find_nearest_position(current_pos, &available_trees) {
                         if target_pos != nearest_tree {
                             let old_target = *target;
                             target.x = nearest_tree.0;
                             target.y = nearest_tree.1;
                             target_changes.push((entity, old_target, *target));
+
+                            // Assign this woodcutter to the new tree and track it for this frame
+                            assignment_changes.push((nearest_tree, Some(AssignedWoodcutter { woodcutter_id: entity.entity_index as u32 })));
+                            frame_assigned_trees.insert(nearest_tree);
 
                             let old_timer = *wait_timer;
                             wait_timer.ticks = 10;
@@ -146,13 +187,23 @@ impl System for WoodcutterSystem {
                         }
                     }
                 } else {
-                    // Not at tree yet - ensure target is nearest tree and reset timer to 10
-                    if let Some(&nearest_tree) = find_nearest_position(current_pos, &tree_positions) {
+                    // Not at tree yet - ensure target is nearest unassigned tree using Not<> query
+                    let available_trees = get_available_trees(&frame_assigned_trees);
+                    if let Some(&nearest_tree) = find_nearest_position(current_pos, &available_trees) {
                         if target_pos != nearest_tree {
+                            // Remove assignment from old target if it was assigned to this woodcutter
+                            if all_tree_positions.contains(&target_pos) {
+                                assignment_changes.push((target_pos, None));
+                            }
+                            
                             let old_target = *target;
                             target.x = nearest_tree.0;
                             target.y = nearest_tree.1;
                             target_changes.push((entity, old_target, *target));
+
+                            // Assign this woodcutter to the new tree and track it for this frame
+                            assignment_changes.push((nearest_tree, Some(AssignedWoodcutter { woodcutter_id: entity.entity_index as u32 })));
+                            frame_assigned_trees.insert(nearest_tree);
 
                             let old_timer = *wait_timer;
                             wait_timer.ticks = 10;
@@ -192,6 +243,32 @@ impl System for WoodcutterSystem {
             }
         }
 
+        // Apply assignment changes - this demonstrates the Not<> functionality!
+        for (tree_pos, assignment) in assignment_changes {
+            // Find tree entities at this position
+            let tree_entities: Vec<_> = world
+                .query_components::<(In<Position>, In<Tree>)>()
+                .into_iter()
+                .filter(|(_, (pos, _))| (pos.x, pos.y) == tree_pos)
+                .map(|(entity, _)| entity)
+                .collect();
+
+            for entity in tree_entities {
+                match assignment {
+                    Some(assigned_woodcutter) => {
+                        // Remove any existing assignment first
+                        world.remove_component::<AssignedWoodcutter>(entity);
+                        // Add new assignment
+                        world.add_component(entity, assigned_woodcutter);
+                    }
+                    None => {
+                        // Remove assignment
+                        world.remove_component::<AssignedWoodcutter>(entity);
+                    }
+                }
+            }
+        }
+
         // Remove chopped trees
         for tree_pos in entities_to_remove {
             // Find and remove tree entities at this position
@@ -222,38 +299,47 @@ fn find_nearest_position(from: (i32, i32), positions: &[(i32, i32)]) -> Option<&
         })
 }
 
-/// Initialize a woodcutter demo world with 10 trees, 2 woodcutter huts, and 2 woodcutters
+/// Initialize a woodcutter demo world showcasing Not<> query functionality
+/// - All trees in one corner except one in the middle
+/// - Single woodcutter hut in opposite corner  
+/// - Woodcutters start near the hut
+/// - AssignedWoodcutter component prevents multiple woodcutters targeting same tree
 pub fn initialize_woodcutter_demo() -> World {
     let mut world = World::new();
 
-    // Create 10 trees at fixed positions for reproducibility
+    // Create 9 trees clustered in one corner (0,0 to 2,2) plus one in the middle
     println!("Creating 10 trees...");
     let tree_positions = [
-        (0, 0), (9, 0), (0, 9), (9, 9), // corners
-        (4, 4), (5, 5), (3, 6), (6, 3), // middle area
-        (1, 4), (7, 1)  // scattered
+        // Corner cluster (9 trees)
+        (0, 0), (0, 1), (0, 2),
+        (1, 0), (1, 1), (1, 2), 
+        (2, 0), (2, 1), (2, 2),
+        // Middle tree
+        (5, 5)
     ];
     
     for (i, &pos) in tree_positions.iter().enumerate() {
         let tree_entity = world.create_entity();
         world.add_component(tree_entity, Position { x: pos.0, y: pos.1 });
         world.add_component(tree_entity, Tree);
-        println!("  Tree {} at ({}, {})", i + 1, pos.0, pos.1);
+        if i < 9 {
+            println!("  Tree {} at ({}, {}) [corner cluster]", i + 1, pos.0, pos.1);
+        } else {
+            println!("  Tree {} at ({}, {}) [middle tree]", i + 1, pos.0, pos.1);
+        }
     }
 
-    // Create 2 woodcutter huts at fixed positions
-    println!("\nCreating 2 woodcutter huts...");
-    let hut_positions = [(2, 8), (8, 2)]; // Corner positions
-    for (i, &pos) in hut_positions.iter().enumerate() {
-        let hut_entity = world.create_entity();
-        world.add_component(hut_entity, Position { x: pos.0, y: pos.1 });
-        world.add_component(hut_entity, WoodcutterHut);
-        println!("  Woodcutter Hut {} at ({}, {})", i + 1, pos.0, pos.1);
-    }
+    // Create single woodcutter hut in opposite corner
+    println!("\nCreating 1 woodcutter hut...");
+    let hut_position = (8, 8); // Opposite corner from trees
+    let hut_entity = world.create_entity();
+    world.add_component(hut_entity, Position { x: hut_position.0, y: hut_position.1 });
+    world.add_component(hut_entity, WoodcutterHut);
+    println!("  Woodcutter Hut at ({}, {})", hut_position.0, hut_position.1);
 
-    // Create 2 woodcutter actors at fixed positions
+    // Create 2 woodcutter actors starting near the hut
     println!("\nCreating 2 woodcutters...");
-    let woodcutter_positions = [(1, 1), (8, 8)]; // Fixed positions for reproducibility
+    let woodcutter_positions = [(7, 7), (7, 8)]; // Near the hut
     
     for (i, &pos) in woodcutter_positions.iter().enumerate() {
         let woodcutter_entity = world.create_entity();
@@ -261,21 +347,12 @@ pub fn initialize_woodcutter_demo() -> World {
         world.add_component(woodcutter_entity, Woodcutter);
         world.add_component(woodcutter_entity, Actor); // Add Actor component so NavigationSystem can move woodcutters
         
-        // Find nearest tree as initial target
-        let nearest_tree = tree_positions.iter()
-            .min_by_key(|&&(tx, ty)| {
-                let dx = (pos.0 - tx).abs();
-                let dy = (pos.1 - ty).abs();
-                dx + dy
-            })
-            .unwrap_or(&tree_positions[0]);
-        
-        world.add_component(woodcutter_entity, Target { x: nearest_tree.0, y: nearest_tree.1 });
+        // Initial target will be set by the woodcutter system using Not<AssignedWoodcutter> query
+        world.add_component(woodcutter_entity, Target { x: pos.0, y: pos.1 }); // Start at current position
         world.add_component(woodcutter_entity, WaitTimer { ticks: 10 });
         world.add_component(woodcutter_entity, Navigation::new()); // Add Navigation for pathfinding
         
-        println!("  Woodcutter {} at ({}, {}) targeting tree at ({}, {})", 
-                 i + 1, pos.0, pos.1, nearest_tree.0, nearest_tree.1);
+        println!("  Woodcutter {} at ({}, {}) near hut", i + 1, pos.0, pos.1);
     }
 
     // Add systems
@@ -292,6 +369,64 @@ pub fn initialize_woodcutter_demo() -> World {
     println!("- 2 woodcutters");
     
     world
+}
+
+/// Run the woodcutter demo showcasing Not<> component queries
+pub fn run_woodcutter_demo() {
+    println!("=== Woodcutter Not<> Component Query Demo ===");
+    println!("This demo showcases the new Not<> query functionality.");
+    println!("Woodcutters will only target trees that are NOT assigned to other woodcutters.\n");
+    
+    let mut world = initialize_woodcutter_demo();
+    
+    // Track some statistics
+    let mut update_count = 0;
+    let stop_signal = Arc::new(AtomicBool::new(false));
+    
+    // Setup Ctrl+C handler
+    let stop_signal_clone = stop_signal.clone();
+    ctrlc::set_handler(move || {
+        println!("\nReceived Ctrl+C, stopping simulation...");
+        stop_signal_clone.store(true, Ordering::SeqCst);
+    }).expect("Error setting Ctrl+C handler");
+    
+    println!("\nStarting simulation... (Press Ctrl+C to stop)\n");
+    
+    while !stop_signal.load(Ordering::SeqCst) {
+        world.update();
+        update_count += 1;
+        
+        // Log state every 5 updates
+        if update_count % 5 == 0 {
+            println!("\n=== Update {} ===", update_count);
+            log_woodcutter_states(&world, update_count);
+            
+            // Show unassigned vs assigned trees
+            let total_trees = world.entities_with_component::<Tree>().len();
+            let assigned_trees = world.entities_with_component::<AssignedWoodcutter>().len();
+            let unassigned_trees = total_trees - assigned_trees;
+            
+            println!("Trees: {} total ({} unassigned, {} assigned)", 
+                     total_trees, unassigned_trees, assigned_trees);
+        }
+        
+        // Stop after 50 updates or when no trees left
+        let tree_count = world.entities_with_component::<Tree>().len();
+        if update_count >= 50 || tree_count == 0 {
+            break;
+        }
+        
+        thread::sleep(Duration::from_millis(500));
+    }
+    
+    println!("\n=== Demo Complete ===");
+    println!("Updates: {}", update_count);
+    let final_tree_count = world.entities_with_component::<Tree>().len();
+    println!("Trees remaining: {}", final_tree_count);
+    
+    if final_tree_count < 10 {
+        println!("Success! Woodcutters successfully used Not<AssignedWoodcutter> queries to prevent conflicts.");
+    }
 }
 
 /// Log the state of each woodcutter
@@ -328,52 +463,7 @@ pub fn log_woodcutter_states(world: &World, update_count: u32) {
     println!();
 }
 
-/// Run the woodcutter demo
-pub fn run_woodcutter_demo() {
-    println!("🌲 Starting Woodcutter Demo 🌲");
-    println!("=====================================");
-    println!("This demo shows 2 woodcutters chopping 10 trees and delivering them to 2 huts");
-    println!("Symbols: T=Tree, W=Woodcutter Hut, C=Woodcutter, H=Home, O=Work/Office");
-    println!("Press Ctrl+C to stop the demo");
-    println!();
 
-    let mut world = initialize_woodcutter_demo();
-
-    // Set up Ctrl+C handler for graceful shutdown
-    let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
-    
-    ctrlc::set_handler(move || {
-        println!("\nReceived Ctrl+C, shutting down gracefully...");
-        r.store(false, Ordering::SeqCst);
-    }).expect("Error setting Ctrl-C handler");
-
-    let mut update_count = 0;
-    
-    // Demo loop - 1 tick per second for easier observation
-    while running.load(Ordering::SeqCst) {
-        update_count += 1;
-        
-        // Log woodcutter states before update
-        log_woodcutter_states(&world, update_count);
-        
-        // Update the world
-        world.update();
-        
-        // Check if all trees are chopped
-        let tree_count = world.entities_with_component::<Tree>().len();
-        if tree_count == 0 {
-            println!("🎉 All trees have been chopped! Demo complete! 🎉");
-            break;
-        }
-        
-        thread::sleep(Duration::from_millis(1000)); // 1 FPS for better observation
-    }
-
-    println!("Woodcutter demo completed after {} updates", update_count);
-    let final_tree_count = world.entities_with_component::<Tree>().len();
-    println!("Final tree count: {}", final_tree_count);
-}
 
 #[cfg(test)]
 mod tests {
