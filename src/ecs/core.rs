@@ -109,3 +109,126 @@ pub struct ComponentChange {
     pub component_type: TypeId,
     pub operation: ComponentOperation,
 }
+
+/// A generic event wrapper component that gets automatically cleaned up at the end of each frame
+/// 
+/// Events are short-lived components that systems can dispatch to communicate with other systems.
+/// They are automatically removed after all systems have been updated.
+/// 
+/// Example usage:
+/// ```rust
+/// // Define an event type
+/// struct ShotsFired {
+///     damage: i32,
+///     target_id: u32,
+/// }
+/// 
+/// // Dispatch the event by adding it to an entity
+/// world.add_component(entity, Event::new(ShotsFired { damage: 10, target_id: 5 }));
+/// 
+/// // React to the event in another system
+/// for (entity, shots_fired) in world.query_components::<Event<ShotsFired>>() {
+///     // Handle the event
+/// }
+/// ```
+#[derive(Debug, Clone)]
+pub struct Event<T> {
+    pub data: T,
+}
+
+impl<T> Event<T> {
+    /// Create a new event with the given data
+    pub fn new(data: T) -> Self {
+        Self { data }
+    }
+    
+    /// Get a reference to the event data
+    pub fn get(&self) -> &T {
+        &self.data
+    }
+    
+    /// Get a mutable reference to the event data
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.data
+    }
+    
+    /// Take ownership of the event data
+    pub fn into_inner(self) -> T {
+        self.data
+    }
+}
+
+/// Automatically generated component that indicates a component was added to an entity
+/// 
+/// This component is automatically created when any component is added to an entity.
+/// It gets cleaned up at the end of each frame.
+/// 
+/// Example usage:
+/// ```rust
+/// // React to component additions in a system
+/// for (entity, component_added) in world.query_components::<ComponentAdded<Position>>() {
+///     println!("Position component was added to entity {:?}", entity);
+/// }
+/// ```
+#[derive(Debug, Clone)]
+pub struct ComponentAdded<T> {
+    /// Phantom data to carry the component type information
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T> ComponentAdded<T> {
+    /// Create a new ComponentAdded marker
+    pub fn new() -> Self {
+        Self {
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Default for ComponentAdded<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Automatically generated component that indicates a component was removed from an entity
+/// 
+/// This component is automatically created when any component is removed from an entity.
+/// It contains the data of the removed component (moved, not copied).
+/// It gets cleaned up at the end of each frame.
+/// 
+/// Example usage:
+/// ```rust
+/// // React to component removals in a system
+/// for (entity, component_removed) in world.query_components::<ComponentRemoved<Position>>() {
+///     let old_position = component_removed.get_data();
+///     println!("Position {:?} was removed from entity {:?}", old_position, entity);
+/// }
+/// ```
+#[derive(Debug, Clone)]
+pub struct ComponentRemoved<T> {
+    /// The data from the removed component
+    pub data: T,
+}
+
+impl<T> ComponentRemoved<T> {
+    /// Create a new ComponentRemoved with the given data
+    pub fn new(data: T) -> Self {
+        Self { data }
+    }
+    
+    /// Get a reference to the removed component's data
+    pub fn get_data(&self) -> &T {
+        &self.data
+    }
+    
+    /// Get a mutable reference to the removed component's data
+    pub fn get_data_mut(&mut self) -> &mut T {
+        &mut self.data
+    }
+    
+    /// Take ownership of the removed component's data
+    pub fn into_data(self) -> T {
+        self.data
+    }
+}

@@ -3,6 +3,7 @@
 //! This module provides the query system for accessing components in the ECS.
 
 use crate::ecs::core::{Entity, Out, In, Not};
+use std::collections::HashSet;
 
 /// Trait for component types that can be queried immutably
 pub trait QueryComponent<'a> {
@@ -60,8 +61,25 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for Out<T> {
 
     fn get_mixed_component(world: &'a mut crate::ecs::world::World, entity: Entity) -> Option<Self::Item> {
         use std::any::TypeId;
-        world
+        
+        // First check regular components
+        if let Some(component) = world
             .components
+            .get_mut(&TypeId::of::<T>())?
+            .iter_mut()
+            .find_map(|(e, component)| {
+                if *e == entity {
+                    component.downcast_mut::<T>()
+                } else {
+                    None
+                }
+            }) {
+            return Some(component);
+        }
+        
+        // Then check temporary components (Events, ComponentAdded, ComponentRemoved)
+        world
+            .temporary_components
             .get_mut(&TypeId::of::<T>())?
             .iter_mut()
             .find_map(|(e, component)| {
@@ -80,15 +98,23 @@ impl<'a, T: 'static> MixedQueryComponent<'a> for Not<T> {
 
     fn get_mixed_component(world: &'a mut crate::ecs::world::World, entity: Entity) -> Option<Self::Item> {
         use std::any::TypeId;
-        // Check if the component exists for this entity
-        let has_component = world
+        
+        // Check if the component exists in regular components
+        let has_regular_component = world
             .components
             .get(&TypeId::of::<T>())
             .map(|components| components.iter().any(|(e, _)| *e == entity))
             .unwrap_or(false);
         
-        // Return Some(()) if the component does NOT exist
-        if !has_component {
+        // Check if the component exists in temporary components  
+        let has_temporary_component = world
+            .temporary_components
+            .get(&TypeId::of::<T>())
+            .map(|components| components.iter().any(|(e, _)| *e == entity))
+            .unwrap_or(false);
+        
+        // Return Some(()) if the component does NOT exist in either storage
+        if !has_regular_component && !has_temporary_component {
             Some(())
         } else {
             None
@@ -105,9 +131,23 @@ where
 
     fn query_mixed(world: &'a mut crate::ecs::world::World) -> Vec<(Entity, Self::Item)> {
         let mut results = Vec::new();
-        let entities: Vec<Entity> = world.entities.clone();
+        
+        // Get all entities from both regular and temporary component storage
+        let mut all_entities = std::collections::HashSet::new();
+        
+        // Add entities from regular entity list
+        for entity in &world.entities {
+            all_entities.insert(*entity);
+        }
+        
+        // Add entities that have temporary components
+        for components in world.temporary_components.values() {
+            for (entity, _) in components {
+                all_entities.insert(*entity);
+            }
+        }
 
-        for entity in entities {
+        for entity in all_entities {
             unsafe {
                 let world_ptr = world as *mut crate::ecs::world::World;
                 let a = A::get_mixed_component(&mut *world_ptr, entity);
@@ -132,9 +172,23 @@ where
 
     fn query_mixed(world: &'a mut crate::ecs::world::World) -> Vec<(Entity, Self::Item)> {
         let mut results = Vec::new();
-        let entities: Vec<Entity> = world.entities.clone();
+        
+        // Get all entities from both regular and temporary component storage
+        let mut all_entities = HashSet::new();
+        
+        // Add entities from regular entity list
+        for entity in &world.entities {
+            all_entities.insert(*entity);
+        }
+        
+        // Add entities that have temporary components
+        for components in world.temporary_components.values() {
+            for (entity, _) in components {
+                all_entities.insert(*entity);
+            }
+        }
 
-        for entity in entities {
+        for entity in all_entities {
             unsafe {
                 let world_ptr = world as *mut crate::ecs::world::World;
                 let a = A::get_mixed_component(&mut *world_ptr, entity);
@@ -163,9 +217,23 @@ macro_rules! impl_mixed_multi_query {
 
             fn query_mixed(world: &'a mut crate::ecs::world::World) -> Vec<(Entity, Self::Item)> {
                 let mut results = Vec::new();
-                let entities: Vec<Entity> = world.entities.clone();
+                
+                // Get all entities from both regular and temporary component storage
+                let mut all_entities = HashSet::new();
+                
+                // Add entities from regular entity list
+                for entity in &world.entities {
+                    all_entities.insert(*entity);
+                }
+                
+                // Add entities that have temporary components
+                for components in world.temporary_components.values() {
+                    for (entity, _) in components {
+                        all_entities.insert(*entity);
+                    }
+                }
 
-                for entity in entities {
+                for entity in all_entities {
                     unsafe {
                         let world_ptr = world as *mut crate::ecs::world::World;
                         $(
