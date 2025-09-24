@@ -1,7 +1,5 @@
-use rust_ecs::{Diff, DiffComponent, In, Out, Not, System, World, WorldView};
+use rust_ecs::{Diff, DiffComponent, In, Out, System, World, WorldView, game};
 use std::env;
-
-mod game;
 
 // Example components with Diff implementation using derive macro
 #[derive(Debug, Diff)]
