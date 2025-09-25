@@ -265,6 +265,7 @@ pub fn run_navigation_demo() {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     
+    #[cfg(not(target_arch = "wasm32"))]
     ctrlc::set_handler(move || {
         println!("\nReceived Ctrl+C, shutting down gracefully...");
         r.store(false, Ordering::SeqCst);

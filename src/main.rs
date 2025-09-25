@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 use rust_ecs::{Diff, DiffComponent, In, Out, System, World, WorldView, game};
 use std::env;
 

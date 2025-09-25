@@ -10,6 +10,32 @@ A Rust Entity-Component-System (ECS) framework designed for high debuggability a
 - **Replay Functionality**: Ability to replay entire game sessions to reproduce bugs
 - **Entity Management**: Full lifecycle management of entities and their components
 - **Developer-Friendly**: Clear APIs and extensive debugging capabilities
+- **WebAssembly Support**: Run the ECS framework in web browsers with full functionality
+
+## WebAssembly Support 🦀🌐
+
+The Rust ECS framework now supports compilation to WebAssembly, enabling you to run ECS applications directly in web browsers!
+
+### Quick Start for WebAssembly
+
+1. **Build for WebAssembly**:
+   ```bash
+   ./build-wasm.sh
+   ```
+
+2. **Run the web demo**:
+   ```bash
+   cd www && python3 -m http.server 8000
+   # Visit http://localhost:8000
+   ```
+
+### Features Available in WebAssembly
+- ✅ ECS World and Entity creation
+- ✅ Interactive Rust functions callable from JavaScript
+- ✅ Browser console output from Rust code
+- ✅ Real-time demonstrations
+
+For detailed WebAssembly documentation, see [WEBASSEMBLY.md](WEBASSEMBLY.md).
 
 ## Architecture
 

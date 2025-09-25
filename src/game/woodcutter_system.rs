@@ -386,6 +386,7 @@ pub fn run_woodcutter_demo() {
     
     // Setup Ctrl+C handler
     let stop_signal_clone = stop_signal.clone();
+    #[cfg(not(target_arch = "wasm32"))]
     ctrlc::set_handler(move || {
         println!("\nReceived Ctrl+C, stopping simulation...");
         stop_signal_clone.store(true, Ordering::SeqCst);

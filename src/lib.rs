@@ -83,6 +83,10 @@ pub mod replay_analysis {
 // Game module - declared after ECS so it can use ECS types
 pub mod game;
 
+// WebAssembly bindings
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
+
 #[cfg(test)]
 mod tests {
     use super::*;

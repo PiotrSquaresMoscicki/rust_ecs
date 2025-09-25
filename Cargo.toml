@@ -3,11 +3,24 @@ name = "rust_ecs"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 paste = "1.0"
 rand = "0.8"
 rust_ecs_derive = { path = "./rust_ecs_derive" }
 chrono = { version = "0.4", features = ["serde"] }
-ctrlc = "3.4"
 serde = { version = "1.0", features = ["derive"] }
 pathfinding = "4.0"
+
+# Platform-specific dependencies
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ctrlc = "3.4"
+
+# WebAssembly specific dependencies
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+web-sys = { version = "0.3", features = ["console", "Document", "Element", "HtmlElement", "Window"] }
+console_error_panic_hook = "0.1"
+getrandom = { version = "0.2", features = ["js"] }

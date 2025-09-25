@@ -124,6 +124,7 @@ fn run_game_normal() {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     
+    #[cfg(not(target_arch = "wasm32"))]
     ctrlc::set_handler(move || {
         println!("\nReceived Ctrl+C, shutting down gracefully...");
         r.store(false, Ordering::SeqCst);
@@ -369,6 +370,7 @@ fn run_replay_with_existing_systems(world: &mut World, replay_log_path: &str) ->
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     
+    #[cfg(not(target_arch = "wasm32"))]
     ctrlc::set_handler(move || {
         println!("\nReceived Ctrl+C, stopping replay...");
         r.store(false, Ordering::SeqCst);
@@ -438,6 +440,7 @@ pub fn run_simulated_replay(num_frames: usize) {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     
+    #[cfg(not(target_arch = "wasm32"))]
     ctrlc::set_handler(move || {
         println!("\nReceived Ctrl+C, stopping simulated replay...");
         r.store(false, Ordering::SeqCst);

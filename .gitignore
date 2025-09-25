@@ -32,3 +32,6 @@ Thumbs.db
 game_logs/
 demo_replay_logs/
 test_logs/
+
+# WebAssembly build artifacts
+www/pkg/

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Rust ECS WebAssembly Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        
+        .demo-section {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        #output {
+            background-color: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .input-section {
+            margin: 10px 0;
+        }
+        
+        input[type="text"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦀 Rust ECS Framework - WebAssembly Demo</h1>
+        
+        <div class="demo-section">
+            <h3>Welcome to Rust ECS in the Browser!</h3>
+            <p>This demo showcases a Rust Entity Component System (ECS) framework compiled to WebAssembly.</p>
+            <p>Open your browser's developer console to see the output from Rust code running in WebAssembly.</p>
+        </div>
+        
+        <div class="demo-section">
+            <h3>Demo Functions</h3>
+            
+            <div class="input-section">
+                <input type="text" id="nameInput" placeholder="Enter your name" value="WebAssembly Developer">
+                <button onclick="greetUser()">Greet from Rust</button>
+            </div>
+            
+            <button onclick="runEcsDemo()">Run ECS Demo</button>
+            <button onclick="clearOutput()">Clear Output</button>
+        </div>
+        
+        <div id="output"></div>
+    </div>
+
+    <script type="module">
+        import init, { greet, run_simple_demo } from './pkg/rust_ecs.js';
+        
+        let wasmModule = null;
+        
+        async function run() {
+            try {
+                // Initialize the WebAssembly module
+                wasmModule = await init();
+                
+                // Redirect console.log to our output div
+                const originalLog = console.log;
+                const outputDiv = document.getElementById('output');
+                
+                console.log = function(...args) {
+                    originalLog.apply(console, args);
+                    const message = args.map(arg => 
+                        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+                    ).join(' ');
+                    outputDiv.textContent += message + '\n';
+                    outputDiv.scrollTop = outputDiv.scrollHeight;
+                };
+                
+                // Log initial message
+                console.log('✅ WebAssembly module loaded successfully!');
+                console.log('🦀 Rust ECS Framework is ready to use in the browser.');
+                console.log('');
+                
+            } catch (err) {
+                console.error('Failed to load WebAssembly module:', err);
+                document.getElementById('output').textContent = `Error loading WebAssembly: ${err}`;
+            }
+        }
+        
+        // Make functions available globally
+        window.greetUser = function() {
+            const name = document.getElementById('nameInput').value || 'WebAssembly Developer';
+            if (wasmModule) {
+                greet(name);
+            } else {
+                console.log('WebAssembly module not loaded yet');
+            }
+        };
+        
+        window.runEcsDemo = function() {
+            if (wasmModule) {
+                run_simple_demo();
+            } else {
+                console.log('WebAssembly module not loaded yet');
+            }
+        };
+        
+        window.clearOutput = function() {
+            document.getElementById('output').textContent = '';
+        };
+        
+        // Initialize when page loads
+        run();
+    </script>
+</body>
+</html>
