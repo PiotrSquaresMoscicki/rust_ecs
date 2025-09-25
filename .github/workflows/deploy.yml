@@ -110,6 +110,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-wasm
     if: github.event_name == 'pull_request'
+    outputs:
+      preview-url: ${{ steps.netlify-deploy.outputs.deploy-url }}
+      deployment-status: ${{ steps.netlify-deploy.outcome }}
     steps:
     - name: Download WebAssembly artifacts
       uses: actions/download-artifact@v4
@@ -118,6 +121,7 @@ jobs:
         path: ./preview
 
     - name: Deploy to Netlify
+      id: netlify-deploy
       uses: nwtgck/actions-netlify@v3.0
       with:
         publish-dir: './preview'
@@ -125,47 +129,105 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         deploy-message: "Deploy from GitHub Actions - PR #${{ github.event.number }}: ${{ github.event.pull_request.title }}"
         alias: "rust-ecs-pr-${{ github.event.number }}"
-        enable-pull-request-comment: true
+        enable-pull-request-comment: false
         enable-commit-comment: false
-        overwrites-pull-request-comment: true
+        overwrites-pull-request-comment: false
       env:
         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
       timeout-minutes: 10
       continue-on-error: true
 
-    - name: Comment PR with build status
-      if: success() || failure()
+  comment-pr:
+    name: Comment on PR
+    runs-on: ubuntu-latest
+    needs: [build-wasm, deploy-pr-preview]
+    if: github.event_name == 'pull_request' && always()
+    steps:
+    - name: Comment PR with deployment status
       uses: actions/github-script@v7
       with:
         script: |
-          const buildStatus = '${{ job.status }}' === 'success' ? '✅ Success' : '❌ Failed';
-          const deploymentUrl = process.env.NETLIFY_PREVIEW_URL || 'Not available';
+          const buildStatus = '${{ needs.build-wasm.result }}' === 'success' ? '✅ Build Successful' : '❌ Build Failed';
+          const deployStatus = '${{ needs.deploy-pr-preview.result }}' === 'success' ? '✅ Deployment Successful' : '⚠️ Deployment Failed';
+          const previewUrl = '${{ needs.deploy-pr-preview.outputs.preview-url }}';
           
-          const comment = `## 🦀 WebAssembly Build Status: ${buildStatus}
+          let deploymentSection = '';
+          if ('${{ needs.deploy-pr-preview.outputs.deployment-status }}' === 'success' && previewUrl && previewUrl !== 'undefined') {
+            deploymentSection = `
+          ## 🌐 Live Preview Available
           
-          Your WebAssembly demo has been built successfully!
+          **🔗 [View Live Demo](${previewUrl})**
           
-          ${deploymentUrl !== 'Not available' ? `**🔗 [Preview Link](${deploymentUrl})**` : '**Preview deployment is not available** (Netlify secrets not configured)'}
+          The WebAssembly demo is now live and ready for testing!`;
+          } else if ('${{ secrets.NETLIFY_AUTH_TOKEN }}' === '' || '${{ secrets.NETLIFY_SITE_ID }}' === '') {
+            deploymentSection = `
+          ## 📦 Deployment Artifacts Available
           
-          ### Features Available:
-          - ✅ Hello World from Rust WebAssembly  
-          - ✅ Interactive greeting function
-          - ✅ Basic ECS World and Entity creation demo
-          - ✅ Real-time console output
+          **Preview deployment requires Netlify configuration.** You can still test the demo:
           
-          ### Manual Testing:
-          You can also download the artifacts and test locally:
           1. Download the \`${{ needs.build-wasm.outputs.artifact-name }}\` artifact from this workflow run
-          2. Extract and serve with: \`python3 -m http.server 8000\`
-          3. Visit \`http://localhost:8000\`
+          2. Extract and serve locally: \`python3 -m http.server 8000\`
+          3. Visit \`http://localhost:8000\``;
+          } else {
+            deploymentSection = `
+          ## ⚠️ Deployment Issue
+          
+          The build completed successfully, but deployment failed. You can still test manually:
+          
+          1. Download the \`${{ needs.build-wasm.outputs.artifact-name }}\` artifact from this workflow run
+          2. Extract and serve locally: \`python3 -m http.server 8000\`
+          3. Visit \`http://localhost:8000\``;
+          }
+          
+          const comment = `## 🦀 WebAssembly Demo - PR #${{ github.event.number }}
+          
+          **Build Status:** ${buildStatus}
+          **Deployment Status:** ${deployStatus}
+          ${deploymentSection}
+          
+          ### ✨ Demo Features
+          - 🌟 Hello World from Rust WebAssembly  
+          - 🎮 Interactive greeting function
+          - 🏗️ ECS World and Entity creation demo
+          - 📝 Real-time console output
+          - 🎨 Responsive web interface
+          
+          ### 🔧 Testing Instructions
+          Open the preview link above, then:
+          1. Check browser console for Rust log messages
+          2. Try the "Greet from Rust" button with your name
+          3. Click "Run ECS Demo" to see entity creation
+          4. All output appears in both the console and on-page display
           
           ---
-          *This comment was automatically generated by the deployment workflow.*`;
+          *🤖 Auto-generated by GitHub Actions • [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
           
-          github.rest.issues.createComment({
+          // Find existing comment to update
+          const comments = await github.rest.issues.listComments({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: comment
           });
+          
+          const existingComment = comments.data.find(comment => 
+            comment.body.includes('🦀 WebAssembly Demo - PR #${{ github.event.number }}')
+          );
+          
+          if (existingComment) {
+            // Update existing comment
+            await github.rest.issues.updateComment({
+              comment_id: existingComment.id,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          } else {
+            // Create new comment
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          }

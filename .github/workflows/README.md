@@ -14,11 +14,19 @@ This directory contains the GitHub Actions workflows for the Rust ECS project.
 - **Triggers**: 
   - Pushes to `dev` branch → Deploy to GitHub Pages
   - Pull requests to `dev` branch → Create preview deployments
+- **Jobs**:
+  - `build-wasm`: Builds WebAssembly module and uploads artifacts
+  - `deploy-pages`: Deploys to GitHub Pages (push to dev only)
+  - `deploy-pr-preview`: Creates Netlify preview deployment (PRs only)
+  - `comment-pr`: Posts/updates PR comments with deployment status and links
 - **Features**:
   - Builds WebAssembly module using `wasm-pack`
   - Deploys main site to GitHub Pages automatically
-  - Creates preview deployments for PRs (with Netlify fallback)
-  - Adds PR comments with build status and preview links
+  - Creates preview deployments for PRs (with Netlify integration)
+  - Posts comprehensive PR comments with deployment status and preview links
+  - Updates existing comments instead of creating duplicates
+  - Provides fallback instructions when Netlify is not configured
+  - Handles both successful and failed deployments gracefully
 
 ## Setting Up Deployments
 
