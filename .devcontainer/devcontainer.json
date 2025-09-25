@@ -4,7 +4,14 @@
 	
 	"features": {
 		"ghcr.io/devcontainers/features/git:1": {},
-		"ghcr.io/devcontainers/features/github-cli:1": {}
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/devcontainers/features/node:1": {
+			"nodeGypDependencies": true,
+			"version": "lts"
+		},
+		"ghcr.io/devcontainers/features/python:1": {
+			"version": "3.11"
+		}
 	},
 
 	"customizations": {
@@ -16,13 +23,16 @@
 				"tamasfe.even-better-toml",
 				"ms-vscode.test-adapter-converter",
 				"hbenl.vscode-test-explorer",
-				"ms-vscode.vscode-json"
+				"ms-vscode.vscode-json",
+				"ms-vscode.live-server",
+				"bradlc.vscode-tailwindcss",
+				"formulahendry.auto-rename-tag"
 			],
 			"settings": {
 				"rust-analyzer.cargo.autoreload": true,
-			"rust-analyzer.checkOnSave": true,
-			"rust-analyzer.check.command": "clippy",
-			"rust-analyzer.check.extraArgs": [],
+				"rust-analyzer.checkOnSave": true,
+				"rust-analyzer.check.command": "clippy",
+				"rust-analyzer.check.extraArgs": [],
 				"rust-analyzer.cargo.features": "all",
 				"editor.formatOnSave": true,
 				"editor.defaultFormatter": "rust-lang.rust-analyzer"
@@ -30,7 +40,24 @@
 		}
 	},
 
-	"postCreateCommand": "rustc --version && cargo --version && rustup component add clippy rustfmt",
+	"postCreateCommand": "bash .devcontainer/setup.sh",
+
+	"forwardPorts": [8000, 3000, 5000],
+
+	"portsAttributes": {
+		"8000": {
+			"label": "WebAssembly Demo Server",
+			"onAutoForward": "notify"
+		},
+		"3000": {
+			"label": "Development Server",
+			"onAutoForward": "notify"
+		},
+		"5000": {
+			"label": "Alternative Server",
+			"onAutoForward": "notify"
+		}
+	},
 
 	"remoteUser": "vscode"
 }
