@@ -53,23 +53,30 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cargo/bin/wasm-pack
-        key: ${{ runner.os }}-wasm-pack
+        key: ${{ runner.os }}-wasm-pack-0.12
         restore-keys: |
-          ${{ runner.os }}-wasm-pack
+          ${{ runner.os }}-wasm-pack-
 
     - name: Install wasm-pack
       run: |
         if [ ! -f ~/.cargo/bin/wasm-pack ]; then
           echo "Installing wasm-pack..."
-          cargo install wasm-pack
+          cargo install wasm-pack --version 0.12.1
         else
           echo "wasm-pack already cached"
         fi
+        ~/.cargo/bin/wasm-pack --version
+
+    - name: Clean previous builds
+      run: |
+        echo "Cleaning previous builds..."
+        rm -rf www/pkg/
+        rm -rf target/wasm32-unknown-unknown/
 
     - name: Build WebAssembly
       run: |
         echo "Building WebAssembly..."
-        wasm-pack build --target web --out-dir www/pkg --release
+        ~/.cargo/bin/wasm-pack build --target web --out-dir www/pkg --release --no-default-features
         echo "Build completed successfully"
         ls -la www/pkg/
 
@@ -78,17 +85,22 @@ jobs:
         echo "Verifying WebAssembly build artifacts..."
         if [ ! -f "www/pkg/rust_ecs.js" ]; then
           echo "❌ Missing rust_ecs.js"
+          ls -la www/pkg/
           exit 1
         fi
         if [ ! -f "www/pkg/rust_ecs_bg.wasm" ]; then
           echo "❌ Missing rust_ecs_bg.wasm"
+          ls -la www/pkg/
           exit 1
         fi
         if [ ! -f "www/index.html" ]; then
           echo "❌ Missing index.html"
+          ls -la www/
           exit 1
         fi
         echo "✅ All required artifacts are present"
+        echo "File sizes:"
+        du -h www/pkg/* www/index.html
 
     - name: Prepare deployment files
       id: artifact
@@ -140,6 +152,14 @@ jobs:
           echo "❌ Missing pkg/ directory in public/"
           exit 1
         fi
+        if [ ! -f "./public/pkg/rust_ecs.js" ]; then
+          echo "❌ Missing rust_ecs.js in public/pkg/"
+          exit 1
+        fi
+        if [ ! -f "./public/pkg/rust_ecs_bg.wasm" ]; then
+          echo "❌ Missing rust_ecs_bg.wasm in public/pkg/"
+          exit 1
+        fi
         echo "✅ GitHub Pages artifacts verified"
 
     - name: Setup Pages
@@ -181,6 +201,14 @@ jobs:
           echo "❌ Missing pkg/ directory in preview/"
           exit 1
         fi
+        if [ ! -f "./preview/pkg/rust_ecs.js" ]; then
+          echo "❌ Missing rust_ecs.js in preview/pkg/"
+          exit 1
+        fi
+        if [ ! -f "./preview/pkg/rust_ecs_bg.wasm" ]; then
+          echo "❌ Missing rust_ecs_bg.wasm in preview/pkg/"
+          exit 1
+        fi
         echo "✅ Preview artifacts verified"
 
     - name: Deploy to Netlify
@@ -195,10 +223,11 @@ jobs:
         enable-pull-request-comment: false
         enable-commit-comment: false
         overwrites-pull-request-comment: false
+        functions-dir: ""
       env:
         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-      timeout-minutes: 10
+      timeout-minutes: 15
       continue-on-error: true
 
     - name: Debug deployment outputs
@@ -206,6 +235,16 @@ jobs:
         echo "Netlify deployment outputs:"
         echo "Deploy URL: ${{ steps.netlify-deploy.outputs.deploy-url }}"
         echo "Outcome: ${{ steps.netlify-deploy.outcome }}"
+        echo "NETLIFY_AUTH_TOKEN set: ${{ secrets.NETLIFY_AUTH_TOKEN != '' }}"
+        echo "NETLIFY_SITE_ID set: ${{ secrets.NETLIFY_SITE_ID != '' }}"
+
+    - name: Alternative deployment fallback
+      if: steps.netlify-deploy.outcome != 'success'
+      run: |
+        echo "Netlify deployment failed, creating deployment summary..."
+        echo "Preview files are available as artifacts for manual testing."
+        echo "Files in preview directory:"
+        find ./preview -type f -name "*.html" -o -name "*.js" -o -name "*.wasm" | head -20
 
   comment-pr:
     name: Comment on PR
@@ -227,7 +266,7 @@ jobs:
           console.log('Deployment status:', '${{ needs.deploy-pr-preview.outputs.deployment-status }}');
           
           let deploymentSection = '';
-          if ('${{ needs.deploy-pr-preview.outputs.deployment-status }}' === 'success' && previewUrl && previewUrl !== 'undefined' && previewUrl !== '') {
+          if ('${{ needs.deploy-pr-preview.outputs.deployment-status }}' === 'success' && previewUrl && previewUrl !== 'undefined' && previewUrl !== '' && previewUrl !== 'null') {
             deploymentSection = `
           ## 🌐 Live Preview Available
           
@@ -245,7 +284,10 @@ jobs:
           3. Visit \`http://localhost:8000\`
           
           **To enable live previews:**
-          - Set up a Netlify site and configure \`NETLIFY_AUTH_TOKEN\` and \`NETLIFY_SITE_ID\` secrets`;
+          1. Create a Netlify account and site
+          2. Get your Site ID from Netlify dashboard
+          3. Generate an auth token from Netlify settings
+          4. Add \`NETLIFY_AUTH_TOKEN\` and \`NETLIFY_SITE_ID\` to repository secrets`;
           } else {
             deploymentSection = `
           ## ⚠️ Deployment Issue
@@ -259,7 +301,8 @@ jobs:
           **Debug Info:**
           - Build Status: ${{ needs.build-wasm.result }}
           - Deploy Status: ${{ needs.deploy-pr-preview.result }}
-          - Preview URL: ${previewUrl || 'Not available'}`;
+          - Preview URL: ${previewUrl || 'Not available'}
+          - Deployment Status: ${{ needs.deploy-pr-preview.outputs.deployment-status }}`;
           }
           
           const comment = `## 🦀 WebAssembly Demo - PR #${{ github.event.number }}
@@ -286,32 +329,37 @@ jobs:
           *🤖 Auto-generated by GitHub Actions • [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
           
           // Find existing comment to update
-          const comments = await github.rest.issues.listComments({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-          });
-          
-          const existingComment = comments.data.find(comment => 
-            comment.body.includes('🦀 WebAssembly Demo - PR #${{ github.event.number }}')
-          );
-          
-          if (existingComment) {
-            // Update existing comment
-            await github.rest.issues.updateComment({
-              comment_id: existingComment.id,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
-            console.log('Updated existing comment');
-          } else {
-            // Create new comment
-            await github.rest.issues.createComment({
+          try {
+            const comments = await github.rest.issues.listComments({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: comment
             });
-            console.log('Created new comment');
+            
+            const existingComment = comments.data.find(comment => 
+              comment.body.includes('🦀 WebAssembly Demo - PR #${{ github.event.number }}')
+            );
+            
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                comment_id: existingComment.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+              console.log('Updated existing comment');
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+              console.log('Created new comment');
+            }
+          } catch (error) {
+            console.error('Error posting comment:', error);
+            console.log('Comment content:', comment);
           }
