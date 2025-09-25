@@ -5,7 +5,7 @@ set -e
 echo "🦀 Building Rust ECS for WebAssembly..."
 
 # Build the WebAssembly module
-wasm-pack build --target web --out-dir www/pkg --dev
+wasm-pack build --target web --out-dir www/pkg --release
 
 echo "✅ WebAssembly build complete!"
 echo "📁 Files generated in www/pkg/"

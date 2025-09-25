@@ -52,6 +52,16 @@ This will generate WebAssembly files in the `www/pkg/` directory:
 
 ## Running the Demo
 
+### Automated Deployment (Recommended)
+
+The WebAssembly demo is automatically deployed via GitHub Actions:
+
+- **🌐 Production**: Pushes to the `dev` branch are automatically deployed to GitHub Pages
+- **🔍 PR Previews**: Pull requests to `dev` get preview deployments with unique URLs
+- **📦 Artifacts**: All builds generate downloadable artifacts for manual testing
+
+### Manual Build and Test
+
 1. **Build the WebAssembly module**:
    ```bash
    ./build-wasm.sh
@@ -140,6 +150,31 @@ Current WebAssembly implementation:
 - No game loop or advanced demos
 - Console output only (no canvas rendering yet)
 - Limited to basic World and Entity operations
+
+## Deployment
+
+### GitHub Actions Integration
+
+The project includes automated deployment workflows:
+
+#### Production Deployment
+- **Trigger**: Push to `dev` branch
+- **Target**: GitHub Pages (automatic)
+- **Build**: Release-optimized WebAssembly
+- **URL**: Available at your repository's GitHub Pages URL
+
+#### PR Preview Deployments
+- **Trigger**: Pull requests to `dev` branch  
+- **Target**: Netlify (requires setup) or downloadable artifacts
+- **Build**: Release-optimized WebAssembly with PR branding
+- **URL**: Unique preview URL for each PR (if Netlify is configured)
+
+#### Setup Instructions
+1. **GitHub Pages**: Enable in repository Settings → Pages → Source: "GitHub Actions"
+2. **PR Previews** (optional): Set up Netlify secrets (see `.github/workflows/README.md`)
+3. **Manual Testing**: Download artifacts from any workflow run
+
+For detailed setup instructions, see [`.github/workflows/README.md`](.github/workflows/README.md).
 
 ## Future Enhancements
 
