@@ -60,6 +60,7 @@ jobs:
     - name: Install wasm-pack
       run: |
         if [ ! -f ~/.cargo/bin/wasm-pack ]; then
+          echo "Installing wasm-pack..."
           cargo install wasm-pack
         else
           echo "wasm-pack already cached"
@@ -67,7 +68,27 @@ jobs:
 
     - name: Build WebAssembly
       run: |
+        echo "Building WebAssembly..."
         wasm-pack build --target web --out-dir www/pkg --release
+        echo "Build completed successfully"
+        ls -la www/pkg/
+
+    - name: Verify build artifacts
+      run: |
+        echo "Verifying WebAssembly build artifacts..."
+        if [ ! -f "www/pkg/rust_ecs.js" ]; then
+          echo "❌ Missing rust_ecs.js"
+          exit 1
+        fi
+        if [ ! -f "www/pkg/rust_ecs_bg.wasm" ]; then
+          echo "❌ Missing rust_ecs_bg.wasm"
+          exit 1
+        fi
+        if [ ! -f "www/index.html" ]; then
+          echo "❌ Missing index.html"
+          exit 1
+        fi
+        echo "✅ All required artifacts are present"
 
     - name: Prepare deployment files
       id: artifact
@@ -79,6 +100,7 @@ jobs:
         else
           echo "artifact-name=wasm-demo-main" >> $GITHUB_OUTPUT
         fi
+        echo "Prepared deployment files for: $(cat $GITHUB_OUTPUT | grep artifact-name | cut -d'=' -f2)"
 
     - name: Upload WebAssembly artifacts
       uses: actions/upload-artifact@v4
@@ -105,6 +127,20 @@ jobs:
       with:
         name: ${{ needs.build-wasm.outputs.artifact-name }}
         path: ./public
+
+    - name: Verify downloaded artifacts
+      run: |
+        echo "Verifying downloaded artifacts for GitHub Pages..."
+        ls -la ./public/
+        if [ ! -f "./public/index.html" ]; then
+          echo "❌ Missing index.html in public/"
+          exit 1
+        fi
+        if [ ! -d "./public/pkg" ]; then
+          echo "❌ Missing pkg/ directory in public/"
+          exit 1
+        fi
+        echo "✅ GitHub Pages artifacts verified"
 
     - name: Setup Pages
       uses: actions/configure-pages@v4
@@ -133,6 +169,20 @@ jobs:
         name: ${{ needs.build-wasm.outputs.artifact-name }}
         path: ./preview
 
+    - name: Verify preview artifacts
+      run: |
+        echo "Verifying preview artifacts..."
+        ls -la ./preview/
+        if [ ! -f "./preview/index.html" ]; then
+          echo "❌ Missing index.html in preview/"
+          exit 1
+        fi
+        if [ ! -d "./preview/pkg" ]; then
+          echo "❌ Missing pkg/ directory in preview/"
+          exit 1
+        fi
+        echo "✅ Preview artifacts verified"
+
     - name: Deploy to Netlify
       id: netlify-deploy
       uses: nwtgck/actions-netlify@v3.0
@@ -151,6 +201,12 @@ jobs:
       timeout-minutes: 10
       continue-on-error: true
 
+    - name: Debug deployment outputs
+      run: |
+        echo "Netlify deployment outputs:"
+        echo "Deploy URL: ${{ steps.netlify-deploy.outputs.deploy-url }}"
+        echo "Outcome: ${{ steps.netlify-deploy.outcome }}"
+
   comment-pr:
     name: Comment on PR
     runs-on: ubuntu-latest
@@ -164,6 +220,11 @@ jobs:
           const buildStatus = '${{ needs.build-wasm.result }}' === 'success' ? '✅ Build Successful' : '❌ Build Failed';
           const deployStatus = '${{ needs.deploy-pr-preview.result }}' === 'success' ? '✅ Deployment Successful' : '⚠️ Deployment Failed';
           const previewUrl = '${{ needs.deploy-pr-preview.outputs.preview-url }}';
+          
+          console.log('Build result:', '${{ needs.build-wasm.result }}');
+          console.log('Deploy result:', '${{ needs.deploy-pr-preview.result }}');
+          console.log('Preview URL:', previewUrl);
+          console.log('Deployment status:', '${{ needs.deploy-pr-preview.outputs.deployment-status }}');
           
           let deploymentSection = '';
           if ('${{ needs.deploy-pr-preview.outputs.deployment-status }}' === 'success' && previewUrl && previewUrl !== 'undefined' && previewUrl !== '') {
@@ -181,7 +242,10 @@ jobs:
           
           1. Download the \`${{ needs.build-wasm.outputs.artifact-name }}\` artifact from this workflow run
           2. Extract and serve locally: \`python3 -m http.server 8000\`
-          3. Visit \`http://localhost:8000\``;
+          3. Visit \`http://localhost:8000\`
+          
+          **To enable live previews:**
+          - Set up a Netlify site and configure \`NETLIFY_AUTH_TOKEN\` and \`NETLIFY_SITE_ID\` secrets`;
           } else {
             deploymentSection = `
           ## ⚠️ Deployment Issue
@@ -190,7 +254,12 @@ jobs:
           
           1. Download the \`${{ needs.build-wasm.outputs.artifact-name }}\` artifact from this workflow run
           2. Extract and serve locally: \`python3 -m http.server 8000\`
-          3. Visit \`http://localhost:8000\``;
+          3. Visit \`http://localhost:8000\`
+          
+          **Debug Info:**
+          - Build Status: ${{ needs.build-wasm.result }}
+          - Deploy Status: ${{ needs.deploy-pr-preview.result }}
+          - Preview URL: ${previewUrl || 'Not available'}`;
           }
           
           const comment = `## 🦀 WebAssembly Demo - PR #${{ github.event.number }}
@@ -235,6 +304,7 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
+            console.log('Updated existing comment');
           } else {
             // Create new comment
             await github.rest.issues.createComment({
@@ -243,4 +313,5 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
+            console.log('Created new comment');
           }
