@@ -63,7 +63,7 @@ pub use rust_ecs_derive::Diff;
 
 // Re-export the most commonly used types from the ECS module for convenience
 pub use ecs::{
-    Entity, Out, In, Not, TraitQuery, InTrait, OutTrait, ComponentChange, ComponentOperation, WorldOperation,
+    Entity, Out, In, Not, InTrait, OutTrait, ComponentChange, ComponentOperation, WorldOperation,
     Event, ComponentAdded, ComponentRemoved,
     DiffComponent, DiffComponentChange,
     System, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory,
