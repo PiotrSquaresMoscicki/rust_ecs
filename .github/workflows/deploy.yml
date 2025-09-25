@@ -20,7 +20,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
         targets: wasm32-unknown-unknown
@@ -49,8 +49,21 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-build-target-wasm-
 
+    - name: Cache wasm-pack
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin/wasm-pack
+        key: ${{ runner.os }}-wasm-pack
+        restore-keys: |
+          ${{ runner.os }}-wasm-pack
+
     - name: Install wasm-pack
-      run: cargo install wasm-pack
+      run: |
+        if [ ! -f ~/.cargo/bin/wasm-pack ]; then
+          cargo install wasm-pack
+        else
+          echo "wasm-pack already cached"
+        fi
 
     - name: Build WebAssembly
       run: |
@@ -97,7 +110,7 @@ jobs:
       uses: actions/configure-pages@v4
 
     - name: Upload to GitHub Pages
-      uses: actions/upload-pages-artifact@v3
+      uses: actions/upload-pages-artifact@v4
       with:
         path: ./public
 
@@ -153,7 +166,7 @@ jobs:
           const previewUrl = '${{ needs.deploy-pr-preview.outputs.preview-url }}';
           
           let deploymentSection = '';
-          if ('${{ needs.deploy-pr-preview.outputs.deployment-status }}' === 'success' && previewUrl && previewUrl !== 'undefined') {
+          if ('${{ needs.deploy-pr-preview.outputs.deployment-status }}' === 'success' && previewUrl && previewUrl !== 'undefined' && previewUrl !== '') {
             deploymentSection = `
           ## 🌐 Live Preview Available
           

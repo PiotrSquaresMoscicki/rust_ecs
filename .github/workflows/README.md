@@ -27,6 +27,9 @@ This directory contains the GitHub Actions workflows for the Rust ECS project.
   - Updates existing comments instead of creating duplicates
   - Provides fallback instructions when Netlify is not configured
   - Handles both successful and failed deployments gracefully
+  - **Enhanced caching** for faster builds (includes wasm-pack caching)
+  - **Consistent action versions** for better compatibility
+  - **Improved URL validation** to avoid empty/undefined preview links
 
 ## Setting Up Deployments
 
