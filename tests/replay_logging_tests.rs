@@ -21,9 +21,9 @@ fn test_complete_replay_logging_workflow() {
     assert!(world.is_replay_logging_enabled());
     assert!(world.replay_session_id().is_some());
     
-    // Create some entities and run updates
-    let entity1 = world.create_entity();
-    let entity2 = world.create_entity();
+    // Create some entities and run updates (entities used for test setup)
+    let _entity1 = world.create_entity();
+    let _entity2 = world.create_entity();
     
     // Run some updates to generate history
     for i in 0..10 {
@@ -40,7 +40,8 @@ fn test_complete_replay_logging_workflow() {
     
     // Verify the analysis results
     assert_eq!(stats.total_updates, 10);
-    assert!(stats.total_system_executions >= 0); // May be 0 if no systems added
+    // Note: total_system_executions is a usize, so it's always >= 0, but this verifies the field exists
+    let _system_exec_count = stats.total_system_executions; // May be 0 if no systems added
     
     // Test anomaly detection (should find no anomalies in uniform data)
     let anomalous = replay_analysis::find_anomalous_frames(history, 2.0);

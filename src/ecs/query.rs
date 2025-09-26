@@ -205,8 +205,12 @@ where
 }
 
 // Implementation macro for generating query implementations for multiple component counts
+// Note: The generic parameter names (A, B, C, etc.) are intentionally uppercase as they represent
+// type parameters in generic implementations. The snake_case warning is suppressed for this macro.
+#[allow(non_snake_case)]
 macro_rules! impl_mixed_multi_query {
     ($($generic:ident),+) => {
+        #[allow(non_snake_case)]
         impl<'a, $($generic),+> MixedMultiQuery<'a> for ($($generic,)+)
         where
             $(
@@ -253,6 +257,8 @@ macro_rules! impl_mixed_multi_query {
 }
 
 // Generate implementations for up to 16 components
+// These macro invocations use uppercase type parameters as part of the macro design pattern.
+// The non_snake_case warning is suppressed within the macro definition.
 impl_mixed_multi_query!(A, B, C);
 impl_mixed_multi_query!(A, B, C, D);
 impl_mixed_multi_query!(A, B, C, D, E);
