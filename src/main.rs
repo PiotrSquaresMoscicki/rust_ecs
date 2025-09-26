@@ -34,6 +34,7 @@ impl System for MovementSystem {
     type InComponents = (Velocity,);
     type OutComponents = (Position,);
     type Dependencies = ();
+    type Ordering = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("MovementSystem initialized");
@@ -73,6 +74,7 @@ impl System for HealthSystem {
     type InComponents = ();
     type OutComponents = (Health,);
     type Dependencies = ();
+    type Ordering = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("HealthSystem initialized");
@@ -105,6 +107,7 @@ impl System for PhysicsSystem {
     type InComponents = (Position, Velocity);
     type OutComponents = ();
     type Dependencies = (MovementSystem,);
+    type Ordering = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("PhysicsSystem initialized (depends on MovementSystem)");

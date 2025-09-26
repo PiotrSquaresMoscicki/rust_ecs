@@ -13,6 +13,7 @@ impl System for WoodcutterSystem {
     type InComponents = (Woodcutter, Position, WaitTimer, Target, Tree, WoodcutterHut, CarryingTree, Navigation, AssignedWoodcutter);
     type OutComponents = (Target, WaitTimer, CarryingTree, Navigation, AssignedWoodcutter);
     type Dependencies = ();
+    type Ordering = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
 

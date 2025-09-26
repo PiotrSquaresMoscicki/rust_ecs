@@ -138,6 +138,8 @@ mod tests {
         type InComponents = ();
         type OutComponents = ();
         type Dependencies = ();
+        type Ordering = ();
+
 
         fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
             // Test system initialization
@@ -846,6 +848,8 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = ();
+        type Ordering = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -856,6 +860,7 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = (SystemA,);
+        type Ordering = ();
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -880,6 +885,8 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = ();
+        type Ordering = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -890,6 +897,8 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = ();
+        type Ordering = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -900,6 +909,7 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = (SystemX, SystemY);
+        type Ordering = ();
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -923,6 +933,8 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = ();
+        type Ordering = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -933,6 +945,7 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = (ChainA,);
+        type Ordering = ();
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -943,6 +956,7 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = (ChainB,);
+        type Ordering = ();
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -966,6 +980,8 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = ();
+        type Ordering = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -976,6 +992,8 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = ();
+        type Ordering = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -1001,6 +1019,7 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = (CircularB,);
+        type Ordering = ();
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -1011,6 +1030,7 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = (CircularA,);
+        type Ordering = ();
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -1035,6 +1055,7 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = (NonExistentSystem,);
+        type Ordering = ();
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -1045,6 +1066,8 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type Dependencies = ();
+        type Ordering = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}

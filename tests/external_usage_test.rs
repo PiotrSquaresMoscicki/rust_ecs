@@ -24,6 +24,8 @@ fn test_library_imports() {
         type InComponents = ();
         type OutComponents = ();
         type Dependencies = ();
+        type Ordering = ();
+
         
         fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
         fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
