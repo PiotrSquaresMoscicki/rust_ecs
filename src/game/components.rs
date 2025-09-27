@@ -116,3 +116,62 @@ pub struct CarryingTree;
 pub struct AssignedWoodcutter {
     pub woodcutter_id: u32,
 }
+
+// Component trait implementations for all game components
+// Most components have no requirements (empty tuple)
+
+impl crate::Component for Position {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for Home {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for Work {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for Actor {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for Obstacle {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for Target {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for WaitTimer {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for Navigation {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for ActorState {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for Tree {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for WoodcutterHut {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for Woodcutter {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for CarryingTree {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for AssignedWoodcutter {
+    type RequiredComponents = ();
+}

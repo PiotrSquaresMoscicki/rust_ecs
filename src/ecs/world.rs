@@ -6,7 +6,7 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use crate::ecs::core::{ComponentAdded, ComponentRemoved, Entity, Event, WorldOperation};
+use crate::ecs::core::{Component, ComponentAdded, ComponentRemoved, Entity, Event, RequiredComponentsCheck, WorldOperation};
 use crate::ecs::diff::{Diff, DiffComponentChange};
 use crate::ecs::query::MixedMultiQuery;
 use crate::ecs::replay::{AutoReplayLogger, ReplayLogConfig};
@@ -197,6 +197,33 @@ impl World {
         }
     }
 
+    /// Add a component to an entity with requirement checking
+    /// Returns Ok(()) if the component was added successfully, or Err with an error message if requirements are not met
+    pub fn add_component_checked<T: Component>(&mut self, entity: Entity, component: T) -> Result<(), String> {
+        // Check if all required components are present
+        if !T::RequiredComponents::check_requirements(self, entity) {
+            return Err(format!(
+                "Cannot add component '{}' to entity {:?}: required components are missing",
+                std::any::type_name::<T>(),
+                entity
+            ));
+        }
+
+        // Add the component to regular storage
+        self.components
+            .entry(TypeId::of::<T>())
+            .or_default()
+            .push((entity, Box::new(component)));
+
+        // Automatically create a ComponentAdded notification
+        // Only create notification for non-temporary components to avoid infinite recursion
+        if !Self::is_event_or_notification::<T>() {
+            self.add_temporary_component(entity, ComponentAdded::<T>::new());
+        }
+
+        Ok(())
+    }
+
     /// Remove a component from an entity
     pub fn remove_component<T: 'static>(&mut self, entity: Entity) -> Option<T> {
         if let Some(components) = self.components.get_mut(&TypeId::of::<T>()) {
@@ -298,6 +325,23 @@ impl World {
             })
         } else {
             None
+        }
+    }
+
+    /// Check if an entity has a specific component type
+    pub fn has_component<T: 'static>(&self, entity: Entity) -> bool {
+        // Check regular components
+        if let Some(components) = self.components.get(&TypeId::of::<T>()) {
+            if components.iter().any(|(e, _)| *e == entity) {
+                return true;
+            }
+        }
+
+        // Check temporary components (Events, ComponentAdded, ComponentRemoved)
+        if let Some(temp_components) = self.temporary_components.get(&TypeId::of::<T>()) {
+            temp_components.iter().any(|(e, _)| *e == entity)
+        } else {
+            false
         }
     }
 
@@ -782,6 +826,12 @@ impl<I, O> WorldView<I, O> {
     /// Add a component to an entity
     pub fn add_component<T: 'static>(&mut self, entity: Entity, component: T) {
         unsafe { self.world_mut().add_component(entity, component) }
+    }
+
+    /// Add a component to an entity with requirement checking
+    /// Returns Ok(()) if the component was added successfully, or Err with an error message if requirements are not met
+    pub fn add_component_checked<T: Component>(&mut self, entity: Entity, component: T) -> Result<(), String> {
+        unsafe { self.world_mut().add_component_checked(entity, component) }
     }
 
     /// Get a component for an entity (if it exists)
