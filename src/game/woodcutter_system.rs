@@ -1,6 +1,6 @@
 use super::components::{
     Actor, AssignedWoodcutter, CarryingTree, Navigation, Position, Target, Tree, WaitTimer,
-    Woodcutter, WoodcutterHut,
+    Woodcutter, WoodcutterHut, GRID_HEIGHT, GRID_WIDTH,
 };
 use super::utils::is_adjacent;
 use crate::{In, Not, Out, System, World, WorldView};
@@ -359,42 +359,60 @@ fn find_nearest_position(from: (i32, i32), positions: &[(i32, i32)]) -> Option<&
 pub fn initialize_woodcutter_demo() -> World {
     let mut world = World::new();
 
-    // Create 9 trees clustered in one corner (0,0 to 2,2) plus one in the middle
-    println!("Creating 10 trees...");
-    let tree_positions = [
-        // Corner cluster (9 trees)
-        (0, 0),
-        (0, 1),
-        (0, 2),
-        (1, 0),
-        (1, 1),
-        (1, 2),
-        (2, 0),
-        (2, 1),
-        (2, 2),
-        // Middle tree
-        (5, 5),
-    ];
+    // Create trees to fill approximately 40% of the 15x30 grid (180 trees out of 450 cells)
+    println!("Creating ~180 trees (40% of map coverage)...");
+    let mut tree_positions = Vec::new();
+    
+    // Generate tree positions scattered across the map
+    use rand::prelude::*;
+    let mut rng = rand::thread_rng();
+    
+    // Create clusters of trees in different areas
+    // Cluster 1: Top-left area (0-9, 0-4)
+    for _ in 0..50 {
+        let x = rng.gen_range(0..10);
+        let y = rng.gen_range(0..5);
+        tree_positions.push((x, y));
+    }
+    
+    // Cluster 2: Top-right area (20-29, 0-4)
+    for _ in 0..40 {
+        let x = rng.gen_range(20..30);
+        let y = rng.gen_range(0..5);
+        tree_positions.push((x, y));
+    }
+    
+    // Cluster 3: Middle-left area (0-14, 6-9)
+    for _ in 0..45 {
+        let x = rng.gen_range(0..15);
+        let y = rng.gen_range(6..10);  
+        tree_positions.push((x, y));
+    }
+    
+    // Cluster 4: Bottom area (5-24, 11-14)  
+    for _ in 0..45 {
+        let x = rng.gen_range(5..25);
+        let y = rng.gen_range(11..15);
+        tree_positions.push((x, y));
+    }
+
+    // Remove duplicates and limit to exactly 180 trees
+    tree_positions.sort();
+    tree_positions.dedup();
+    tree_positions.truncate(180);
 
     for (i, &pos) in tree_positions.iter().enumerate() {
         let tree_entity = world.create_entity();
         world.add_component(tree_entity, Position { x: pos.0, y: pos.1 });
         world.add_component(tree_entity, Tree);
-        if i < 9 {
-            println!(
-                "  Tree {} at ({}, {}) [corner cluster]",
-                i + 1,
-                pos.0,
-                pos.1
-            );
-        } else {
-            println!("  Tree {} at ({}, {}) [middle tree]", i + 1, pos.0, pos.1);
+        if (i + 1) % 30 == 0 || i == tree_positions.len() - 1 {
+            println!("  Created {} trees so far...", i + 1);
         }
     }
 
-    // Create single woodcutter hut in opposite corner
+    // Create single woodcutter hut in a clear area away from tree clusters
     println!("\nCreating 1 woodcutter hut...");
-    let hut_position = (8, 8); // Opposite corner from trees
+    let hut_position = (GRID_WIDTH - 3, GRID_HEIGHT / 2); // Right side, middle
     let hut_entity = world.create_entity();
     world.add_component(
         hut_entity,
@@ -411,7 +429,7 @@ pub fn initialize_woodcutter_demo() -> World {
 
     // Create 2 woodcutter actors starting near the hut
     println!("\nCreating 2 woodcutters...");
-    let woodcutter_positions = [(7, 7), (7, 8)]; // Near the hut
+    let woodcutter_positions = [(GRID_WIDTH - 4, GRID_HEIGHT / 2), (GRID_WIDTH - 2, GRID_HEIGHT / 2 + 1)]; // Near the hut
 
     for (i, &pos) in woodcutter_positions.iter().enumerate() {
         let woodcutter_entity = world.create_entity();
@@ -436,8 +454,8 @@ pub fn initialize_woodcutter_demo() -> World {
     world.initialize_systems();
 
     println!("\nWoodcutter demo world initialized!");
-    println!("- 10 trees");
-    println!("- 2 woodcutter huts");
+    println!("- {} trees (40% coverage of {}x{} grid)", tree_positions.len(), GRID_WIDTH, GRID_HEIGHT);
+    println!("- 1 woodcutter huts");
     println!("- 2 woodcutters");
 
     world

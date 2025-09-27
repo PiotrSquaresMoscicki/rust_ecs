@@ -1,4 +1,4 @@
-use super::components::GRID_SIZE;
+use super::components::{GRID_HEIGHT, GRID_WIDTH};
 use std::collections::HashSet;
 
 /// Calculate the next move towards the target while avoiding obstacles
@@ -54,7 +54,7 @@ pub fn calculate_next_move(
 
 /// Check if a position is within the grid bounds
 pub fn is_valid_position(pos: (i32, i32)) -> bool {
-    pos.0 >= 0 && pos.0 < GRID_SIZE && pos.1 >= 0 && pos.1 < GRID_SIZE
+    pos.0 >= 0 && pos.0 < GRID_WIDTH && pos.1 >= 0 && pos.1 < GRID_HEIGHT
 }
 
 /// Check if two positions are adjacent (including diagonally)
@@ -71,11 +71,11 @@ mod tests {
     #[test]
     fn test_valid_position() {
         assert!(is_valid_position((0, 0)));
-        assert!(is_valid_position((9, 9)));
+        assert!(is_valid_position((29, 14))); // Max position for 30x15 grid
         assert!(!is_valid_position((-1, 0)));
-        assert!(!is_valid_position((10, 0)));
+        assert!(!is_valid_position((30, 0))); // Out of bounds width
         assert!(!is_valid_position((0, -1)));
-        assert!(!is_valid_position((0, 10)));
+        assert!(!is_valid_position((0, 15))); // Out of bounds height
     }
 
     #[test]
