@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use crate::ecs::core::{Entity, WorldOperation, Event, ComponentAdded, ComponentRemoved};
 use crate::ecs::diff::{Diff, DiffComponentChange};
-use crate::ecs::system::{System, SystemDependencies, SystemOrdering, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
+use crate::ecs::system::{System, SystemDependencies, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
 use crate::ecs::query::{MixedMultiQuery};
 use crate::ecs::replay::{ReplayLogConfig, AutoReplayLogger};
 
@@ -298,50 +298,37 @@ impl World {
         }
     }
 
-    /// Sort systems according to their dependencies and ordering constraints using topological sort
+    /// Sort systems according to their InSystems/OutSystems constraints using topological sort
     /// Returns the indices of systems in dependency order, or Err if there are circular dependencies
     fn sort_systems_by_dependencies(&self) -> Result<Vec<usize>, String> {
         let n = self.systems.len();
         let mut in_degree = vec![0; n];
         let mut adj_list: Vec<Vec<usize>> = vec![Vec::new(); n];
         
-        // Build adjacency list and calculate in-degrees from Dependencies
+        // Build adjacency list and calculate in-degrees from InSystems/OutSystems
         for i in 0..n {
-            let dependencies = self.systems[i].dependency_type_ids();
-            for dep_type_id in dependencies {
+            // Handle InSystems: systems that must run before this system
+            let in_systems = self.systems[i].in_systems_type_ids();
+            for in_system_type_id in in_systems {
                 // Find the system with the matching type
-                if let Some(dep_index) = self.systems.iter().position(|s| s.system_type_id() == dep_type_id) {
-                    adj_list[dep_index].push(i);
+                if let Some(in_system_index) = self.systems.iter().position(|s| s.system_type_id() == in_system_type_id) {
+                    // in_system_index should run before system i
+                    adj_list[in_system_index].push(i);
                     in_degree[i] += 1;
                 } else {
-                    return Err(format!("Dependency not found: {:?}", dep_type_id));
-                }
-            }
-        }
-        
-        // Build adjacency list and calculate in-degrees from Before/After constraints
-        for i in 0..n {
-            // Handle "before" relationships: this system (i) runs before other systems
-            let before_systems = self.systems[i].before_type_ids();
-            for before_type_id in before_systems {
-                if let Some(before_index) = self.systems.iter().position(|s| s.system_type_id() == before_type_id) {
-                    // System i should run before system before_index
-                    adj_list[i].push(before_index);
-                    in_degree[before_index] += 1;
-                } else {
-                    return Err(format!("Before constraint target not found: {:?}", before_type_id));
+                    return Err(format!("InSystem not found: {:?}", in_system_type_id));
                 }
             }
             
-            // Handle "after" relationships: this system (i) runs after other systems
-            let after_systems = self.systems[i].after_type_ids();
-            for after_type_id in after_systems {
-                if let Some(after_index) = self.systems.iter().position(|s| s.system_type_id() == after_type_id) {
-                    // System i should run after system after_index
-                    adj_list[after_index].push(i);
-                    in_degree[i] += 1;
+            // Handle OutSystems: systems that must run after this system
+            let out_systems = self.systems[i].out_systems_type_ids();
+            for out_system_type_id in out_systems {
+                if let Some(out_system_index) = self.systems.iter().position(|s| s.system_type_id() == out_system_type_id) {
+                    // System i should run before out_system_index
+                    adj_list[i].push(out_system_index);
+                    in_degree[out_system_index] += 1;
                 } else {
-                    return Err(format!("After constraint target not found: {:?}", after_type_id));
+                    return Err(format!("OutSystem not found: {:?}", out_system_type_id));
                 }
             }
         }
@@ -767,12 +754,10 @@ trait SystemWrapper {
     fn deinitialize(&mut self, world: &mut World) -> SystemDeinitDiff;
     /// Get the TypeId of this system
     fn system_type_id(&self) -> TypeId;
-    /// Get the TypeIds of systems this system depends on
-    fn dependency_type_ids(&self) -> Vec<TypeId>;
-    /// Get the TypeIds of systems this system should run before
-    fn before_type_ids(&self) -> Vec<TypeId>;
-    /// Get the TypeIds of systems this system should run after
-    fn after_type_ids(&self) -> Vec<TypeId>;
+    /// Get the TypeIds of systems that are executed before this system (InSystems)
+    fn in_systems_type_ids(&self) -> Vec<TypeId>;
+    /// Get the TypeIds of systems that are executed after this system (OutSystems)
+    fn out_systems_type_ids(&self) -> Vec<TypeId>;
 }
 
 /// Concrete implementation of SystemWrapper for a specific system type
@@ -837,15 +822,11 @@ impl<S: System + 'static> SystemWrapper for ConcreteSystemWrapper<S> {
         TypeId::of::<S>()
     }
 
-    fn dependency_type_ids(&self) -> Vec<TypeId> {
-        S::Dependencies::dependency_type_ids()
+    fn in_systems_type_ids(&self) -> Vec<TypeId> {
+        S::InSystems::dependency_type_ids()
     }
 
-    fn before_type_ids(&self) -> Vec<TypeId> {
-        S::Ordering::before_type_ids()
-    }
-
-    fn after_type_ids(&self) -> Vec<TypeId> {
-        S::Ordering::after_type_ids()
+    fn out_systems_type_ids(&self) -> Vec<TypeId> {
+        S::OutSystems::dependency_type_ids()
     }
 }

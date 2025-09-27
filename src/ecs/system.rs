@@ -56,114 +56,6 @@ impl<A: 'static, B: 'static, C: 'static, D: 'static, E: 'static> SystemDependenc
     }
 }
 
-/// Trait to represent system ordering constraints using Before and After declarations
-/// This provides an alternative to Dependencies where systems declare what they run before/after
-pub trait SystemOrdering {
-    /// Get the TypeIds of systems that this system should run before
-    fn before_type_ids() -> Vec<TypeId>;
-    /// Get the TypeIds of systems that this system should run after
-    fn after_type_ids() -> Vec<TypeId>;
-}
-
-/// Base case: no ordering constraints
-impl SystemOrdering for () {
-    fn before_type_ids() -> Vec<TypeId> {
-        Vec::new()
-    }
-    
-    fn after_type_ids() -> Vec<TypeId> {
-        Vec::new()
-    }
-}
-
-/// Helper types for declaring Before and After constraints
-/// 
-/// Usage example:
-/// ```rust
-/// use rust_ecs::*;
-/// 
-/// struct MySystem;
-/// impl System for MySystem {
-///     type InComponents = ();
-///     type OutComponents = ();
-///     type Dependencies = ();
-///     // This system runs before OtherSystem and after BaseSystem
-///     type Ordering = (); // For now, use () - actual Before/After usage shown in tests
-/// 
-/// #   fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-/// #   fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-/// #   fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-/// }
-/// ```
-pub struct Before<T>(std::marker::PhantomData<T>);
-pub struct After<T>(std::marker::PhantomData<T>);
-
-/// Single before constraint
-impl<A: 'static> SystemOrdering for Before<(A,)> {
-    fn before_type_ids() -> Vec<TypeId> {
-        vec![TypeId::of::<A>()]
-    }
-    
-    fn after_type_ids() -> Vec<TypeId> {
-        Vec::new()
-    }
-}
-
-/// Single after constraint
-impl<A: 'static> SystemOrdering for After<(A,)> {
-    fn before_type_ids() -> Vec<TypeId> {
-        Vec::new()
-    }
-    
-    fn after_type_ids() -> Vec<TypeId> {
-        vec![TypeId::of::<A>()]
-    }
-}
-
-/// Two before constraints
-impl<A: 'static, B: 'static> SystemOrdering for Before<(A, B)> {
-    fn before_type_ids() -> Vec<TypeId> {
-        vec![TypeId::of::<A>(), TypeId::of::<B>()]
-    }
-    
-    fn after_type_ids() -> Vec<TypeId> {
-        Vec::new()
-    }
-}
-
-/// Two after constraints
-impl<A: 'static, B: 'static> SystemOrdering for After<(A, B)> {
-    fn before_type_ids() -> Vec<TypeId> {
-        Vec::new()
-    }
-    
-    fn after_type_ids() -> Vec<TypeId> {
-        vec![TypeId::of::<A>(), TypeId::of::<B>()]
-    }
-}
-
-/// Three before constraints
-impl<A: 'static, B: 'static, C: 'static> SystemOrdering for Before<(A, B, C)> {
-    fn before_type_ids() -> Vec<TypeId> {
-        vec![TypeId::of::<A>(), TypeId::of::<B>(), TypeId::of::<C>()]
-    }
-    
-    fn after_type_ids() -> Vec<TypeId> {
-        Vec::new()
-    }
-}
-
-/// Three after constraints
-impl<A: 'static, B: 'static, C: 'static> SystemOrdering for After<(A, B, C)> {
-    fn before_type_ids() -> Vec<TypeId> {
-        Vec::new()
-    }
-    
-    fn after_type_ids() -> Vec<TypeId> {
-        vec![TypeId::of::<A>(), TypeId::of::<B>(), TypeId::of::<C>()]
-    }
-}
-
 /// The System trait defines the contract for all systems in the ECS.
 /// Systems declare their input and output components for change tracking.
 pub trait System {
@@ -171,10 +63,10 @@ pub trait System {
     type InComponents;
     /// Components that the system will read from and write to
     type OutComponents;
-    /// Systems that this system depends on - they will be initialized, updated, and deinitialized first
-    type Dependencies: SystemDependencies;
-    /// System ordering constraints (Before/After approach)
-    type Ordering: SystemOrdering;
+    /// Systems that are executed before Self (Self depends on these systems)
+    type InSystems: SystemDependencies;
+    /// Systems that are executed after Self (these systems depend on Self)
+    type OutSystems: SystemDependencies;
 
     /// Called once before the first update to initialize system state
     fn initialize(&mut self, world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>);
