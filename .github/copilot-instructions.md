@@ -52,11 +52,13 @@ When Copilot encounters impossible or technically infeasible requirements:
 ### Development Workflow
 1. Run existing tests to understand current state: `cargo test`
 2. Implement changes with full functionality
-3. Add comprehensive unit tests for new features
-4. Use game/demo integration tests for end-to-end validation
-5. Ensure no compilation warnings remain
-6. Document any unavoidable warning suppressions in PR comments
-7. Final verification: `cargo test` must pass completely
+3. Remove deprecated functionality if needed - we're in heavy development mode
+  - Don't allow two functionalities doing the same or similar things
+4. Add comprehensive unit tests for new features
+5. Use game/demo integration tests for end-to-end validation
+6. Ensure no compilation warnings remain
+7. Document any unavoidable warning suppressions in PR comments
+8. Final verification: `cargo test` must pass completely
 
 ## Architecture Integration
 - This is a debuggable ECS framework emphasizing change tracking and replay functionality
