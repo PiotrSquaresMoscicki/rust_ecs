@@ -582,6 +582,78 @@ impl World {
             .map(|components| components.iter().map(|(entity, _)| *entity).collect())
             .unwrap_or_default()
     }
+
+    /// Print the last frame diff (component changes and world operations)
+    pub fn print_last_frame_diff(&self) {
+        let history = &self.world_update_history;
+        if let Some(last_update) = history.updates().last() {
+            println!("=== Frame Diff ===");
+            
+            let mut total_component_changes = 0;
+            let mut total_world_operations = 0;
+            
+            for (system_idx, system_diff) in last_update.system_diffs().iter().enumerate() {
+                let component_changes = system_diff.diff_changes().len();
+                let world_operations = system_diff.world_operations().len();
+                
+                if component_changes > 0 || world_operations > 0 {
+                    println!("System {}: {} component changes, {} world operations", 
+                             system_idx, component_changes, world_operations);
+                    
+                    // Print component changes
+                    for change in system_diff.diff_changes() {
+                        match change {
+                            crate::ecs::diff::DiffComponentChange::Added { entity, type_name, data } => {
+                                println!("  + {:?} {} {}", entity, type_name, data);
+                            }
+                            crate::ecs::diff::DiffComponentChange::Modified { entity, type_name, diff } => {
+                                println!("  ~ {:?} {} {}", entity, type_name, diff);
+                            }
+                            crate::ecs::diff::DiffComponentChange::Removed { entity, type_name } => {
+                                println!("  - {:?} {}", entity, type_name);
+                            }
+                        }
+                    }
+                    
+                    // Print world operations
+                    for operation in system_diff.world_operations() {
+                        match operation {
+                            crate::ecs::core::WorldOperation::CreateEntity(entity) => {
+                                println!("  CREATE_ENTITY {:?}", entity);
+                            }
+                            crate::ecs::core::WorldOperation::RemoveEntity(entity) => {
+                                println!("  REMOVE_ENTITY {:?}", entity);
+                            }
+                            crate::ecs::core::WorldOperation::CreateWorld(world_id) => {
+                                println!("  CREATE_WORLD {}", world_id);
+                            }
+                            crate::ecs::core::WorldOperation::RemoveWorld(world_id) => {
+                                println!("  REMOVE_WORLD {}", world_id);
+                            }
+                            crate::ecs::core::WorldOperation::AddSystem(system_type) => {
+                                println!("  ADD_SYSTEM {}", system_type);
+                            }
+                        }
+                    }
+                }
+                
+                total_component_changes += component_changes;
+                total_world_operations += world_operations;
+            }
+            
+            if total_component_changes == 0 && total_world_operations == 0 {
+                println!("No changes recorded in last frame");
+            } else {
+                println!("Total: {} component changes, {} world operations", 
+                         total_component_changes, total_world_operations);
+            }
+            println!();
+        } else {
+            println!("=== Frame Diff ===");
+            println!("No frame history available");
+            println!();
+        }
+    }
 }
 
 /// WorldView provides controlled access to world data for systems
