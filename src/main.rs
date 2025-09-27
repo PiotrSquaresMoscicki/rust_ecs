@@ -33,7 +33,8 @@ struct MovementSystem;
 impl System for MovementSystem {
     type InComponents = (Velocity,);
     type OutComponents = (Position,);
-    type Dependencies = ();
+    type InSystems = ();
+    type OutSystems = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("MovementSystem initialized");
@@ -72,7 +73,8 @@ struct HealthSystem;
 impl System for HealthSystem {
     type InComponents = ();
     type OutComponents = (Health,);
-    type Dependencies = ();
+    type InSystems = ();
+    type OutSystems = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("HealthSystem initialized");
@@ -104,7 +106,8 @@ struct PhysicsSystem;
 impl System for PhysicsSystem {
     type InComponents = (Position, Velocity);
     type OutComponents = ();
-    type Dependencies = (MovementSystem,);
+    type InSystems = (MovementSystem,);
+    type OutSystems = ();
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("PhysicsSystem initialized (depends on MovementSystem)");

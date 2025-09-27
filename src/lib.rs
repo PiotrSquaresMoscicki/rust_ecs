@@ -137,7 +137,9 @@ mod tests {
     impl System for TestSystem {
         type InComponents = ();
         type OutComponents = ();
-        type Dependencies = ();
+        type InSystems = ();
+        type OutSystems = ();
+
 
         fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
             // Test system initialization
@@ -845,7 +847,9 @@ mod tests {
         impl System for SystemA {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = ();
+            type InSystems = ();
+        type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -855,7 +859,9 @@ mod tests {
         impl System for SystemB {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = (SystemA,);
+            type InSystems = (SystemA,);
+            type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -879,7 +885,9 @@ mod tests {
         impl System for SystemX {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = ();
+            type InSystems = ();
+        type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -889,7 +897,9 @@ mod tests {
         impl System for SystemY {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = ();
+            type InSystems = ();
+        type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -899,7 +909,9 @@ mod tests {
         impl System for SystemZ {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = (SystemX, SystemY);
+            type InSystems = (SystemX, SystemY);
+            type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -922,7 +934,9 @@ mod tests {
         impl System for ChainA {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = ();
+            type InSystems = ();
+        type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -932,7 +946,9 @@ mod tests {
         impl System for ChainB {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = (ChainA,);
+            type InSystems = (ChainA,);
+            type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -942,7 +958,9 @@ mod tests {
         impl System for ChainC {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = (ChainB,);
+            type InSystems = (ChainB,);
+            type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -965,7 +983,9 @@ mod tests {
         impl System for IndependentSystem1 {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = ();
+            type InSystems = ();
+        type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -975,7 +995,9 @@ mod tests {
         impl System for IndependentSystem2 {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = ();
+            type InSystems = ();
+        type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -1000,7 +1022,9 @@ mod tests {
         impl System for CircularA {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = (CircularB,);
+            type InSystems = (CircularB,);
+            type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -1010,7 +1034,9 @@ mod tests {
         impl System for CircularB {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = (CircularA,);
+            type InSystems = (CircularA,);
+            type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -1028,13 +1054,13 @@ mod tests {
 
     #[test]
     fn test_system_dependencies_missing_dependency() {
-        // This test demonstrates that missing dependencies are handled gracefully
-        
         struct MissingDepSystem;
         impl System for MissingDepSystem {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = (NonExistentSystem,);
+            type InSystems = (NonExistentSystem,);
+            type OutSystems = ();
+
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
@@ -1044,17 +1070,193 @@ mod tests {
         impl System for NonExistentSystem {
             type InComponents = ();
             type OutComponents = ();
-            type Dependencies = ();
+            type InSystems = ();
+            type OutSystems = ();
             fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
             fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
         }
 
         let mut world = World::new();
-        world.add_system(MissingDepSystem); // Add system that depends on NonExistentSystem
-        // But don't add NonExistentSystem
+        world.add_system(MissingDepSystem);
+        // Don't add NonExistentSystem - this should trigger missing dependency error
         
-        // Should handle missing dependencies gracefully (prints warning and uses registration order)
+        // Should handle missing dependency gracefully and fall back to registration order
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_system_ordering_before_constraints() {
+        struct FirstSystem;
+        impl System for FirstSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = ();
+            type OutSystems = (SecondSystem, ThirdSystem); // Run before Second and Third
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct SecondSystem;
+        impl System for SecondSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = ();
+            type OutSystems = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct ThirdSystem;
+        impl System for ThirdSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = ();
+            type OutSystems = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        // Add in reverse order to test ordering constraint
+        world.add_system(ThirdSystem);
+        world.add_system(SecondSystem);
+        world.add_system(FirstSystem);
+        
+        // Should initialize/update in order: First -> Second/Third
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_system_ordering_after_constraints() {
+        struct BaseSystem;
+        impl System for BaseSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = ();
+            type OutSystems = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct DerivedSystem;
+        impl System for DerivedSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = (BaseSystem,); // Run after Base
+            type OutSystems = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct AnotherSystem;
+        impl System for AnotherSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = (BaseSystem, DerivedSystem); // Run after both Base and Derived
+            type OutSystems = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        // Add in random order to test after ordering constraint
+        world.add_system(AnotherSystem);
+        world.add_system(DerivedSystem);
+        world.add_system(BaseSystem);
+        
+        // Should initialize/update in order: Base -> Derived -> Another
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_system_ordering_mixed_dependencies_and_before_after() {
+        struct CoreSystem;
+        impl System for CoreSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = ();
+            type OutSystems = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct ProcessingSystem;
+        impl System for ProcessingSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = (CoreSystem,); // Must run after CoreSystem
+            type OutSystems = (RenderingSystem,); // Must run before RenderingSystem
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct RenderingSystem;
+        impl System for RenderingSystem {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = (); // Will be constrained by ProcessingSystem's OutSystems
+            type OutSystems = ();
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        // Add in random order
+        world.add_system(RenderingSystem);
+        world.add_system(ProcessingSystem);
+        world.add_system(CoreSystem);
+        
+        // Should initialize/update in order: Core -> Processing -> Rendering
+        world.initialize_systems();
+        world.update();
+        world.deinitialize_systems();
+    }
+
+    #[test]
+    fn test_system_ordering_circular_detection_with_before_after() {
+        struct CircularA;
+        impl System for CircularA {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = ();
+            type OutSystems = (CircularB,); // A should run before B
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        struct CircularB; 
+        impl System for CircularB {
+            type InComponents = ();
+            type OutComponents = ();
+            type InSystems = ();
+            type OutSystems = (CircularA,); // Creates circular constraint: A->B->A
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+
+        let mut world = World::new();
+        world.add_system(CircularA);
+        world.add_system(CircularB);
+        
+        // Should handle circular constraint gracefully and fall back to registration order
         world.initialize_systems();
         world.update();
         world.deinitialize_systems();

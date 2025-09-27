@@ -39,7 +39,9 @@ struct MovementSystem {
 impl System for MovementSystem {
     type InComponents = (Velocity,);
     type OutComponents = (Position,);
-    type Dependencies = ();
+    type InSystems = ();
+        type OutSystems = ();
+
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("  [MovementSystem] Initializing movement system");
@@ -75,7 +77,9 @@ struct HealthSystem {
 impl System for HealthSystem {
     type InComponents = ();
     type OutComponents = (Health,);
-    type Dependencies = ();
+    type InSystems = ();
+        type OutSystems = ();
+
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("  [HealthSystem] Initializing health system");
@@ -116,7 +120,9 @@ impl Default for CrossWorldSystem {
 impl System for CrossWorldSystem {
     type InComponents = (Position, Velocity);
     type OutComponents = ();
-    type Dependencies = ();
+    type InSystems = ();
+        type OutSystems = ();
+
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("  [CrossWorldSystem] Initializing cross-world analysis system");

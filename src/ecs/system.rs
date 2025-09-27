@@ -63,8 +63,10 @@ pub trait System {
     type InComponents;
     /// Components that the system will read from and write to
     type OutComponents;
-    /// Systems that this system depends on - they will be initialized, updated, and deinitialized first
-    type Dependencies: SystemDependencies;
+    /// Systems that are executed before Self (Self depends on these systems)
+    type InSystems: SystemDependencies;
+    /// Systems that are executed after Self (these systems depend on Self)
+    type OutSystems: SystemDependencies;
 
     /// Called once before the first update to initialize system state
     fn initialize(&mut self, world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>);

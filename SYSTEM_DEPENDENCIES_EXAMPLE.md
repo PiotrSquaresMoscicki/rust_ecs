@@ -1,18 +1,26 @@
-# System Dependencies - Usage Example
+# System Ordering - Usage Example
 
-This example demonstrates the new system dependencies feature implemented in the Rust ECS framework.
+This example demonstrates the new InSystems/OutSystems system ordering feature implemented in the Rust ECS framework.
+
+## Overview
+
+System ordering is now handled through two simple type declarations:
+
+- **InSystems**: Systems that are executed before this system (systems this system depends on)
+- **OutSystems**: Systems that are executed after this system (systems that depend on this system)
 
 ## Basic Usage
 
 ```rust
 use rust_ecs::{System, World, WorldView};
 
-// Base system with no dependencies
+// Base system with no ordering constraints
 struct MovementSystem;
 impl System for MovementSystem {
     type InComponents = (Velocity,);
     type OutComponents = (Position,);
-    type Dependencies = (); // No dependencies
+    type InSystems = (); // No systems need to run before this
+    type OutSystems = (); // No systems declared to run after this
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("MovementSystem initialized");
@@ -27,12 +35,13 @@ impl System for MovementSystem {
     }
 }
 
-// System that depends on MovementSystem
+// System that runs after MovementSystem
 struct PhysicsSystem;
 impl System for PhysicsSystem {
     type InComponents = (Position, Velocity);
     type OutComponents = ();
-    type Dependencies = (MovementSystem,); // Depends on MovementSystem
+    type InSystems = (MovementSystem,); // MovementSystem runs before this
+    type OutSystems = (); // No systems declared to run after this
 
     fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
         println!("PhysicsSystem initialized (after MovementSystem)");
@@ -46,87 +55,22 @@ impl System for PhysicsSystem {
         println!("PhysicsSystem deinitialized (before MovementSystem)");
     }
 }
-
-fn main() {
-    let mut world = World::new();
-    
-    // Add systems in any order - dependencies will be resolved automatically
-    world.add_system(PhysicsSystem);    // Added first, but will initialize second
-    world.add_system(MovementSystem);   // Added second, but will initialize first
-    
-    // Systems will initialize in dependency order: MovementSystem -> PhysicsSystem
-    world.initialize_systems();
-    
-    // Systems will update in dependency order: MovementSystem -> PhysicsSystem
-    world.update();
-    
-    // Systems will deinitialize in reverse order: PhysicsSystem -> MovementSystem
-    world.deinitialize_systems();
-}
-```
-
-## Multiple Dependencies
-
-```rust
-struct RenderSystem;
-impl System for RenderSystem {
-    type InComponents = (Position, Sprite);
-    type OutComponents = ();
-    // Render system depends on both movement and physics
-    type Dependencies = (MovementSystem, PhysicsSystem);
-    
-    // This system will initialize/update after both dependencies
-}
-```
-
-## Dependency Chain
-
-```rust
-struct SystemA;
-impl System for SystemA {
-    type Dependencies = (); // No dependencies
-}
-
-struct SystemB;
-impl System for SystemB {
-    type Dependencies = (SystemA,); // Depends on A
-}
-
-struct SystemC;
-impl System for SystemC {
-    type Dependencies = (SystemB,); // Depends on B (which depends on A)
-}
-
-// Execution order will be: A -> B -> C
 ```
 
 ## Key Features
 
-- **Automatic Ordering**: Systems are automatically ordered by dependencies during initialization, updates, and deinitialization
-- **Reverse Deinitialization**: Systems deinitialize in reverse dependency order (dependencies last)
-- **Error Handling**: Circular dependencies and missing dependencies are handled gracefully with fallback to registration order
-- **Backward Compatibility**: Existing systems work unchanged with `type Dependencies = ()`
-- **Multiple Dependencies**: Supports up to 5 dependencies per system using tuple syntax
+- **Automatic Ordering**: Systems are automatically ordered by InSystems/OutSystems constraints
+- **Bi-directional**: Systems can declare both what runs before them (InSystems) and what runs after them (OutSystems)
+- **Simple Syntax**: Use familiar tuple syntax for multiple constraints
+- **Error Handling**: Circular dependencies are handled gracefully with fallback to registration order
+- **Multiple Constraints**: Supports up to 5 systems per tuple using tuple syntax
 
-## Output Example
+## InSystems/OutSystems Benefits
 
-```
-MovementSystem initialized
-PhysicsSystem initialized (after MovementSystem)
+1. **Clearer Intent**: `type InSystems = (InputSystem,);` clearly shows what needs to run first
+2. **Bi-directional**: One system can declare both InSystems and OutSystems
+3. **Less Verbose**: No wrapper types or complex syntax needed
+4. **Intuitive**: InSystems = what runs before me, OutSystems = what runs after me
+5. **Composability**: Easy to add new systems without modifying existing system constraints
 
-Frame 1
-MovementSystem updating entities
-PhysicsSystem processing physics (after MovementSystem)
-
-Frame 2
-MovementSystem updating entities
-PhysicsSystem processing physics (after MovementSystem)
-
-PhysicsSystem deinitialized (before MovementSystem)
-MovementSystem deinitialized
-```
-
-The system dependencies ensure that:
-1. **MovementSystem** always initializes and updates before **PhysicsSystem**
-2. **PhysicsSystem** deinitializes before **MovementSystem**
-3. This guarantees that physics calculations always work with the most up-to-date positions
+The system constraints ensure proper data flow and execution order in your ECS world.
