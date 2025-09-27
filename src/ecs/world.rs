@@ -6,7 +6,10 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use crate::ecs::core::{Component, ComponentAdded, ComponentRemoved, Entity, Event, RequiredComponentsCheck, WorldOperation};
+use crate::ecs::core::{
+    Component, ComponentAdded, ComponentRemoved, Entity, Event, RequiredComponentsCheck,
+    WorldOperation,
+};
 use crate::ecs::diff::{Diff, DiffComponentChange};
 use crate::ecs::query::MixedMultiQuery;
 use crate::ecs::replay::{AutoReplayLogger, ReplayLogConfig};
@@ -199,7 +202,11 @@ impl World {
 
     /// Add a component to an entity with requirement checking
     /// Returns Ok(()) if the component was added successfully, or Err with an error message if requirements are not met
-    pub fn add_component_checked<T: Component>(&mut self, entity: Entity, component: T) -> Result<(), String> {
+    pub fn add_component_checked<T: Component>(
+        &mut self,
+        entity: Entity,
+        component: T,
+    ) -> Result<(), String> {
         // Check if all required components are present
         if !T::RequiredComponents::check_requirements(self, entity) {
             return Err(format!(
@@ -830,7 +837,11 @@ impl<I, O> WorldView<I, O> {
 
     /// Add a component to an entity with requirement checking
     /// Returns Ok(()) if the component was added successfully, or Err with an error message if requirements are not met
-    pub fn add_component_checked<T: Component>(&mut self, entity: Entity, component: T) -> Result<(), String> {
+    pub fn add_component_checked<T: Component>(
+        &mut self,
+        entity: Entity,
+        component: T,
+    ) -> Result<(), String> {
         unsafe { self.world_mut().add_component_checked(entity, component) }
     }
 

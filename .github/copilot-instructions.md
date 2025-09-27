@@ -8,6 +8,8 @@
 - Integration tests use the game and demo modules as specified
 - **ALWAYS** run `cargo clippy` at the end of task development
 - Address all clippy warnings or justify any ignored warnings in PR comments
+- **ALWAYS** run `cargo fmt --check` at the end of task development
+- Code must be properly formatted according to rustfmt standards
 
 ### Test Coverage Standards
 - **Unit tests required** for all new functionalities
@@ -58,9 +60,9 @@ When Copilot encounters impossible or technically infeasible requirements:
   - Don't allow two functionalities doing the same or similar things
 4. Add comprehensive unit tests for new features
 5. Use game/demo integration tests for end-to-end validation
-6. Ensure no compilation or clippy warnings remain
+6. Ensure no compilation, clippy warnings, or formatting issues remain
 7. Document any unavoidable compilation or clippy warning suppressions in PR comments
-8. Final verification: `cargo test` and `cargo clippy` must pass completely
+8. Final verification: `cargo test`, `cargo clippy`, and `cargo fmt --check` must pass completely
 
 ## Architecture Integration
 - This is a debuggable ECS framework emphasizing change tracking and replay functionality
@@ -87,6 +89,8 @@ cargo run replay-demo
 ## Quality Assurance Checklist
 - [ ] `cargo test` passes without failures
 - [ ] No compilation warnings (or properly documented suppressions)
+- [ ] `cargo clippy` passes without warnings (or properly documented suppressions)
+- [ ] `cargo fmt --check` passes (code is properly formatted)
 - [ ] Unit tests added for new functionality  
 - [ ] Integration tests use game/demo modules
 - [ ] Replay logging checked for debugging capabilities
