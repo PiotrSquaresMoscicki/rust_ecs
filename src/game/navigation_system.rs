@@ -1,4 +1,6 @@
-use super::components::{Actor, Navigation, Obstacle, Position, Target, Work, GRID_HEIGHT, GRID_WIDTH};
+use super::components::{
+    Actor, Navigation, Obstacle, Position, Target, Work, GRID_HEIGHT, GRID_WIDTH,
+};
 use super::utils::{is_adjacent, is_valid_position};
 use crate::{In, Out, System, World, WorldView};
 use pathfinding::prelude::astar;
@@ -190,19 +192,20 @@ pub fn initialize_navigation_demo() -> World {
 
     // Generate a 15x30 labyrinth with guaranteed paths
     let mut labyrinth_layout = vec![vec![1i32; GRID_WIDTH as usize]; GRID_HEIGHT as usize];
-    
+
     // Create border walls
     #[allow(clippy::needless_range_loop)]
     for y in 0..GRID_HEIGHT as usize {
         for x in 0..GRID_WIDTH as usize {
-            if y == 0 || y == (GRID_HEIGHT - 1) as usize || x == 0 || x == (GRID_WIDTH - 1) as usize {
+            if y == 0 || y == (GRID_HEIGHT - 1) as usize || x == 0 || x == (GRID_WIDTH - 1) as usize
+            {
                 labyrinth_layout[y][x] = 1; // Wall
             } else {
                 labyrinth_layout[y][x] = 0; // Open space
             }
         }
     }
-    
+
     // Add internal maze structure - create a pattern of walls and passages
     #[allow(clippy::needless_range_loop)]
     for y in 2..(GRID_HEIGHT - 2) as usize {
@@ -216,7 +219,7 @@ pub fn initialize_navigation_demo() -> World {
             }
         }
     }
-    
+
     // Ensure clear paths from start positions to exit
     // Clear path along bottom and right edges
     for x in 1..(GRID_WIDTH - 1) as usize {
@@ -226,7 +229,7 @@ pub fn initialize_navigation_demo() -> World {
     for y in 1..(GRID_HEIGHT - 1) as usize {
         labyrinth_layout[y][(GRID_WIDTH - 2) as usize] = 0; // Right corridor
     }
-    
+
     // Ensure some cross-corridors
     labyrinth_layout[7][1..(GRID_WIDTH - 1) as usize].fill(0); // Horizontal corridor
     #[allow(clippy::needless_range_loop)]
@@ -253,7 +256,13 @@ pub fn initialize_navigation_demo() -> World {
 
     // Create exit marker (special component to show the exit)
     let exit_entity = world.create_entity();
-    world.add_component(exit_entity, Position { x: GRID_WIDTH - 2, y: GRID_HEIGHT - 2 });
+    world.add_component(
+        exit_entity,
+        Position {
+            x: GRID_WIDTH - 2,
+            y: GRID_HEIGHT - 2,
+        },
+    );
     world.add_component(exit_entity, Work); // Use Work as exit marker for rendering
 
     println!("Creating two actors with navigation components...");
@@ -262,21 +271,36 @@ pub fn initialize_navigation_demo() -> World {
     let actor1_entity = world.create_entity();
     world.add_component(actor1_entity, Position { x: 1, y: 1 });
     world.add_component(actor1_entity, Actor);
-    world.add_component(actor1_entity, Target { x: GRID_WIDTH - 2, y: GRID_HEIGHT - 2 }); // Target the exit
+    world.add_component(
+        actor1_entity,
+        Target {
+            x: GRID_WIDTH - 2,
+            y: GRID_HEIGHT - 2,
+        },
+    ); // Target the exit
     world.add_component(actor1_entity, Navigation::new());
 
     // Create Actor 2 at starting position (1, 7)
     let actor2_entity = world.create_entity();
     world.add_component(actor2_entity, Position { x: 1, y: 7 });
     world.add_component(actor2_entity, Actor);
-    world.add_component(actor2_entity, Target { x: GRID_WIDTH - 2, y: GRID_HEIGHT - 2 }); // Target the exit
+    world.add_component(
+        actor2_entity,
+        Target {
+            x: GRID_WIDTH - 2,
+            y: GRID_HEIGHT - 2,
+        },
+    ); // Target the exit
     world.add_component(actor2_entity, Navigation::new());
 
     // Add navigation system (uses A* pathfinding)
     world.add_system(NavigationSystem);
 
     // Add render system for visualization
-    world.add_system(super::render_system::RenderSystem::new(GRID_WIDTH as usize, GRID_HEIGHT as usize));
+    world.add_system(super::render_system::RenderSystem::new(
+        GRID_WIDTH as usize,
+        GRID_HEIGHT as usize,
+    ));
 
     // Initialize systems
     world.initialize_systems();

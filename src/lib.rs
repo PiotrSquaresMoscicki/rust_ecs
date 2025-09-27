@@ -63,10 +63,11 @@ pub use rust_ecs_derive::Diff;
 
 // Re-export the most commonly used types from the ECS module for convenience
 pub use ecs::{
-    AutoReplayLogger, Component, ComponentAdded, ComponentChange, ComponentOperation, ComponentRemoved,
-    DiffComponent, DiffComponentChange, Entity, Event, In, MixedMultiQuery, MixedQueryComponent,
-    Not, Out, QueryComponent, ReplayLogConfig, RequiredComponentsCheck, System, SystemDeinitDiff, SystemInitDiff,
-    SystemUpdateDiff, World, WorldOperation, WorldUpdateDiff, WorldUpdateHistory, WorldView,
+    AutoReplayLogger, Component, ComponentAdded, ComponentChange, ComponentOperation,
+    ComponentRemoved, DiffComponent, DiffComponentChange, Entity, Event, In, MixedMultiQuery,
+    MixedQueryComponent, Not, Out, QueryComponent, ReplayLogConfig, RequiredComponentsCheck,
+    System, SystemDeinitDiff, SystemInitDiff, SystemUpdateDiff, World, WorldOperation,
+    WorldUpdateDiff, WorldUpdateHistory, WorldView,
 };
 
 // Re-export Diff trait from ECS (not conflicting with derive macro)
@@ -2051,7 +2052,13 @@ mod tests {
 
         // Add required components first
         world.add_component(entity, TestPosition { x: 10, y: 20 });
-        world.add_component(entity, TestHierarchy { parent: None, children: vec![] });
+        world.add_component(
+            entity,
+            TestHierarchy {
+                parent: None,
+                children: vec![],
+            },
+        );
 
         // Now adding velocity should succeed
         let result = world.add_component_checked(entity, TestVelocity { dx: 1.0, dy: 2.0 });
@@ -2072,7 +2079,9 @@ mod tests {
         // Try to add velocity without required components
         let result = world.add_component_checked(entity, TestVelocity { dx: 1.0, dy: 2.0 });
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("required components are missing"));
+        assert!(result
+            .unwrap_err()
+            .contains("required components are missing"));
 
         // Verify the component was not added
         let velocity = world.get_component::<TestVelocity>(entity);
@@ -2090,7 +2099,9 @@ mod tests {
         // Try to add velocity with only partial requirements
         let result = world.add_component_checked(entity, TestVelocity { dx: 1.0, dy: 2.0 });
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("required components are missing"));
+        assert!(result
+            .unwrap_err()
+            .contains("required components are missing"));
 
         // Verify the component was not added
         let velocity = world.get_component::<TestVelocity>(entity);
@@ -2104,11 +2115,23 @@ mod tests {
 
         // Add required components for velocity first
         world.add_component(entity, TestPosition { x: 10, y: 20 });
-        world.add_component(entity, TestHierarchy { parent: None, children: vec![] });
+        world.add_component(
+            entity,
+            TestHierarchy {
+                parent: None,
+                children: vec![],
+            },
+        );
         let _ = world.add_component_checked(entity, TestVelocity { dx: 1.0, dy: 2.0 });
 
         // Now adding acceleration should succeed (only needs velocity)
-        let result = world.add_component_checked(entity, TestAcceleration { ddx: 0.5, ddy: -0.5 });
+        let result = world.add_component_checked(
+            entity,
+            TestAcceleration {
+                ddx: 0.5,
+                ddy: -0.5,
+            },
+        );
         assert!(result.is_ok());
 
         // Verify the component was actually added
@@ -2124,11 +2147,19 @@ mod tests {
         let entity = world.create_entity();
 
         // Try to add acceleration without velocity
-        let result = world.add_component_checked(entity, TestAcceleration { ddx: 0.5, ddy: -0.5 });
+        let result = world.add_component_checked(
+            entity,
+            TestAcceleration {
+                ddx: 0.5,
+                ddy: -0.5,
+            },
+        );
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("required components are missing"));
+        assert!(result
+            .unwrap_err()
+            .contains("required components are missing"));
 
-        // Verify the component was not added  
+        // Verify the component was not added
         let acceleration = world.get_component::<TestAcceleration>(entity);
         assert!(acceleration.is_none());
     }
@@ -2142,7 +2173,13 @@ mod tests {
         let pos_result = world.add_component_checked(entity, TestPosition { x: 5, y: 10 });
         assert!(pos_result.is_ok());
 
-        let hier_result = world.add_component_checked(entity, TestHierarchy { parent: Some(1), children: vec![2, 3] });
+        let hier_result = world.add_component_checked(
+            entity,
+            TestHierarchy {
+                parent: Some(1),
+                children: vec![2, 3],
+            },
+        );
         assert!(hier_result.is_ok());
 
         // Verify both components were added
@@ -2165,7 +2202,13 @@ mod tests {
 
         // Add required components first
         world_view.add_component(entity, TestPosition { x: 100, y: 200 });
-        world_view.add_component(entity, TestHierarchy { parent: None, children: vec![] });
+        world_view.add_component(
+            entity,
+            TestHierarchy {
+                parent: None,
+                children: vec![],
+            },
+        );
 
         // Now adding velocity through WorldView should succeed
         let result = world_view.add_component_checked(entity, TestVelocity { dx: 5.0, dy: -3.0 });
@@ -2187,7 +2230,9 @@ mod tests {
         // Try to add velocity without required components through WorldView
         let result = world_view.add_component_checked(entity, TestVelocity { dx: 5.0, dy: -3.0 });
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("required components are missing"));
+        assert!(result
+            .unwrap_err()
+            .contains("required components are missing"));
 
         // Verify the component was not added
         let velocity = world_view.get_component::<TestVelocity>(entity);
@@ -2202,10 +2247,10 @@ mod tests {
         // Following the problem statement example exactly
         #[derive(Debug, PartialEq)]
         struct Position;
-        
+
         #[derive(Debug, PartialEq)]
         struct Hierarchy;
-        
+
         #[derive(Debug, PartialEq)]
         struct Velocity;
 
@@ -2238,19 +2283,27 @@ mod tests {
     #[test]
     fn test_component_requirements_demonstration() {
         println!("\n=== Component Requirements Feature Demonstration ===");
-        
+
         let mut world = World::new();
         let entity = world.create_entity();
 
         // Define components matching the problem statement
         #[derive(Debug, PartialEq)]
-        struct Position { x: i32, y: i32 }
-        
+        struct Position {
+            x: i32,
+            y: i32,
+        }
+
         #[derive(Debug, PartialEq)]
-        struct Hierarchy { parent: Option<u32> }
-        
+        struct Hierarchy {
+            parent: Option<u32>,
+        }
+
         #[derive(Debug, PartialEq)]
-        struct Velocity { dx: f32, dy: f32 }
+        struct Velocity {
+            dx: f32,
+            dy: f32,
+        }
 
         impl Component for Position {
             type RequiredComponents = ();

@@ -77,20 +77,20 @@ pub struct In<T>(std::marker::PhantomData<T>);
 pub struct Not<T>(std::marker::PhantomData<T>);
 
 /// Trait for components that can specify their required components
-/// 
+///
 /// Components implementing this trait can specify other components that must be present
 /// on an entity before this component can be added.
-/// 
+///
 /// Example usage:
 /// ```rust
 /// use rust_ecs::*;
-/// 
+///
 /// #[derive(Debug)]
 /// struct Position { x: i32, y: i32 }
-/// 
+///
 /// #[derive(Debug)]
 /// struct Velocity { dx: f32, dy: f32 }
-/// 
+///
 /// impl Component for Velocity {
 ///     type RequiredComponents = (Position,);
 /// }
@@ -130,17 +130,19 @@ impl<T1: 'static, T2: 'static> RequiredComponentsCheck for (T1, T2) {
 // Implement RequiredComponentsCheck for three component requirements
 impl<T1: 'static, T2: 'static, T3: 'static> RequiredComponentsCheck for (T1, T2, T3) {
     fn check_requirements(world: &crate::ecs::world::World, entity: Entity) -> bool {
-        world.has_component::<T1>(entity) 
-            && world.has_component::<T2>(entity) 
+        world.has_component::<T1>(entity)
+            && world.has_component::<T2>(entity)
             && world.has_component::<T3>(entity)
     }
 }
 
 // Implement RequiredComponentsCheck for four component requirements
-impl<T1: 'static, T2: 'static, T3: 'static, T4: 'static> RequiredComponentsCheck for (T1, T2, T3, T4) {
+impl<T1: 'static, T2: 'static, T3: 'static, T4: 'static> RequiredComponentsCheck
+    for (T1, T2, T3, T4)
+{
     fn check_requirements(world: &crate::ecs::world::World, entity: Entity) -> bool {
-        world.has_component::<T1>(entity) 
-            && world.has_component::<T2>(entity) 
+        world.has_component::<T1>(entity)
+            && world.has_component::<T2>(entity)
             && world.has_component::<T3>(entity)
             && world.has_component::<T4>(entity)
     }

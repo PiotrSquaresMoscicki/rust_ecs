@@ -123,9 +123,13 @@ impl System for RenderSystem {
         }
 
         // Print grid with appropriate legend - detect based on content
-        let has_trees = !world.query_components::<(In<Position>, In<Tree>)>().is_empty();
-        let has_obstacles = !world.query_components::<(In<Position>, In<Obstacle>)>().is_empty();
-        
+        let has_trees = !world
+            .query_components::<(In<Position>, In<Tree>)>()
+            .is_empty();
+        let has_obstacles = !world
+            .query_components::<(In<Position>, In<Obstacle>)>()
+            .is_empty();
+
         if has_obstacles && !has_trees {
             // Navigation demo - has obstacles (walls) but no trees
             println!("Navigation Demo - Labyrinth Pathfinding");

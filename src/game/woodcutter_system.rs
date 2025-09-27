@@ -362,11 +362,11 @@ pub fn initialize_woodcutter_demo() -> World {
     // Create trees to fill approximately 40% of the 15x30 grid (180 trees out of 450 cells)
     println!("Creating ~180 trees (40% of map coverage)...");
     let mut tree_positions = Vec::new();
-    
+
     // Generate tree positions scattered across the map
     use rand::prelude::*;
     let mut rng = rand::thread_rng();
-    
+
     // Create clusters of trees in different areas
     // Cluster 1: Top-left area (0-9, 0-4)
     for _ in 0..50 {
@@ -374,22 +374,22 @@ pub fn initialize_woodcutter_demo() -> World {
         let y = rng.gen_range(0..5);
         tree_positions.push((x, y));
     }
-    
+
     // Cluster 2: Top-right area (20-29, 0-4)
     for _ in 0..40 {
         let x = rng.gen_range(20..30);
         let y = rng.gen_range(0..5);
         tree_positions.push((x, y));
     }
-    
+
     // Cluster 3: Middle-left area (0-14, 6-9)
     for _ in 0..45 {
         let x = rng.gen_range(0..15);
-        let y = rng.gen_range(6..10);  
+        let y = rng.gen_range(6..10);
         tree_positions.push((x, y));
     }
-    
-    // Cluster 4: Bottom area (5-24, 11-14)  
+
+    // Cluster 4: Bottom area (5-24, 11-14)
     for _ in 0..45 {
         let x = rng.gen_range(5..25);
         let y = rng.gen_range(11..15);
@@ -429,7 +429,10 @@ pub fn initialize_woodcutter_demo() -> World {
 
     // Create 2 woodcutter actors starting near the hut
     println!("\nCreating 2 woodcutters...");
-    let woodcutter_positions = [(GRID_WIDTH - 4, GRID_HEIGHT / 2), (GRID_WIDTH - 2, GRID_HEIGHT / 2 + 1)]; // Near the hut
+    let woodcutter_positions = [
+        (GRID_WIDTH - 4, GRID_HEIGHT / 2),
+        (GRID_WIDTH - 2, GRID_HEIGHT / 2 + 1),
+    ]; // Near the hut
 
     for (i, &pos) in woodcutter_positions.iter().enumerate() {
         let woodcutter_entity = world.create_entity();
@@ -454,7 +457,12 @@ pub fn initialize_woodcutter_demo() -> World {
     world.initialize_systems();
 
     println!("\nWoodcutter demo world initialized!");
-    println!("- {} trees (40% coverage of {}x{} grid)", tree_positions.len(), GRID_WIDTH, GRID_HEIGHT);
+    println!(
+        "- {} trees (40% coverage of {}x{} grid)",
+        tree_positions.len(),
+        GRID_WIDTH,
+        GRID_HEIGHT
+    );
     println!("- 1 woodcutter huts");
     println!("- 2 woodcutters");
 
