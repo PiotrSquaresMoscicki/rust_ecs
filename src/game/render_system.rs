@@ -86,22 +86,20 @@ impl System for RenderSystem {
         for (_entity, (position, _actor)) in world.query_components::<(In<Position>, In<Actor>)>() {
             let x = position.x as usize;
             let y = position.y as usize;
-            if x < self.grid_width && y < self.grid_height {
-                if grid[y][x] != 'H' { // Don't overwrite home
+            if x < self.grid_width && y < self.grid_height
+                && grid[y][x] != 'H' { // Don't overwrite home
                     grid[y][x] = 'A'; // Actor
                 }
-            }
         }
 
         // Place woodcutters on grid (separate from regular actors)
         for (_entity, (position, _woodcutter)) in world.query_components::<(In<Position>, In<Woodcutter>)>() {
             let x = position.x as usize;
             let y = position.y as usize;
-            if x < self.grid_width && y < self.grid_height {
-                if grid[y][x] != 'H' && grid[y][x] != 'A' { // Don't overwrite home or actor
+            if x < self.grid_width && y < self.grid_height
+                && grid[y][x] != 'H' && grid[y][x] != 'A' { // Don't overwrite home or actor
                     grid[y][x] = 'C'; // Woodcutter (C for Cutter)
                 }
-            }
         }
 
         // Print grid with appropriate legend
@@ -178,7 +176,6 @@ mod tests {
         world.update();
         
         // If we get here without panicking, the test passes
-        assert!(true);
     }
 
     #[test]
@@ -198,8 +195,6 @@ mod tests {
         
         // Should not panic even with out-of-bounds entities
         world.update();
-        
-        assert!(true);
     }
 
     #[test]
@@ -216,7 +211,5 @@ mod tests {
         
         // This should render with 'H' at home position, not 'A'
         world.update();
-        
-        assert!(true);
     }
 }

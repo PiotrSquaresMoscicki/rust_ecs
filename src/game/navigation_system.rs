@@ -402,7 +402,7 @@ mod tests {
         println!("Needs recalculation: {}", navigation.needs_recalculation);
         
         // The path should not go through any obstacle positions
-        let obstacle_positions = vec![(1, 1), (1, 0), (0, 1)];
+        let obstacle_positions = [(1, 1), (1, 0), (0, 1)];
         for pos in &navigation.path {
             assert!(!obstacle_positions.contains(pos), "Path goes through obstacle at {:?}", pos);
         }

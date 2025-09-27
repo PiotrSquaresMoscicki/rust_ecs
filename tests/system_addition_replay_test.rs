@@ -40,14 +40,11 @@ fn test_system_addition_recording_and_replay() {
     for update in history.updates() {
         for system_diff in update.system_diffs() {
             for operation in system_diff.world_operations() {
-                match operation {
-                    rust_ecs::WorldOperation::AddSystem(system_type) => {
-                        // Apply system addition manually for this test
-                        if system_type.contains("WaitSystem") {
-                            replay_world.add_system_internal(WaitSystem);
-                        }
+                if let rust_ecs::WorldOperation::AddSystem(system_type) = operation {
+                    // Apply system addition manually for this test
+                    if system_type.contains("WaitSystem") {
+                        replay_world.add_system_internal(WaitSystem);
                     }
-                    _ => {}
                 }
             }
         }
@@ -69,7 +66,7 @@ fn test_system_addition_recording_and_replay() {
     
     // The update should have system diffs from the replayed system
     let update = &replay_history.updates()[0];
-    assert!(update.system_diffs().len() >= 1, "Update should have at least 1 system diff from the replayed WaitSystem");
+    assert!(!update.system_diffs().is_empty(), "Update should have at least 1 system diff from the replayed WaitSystem");
     
     println!("✅ System addition recording and replay test passed");
 }
@@ -99,15 +96,10 @@ fn test_multiple_system_additions_replay() {
     for update in history.updates() {
         for system_diff in update.system_diffs() {
             for operation in system_diff.world_operations() {
-                match operation {
-                    rust_ecs::WorldOperation::AddSystem(system_type) => {
-                        if system_type.contains("WaitSystem") {
-                            replay_world.add_system_internal(WaitSystem);
-                        } else if system_type.contains("WaitSystem") {
-                            replay_world.add_system_internal(WaitSystem);
-                        }
+                if let rust_ecs::WorldOperation::AddSystem(system_type) = operation {
+                    if system_type.contains("WaitSystem") {
+                        replay_world.add_system_internal(WaitSystem);
                     }
-                    _ => {}
                 }
             }
         }
@@ -145,15 +137,10 @@ fn test_empty_world_replay() {
     for update in complete_history.updates() {
         for system_diff in update.system_diffs() {
             for operation in system_diff.world_operations() {
-                match operation {
-                    rust_ecs::WorldOperation::AddSystem(system_type) => {
-                        if system_type.contains("WaitSystem") {
-                            fresh_world.add_system_internal(WaitSystem);
-                        } else if system_type.contains("WaitSystem") {
-                            fresh_world.add_system_internal(WaitSystem);
-                        }
+                if let rust_ecs::WorldOperation::AddSystem(system_type) = operation {
+                    if system_type.contains("WaitSystem") {
+                        fresh_world.add_system_internal(WaitSystem);
                     }
-                    _ => {}
                 }
             }
         }

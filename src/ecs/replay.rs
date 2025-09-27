@@ -347,10 +347,7 @@ pub fn parse_replay_log(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn s
     let mut history = WorldUpdateHistory::new();
     let mut current_update: Option<WorldUpdateDiff> = None;
     let mut current_system: Option<SystemUpdateDiff> = None;
-    let mut _line_number = 0;
-
-    for line in lines {
-        _line_number += 1;
+    for line in lines.into_iter() {
         let line = line.trim();
         
         // Skip comments and empty lines
@@ -376,60 +373,60 @@ pub fn parse_replay_log(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn s
             current_system = Some(SystemUpdateDiff::new());
         } else if line.starts_with("    COMPONENT_CHANGES: ") {
             // Component changes section header
-        } else if line.starts_with("      ADD ") {
+        } else if let Some(stripped) = line.strip_prefix("      ADD ") {
             // Parse component addition: "ADD Entity(world_id, entity_id) ComponentType data"
-            if let Some(change) = parse_component_add(&line[10..]) {
+            if let Some(change) = parse_component_add(stripped) {
                 if let Some(ref mut system) = current_system {
                     system.record_component_change(change);
                 }
             }
-        } else if line.starts_with("      MOD ") {
+        } else if let Some(stripped) = line.strip_prefix("      MOD ") {
             // Parse component modification: "MOD Entity(world_id, entity_id) ComponentType diff"
-            if let Some(change) = parse_component_mod(&line[10..]) {
+            if let Some(change) = parse_component_mod(stripped) {
                 if let Some(ref mut system) = current_system {
                     system.record_component_change(change);
                 }
             }
-        } else if line.starts_with("      REM ") {
+        } else if let Some(stripped) = line.strip_prefix("      REM ") {
             // Parse component removal: "REM Entity(world_id, entity_id) ComponentType"
-            if let Some(change) = parse_component_rem(&line[10..]) {
+            if let Some(change) = parse_component_rem(stripped) {
                 if let Some(ref mut system) = current_system {
                     system.record_component_change(change);
                 }
             }
         } else if line.starts_with("    WORLD_OPERATIONS: ") {
             // World operations section header
-        } else if line.starts_with("      CREATE_ENTITY ") {
+        } else if let Some(stripped) = line.strip_prefix("      CREATE_ENTITY ") {
             // Parse entity creation: "CREATE_ENTITY Entity(world_id, entity_id)"
-            if let Some(entity) = parse_entity(&line[20..]) {
+            if let Some(entity) = parse_entity(stripped) {
                 if let Some(ref mut system) = current_system {
                     system.record_world_operation(WorldOperation::CreateEntity(entity));
                 }
             }
-        } else if line.starts_with("      REMOVE_ENTITY ") {
+        } else if let Some(stripped) = line.strip_prefix("      REMOVE_ENTITY ") {
             // Parse entity removal: "REMOVE_ENTITY Entity(world_id, entity_id)"
-            if let Some(entity) = parse_entity(&line[20..]) {
+            if let Some(entity) = parse_entity(stripped) {
                 if let Some(ref mut system) = current_system {
                     system.record_world_operation(WorldOperation::RemoveEntity(entity));
                 }
             }
-        } else if line.starts_with("      CREATE_WORLD ") {
+        } else if let Some(stripped) = line.strip_prefix("      CREATE_WORLD ") {
             // Parse world creation: "CREATE_WORLD world_id"
-            if let Ok(world_id) = line[19..].parse::<usize>() {
+            if let Ok(world_id) = stripped.parse::<usize>() {
                 if let Some(ref mut system) = current_system {
                     system.record_world_operation(WorldOperation::CreateWorld(world_id));
                 }
             }
-        } else if line.starts_with("      REMOVE_WORLD ") {
+        } else if let Some(stripped) = line.strip_prefix("      REMOVE_WORLD ") {
             // Parse world removal: "REMOVE_WORLD world_id"
-            if let Ok(world_id) = line[19..].parse::<usize>() {
+            if let Ok(world_id) = stripped.parse::<usize>() {
                 if let Some(ref mut system) = current_system {
                     system.record_world_operation(WorldOperation::RemoveWorld(world_id));
                 }
             }
-        } else if line.starts_with("      ADD_SYSTEM ") {
+        } else if let Some(stripped) = line.strip_prefix("      ADD_SYSTEM ") {
             // Parse system addition: "ADD_SYSTEM system_type_name"
-            let system_type_name = line[17..].to_string();
+            let system_type_name = stripped.to_string();
             if let Some(ref mut system) = current_system {
                 system.record_world_operation(WorldOperation::AddSystem(system_type_name));
             }

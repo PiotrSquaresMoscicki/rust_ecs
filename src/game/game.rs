@@ -142,11 +142,9 @@ fn run_game_normal() {
     // Disable replay logging and finalize the log file
     if let Err(e) = world.disable_replay_logging() {
         eprintln!("Warning: Failed to finalize replay logging: {}", e);
-    } else {
-        if let Some(session_id) = world.replay_session_id() {
-            println!("Replay log saved. Session ID: {}", session_id);
-            println!("To replay this session, run: cargo run game game_logs/simulation_game_{}.log", session_id);
-        }
+    } else if let Some(session_id) = world.replay_session_id() {
+        println!("Replay log saved. Session ID: {}", session_id);
+        println!("To replay this session, run: cargo run game game_logs/simulation_game_{}.log", session_id);
     }
 
     println!("Game completed after {} updates", update_count);
@@ -195,7 +193,7 @@ mod tests {
         // Check that each update has system diffs
         for (i, update) in history.updates().iter().enumerate() {
             println!("  Update {}: {} system diffs", i + 1, update.system_diffs().len());
-            assert!(update.system_diffs().len() > 0);
+            assert!(!update.system_diffs().is_empty());
         }
     }
 
@@ -415,8 +413,8 @@ fn simulate_replay_frame(world: &mut World, frame: usize) {
             let base_x = 2 + i as i32 * 2;
             let base_y = 2 + i as i32;
             
-            let new_x = (base_x + offset_x).max(0).min(GRID_SIZE - 1);
-            let new_y = (base_y + offset_y).max(0).min(GRID_SIZE - 1);
+            let new_x = (base_x + offset_x).clamp(0, GRID_SIZE - 1);
+            let new_y = (base_y + offset_y).clamp(0, GRID_SIZE - 1);
             
             // Update the component with the calculated position
             let new_position = Position { x: new_x, y: new_y };
@@ -640,8 +638,8 @@ fn apply_replay_diff_to_components(world: &mut World, frame: usize) {
             let base_x = 2 + i as i32 * 2;
             let base_y = 2 + i as i32;
             
-            let new_x = (base_x + offset_x).max(0).min(GRID_SIZE - 1);
-            let new_y = (base_y + offset_y).max(0).min(GRID_SIZE - 1);
+            let new_x = (base_x + offset_x).clamp(0, GRID_SIZE - 1);
+            let new_y = (base_y + offset_y).clamp(0, GRID_SIZE - 1);
             
             // Apply the exact component state from replay data
             let replay_position = Position { x: new_x, y: new_y };

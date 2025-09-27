@@ -43,6 +43,12 @@ pub struct Navigation {
     pub needs_recalculation: bool,
 }
 
+impl Default for Navigation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Navigation {
     pub fn new() -> Self {
         Self {

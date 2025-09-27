@@ -12,6 +12,10 @@ use crate::ecs::system::{System, SystemDependencies, SystemInitDiff, SystemUpdat
 use crate::ecs::query::{MixedMultiQuery};
 use crate::ecs::replay::{ReplayLogConfig, AutoReplayLogger};
 
+// Type aliases to reduce complexity
+type ComponentStorage = HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>;
+type TemporaryComponentStorage = HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>;
+
 /// Main ECS world container
 pub struct World {
     /// Index of this world (for multi-world support)
@@ -19,10 +23,10 @@ pub struct World {
     /// All entities in this world
     pub(crate) entities: Vec<Entity>,
     /// Component storage, organized by type
-    pub(crate) components: HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>,
+    pub(crate) components: ComponentStorage,
     /// Temporary component storage for Event<T>, ComponentAdded<T>, and ComponentRemoved<T>
     /// These components are automatically cleaned up at the end of each frame
-    pub(crate) temporary_components: HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>,
+    pub(crate) temporary_components: TemporaryComponentStorage,
     /// Systems registered to this world
     systems: Vec<Box<dyn SystemWrapper>>,
     /// Next entity ID to assign
@@ -338,8 +342,8 @@ impl World {
         let mut result = Vec::new();
         
         // Add all nodes with no incoming edges
-        for i in 0..n {
-            if in_degree[i] == 0 {
+        for (i, &degree) in in_degree.iter().enumerate().take(n) {
+            if degree == 0 {
                 queue.push(i);
             }
         }
