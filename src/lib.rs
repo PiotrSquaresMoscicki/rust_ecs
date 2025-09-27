@@ -63,13 +63,10 @@ pub use rust_ecs_derive::Diff;
 
 // Re-export the most commonly used types from the ECS module for convenience
 pub use ecs::{
-    Entity, Out, In, Not, ComponentChange, ComponentOperation, WorldOperation,
-    Event, ComponentAdded, ComponentRemoved,
-    DiffComponent, DiffComponentChange,
-    System, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory,
-    QueryComponent, MixedMultiQuery, MixedQueryComponent,
-    ReplayLogConfig, AutoReplayLogger,
-    World, WorldView
+    AutoReplayLogger, ComponentAdded, ComponentChange, ComponentOperation, ComponentRemoved,
+    DiffComponent, DiffComponentChange, Entity, Event, In, MixedMultiQuery, MixedQueryComponent,
+    Not, Out, QueryComponent, ReplayLogConfig, System, SystemDeinitDiff, SystemInitDiff,
+    SystemUpdateDiff, World, WorldOperation, WorldUpdateDiff, WorldUpdateHistory, WorldView,
 };
 
 // Re-export Diff trait from ECS (not conflicting with derive macro)
@@ -77,7 +74,10 @@ pub use ecs::diff::Diff;
 
 // Re-export replay analysis functions for backward compatibility
 pub mod replay_analysis {
-    pub use crate::ecs::replay::{analyze_replay_history, print_replay_analysis, find_anomalous_frames, read_replay_log, parse_replay_log, ReplayStats};
+    pub use crate::ecs::replay::{
+        analyze_replay_history, find_anomalous_frames, parse_replay_log, print_replay_analysis,
+        read_replay_log, ReplayStats,
+    };
 }
 
 // Game module - declared after ECS so it can use ECS types
@@ -139,7 +139,6 @@ mod tests {
         type OutComponents = ();
         type InSystems = ();
         type OutSystems = ();
-
 
         fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
             // Test system initialization
@@ -412,7 +411,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diff_entity() {        
+    fn test_diff_entity() {
         let entity1 = Entity::new(0, 5);
         let entity2 = Entity::new(0, 5);
         let entity3 = Entity::new(0, 10);
@@ -469,7 +468,7 @@ mod tests {
     }
 
     #[test]
-    fn test_diff_vec() {        
+    fn test_diff_vec() {
         let vec1 = vec![1, 2, 3];
         let vec2 = vec![1, 2, 3];
         let vec3 = vec![1, 5, 3, 4];
@@ -489,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_diff_hashmap() {
-        use std::collections::HashMap;        
+        use std::collections::HashMap;
         let mut map1 = HashMap::new();
         map1.insert("key1".to_string(), 1);
         map1.insert("key2".to_string(), 2);
@@ -583,10 +582,22 @@ mod tests {
             value: i32,
         }
 
-        let s1 = TestStruct { counter: 1, value: 10 };
-        let s2 = TestStruct { counter: 1, value: 10 };
-        let s3 = TestStruct { counter: 5, value: 10 };
-        let s4 = TestStruct { counter: 1, value: 20 };
+        let s1 = TestStruct {
+            counter: 1,
+            value: 10,
+        };
+        let s2 = TestStruct {
+            counter: 1,
+            value: 10,
+        };
+        let s3 = TestStruct {
+            counter: 5,
+            value: 10,
+        };
+        let s4 = TestStruct {
+            counter: 1,
+            value: 20,
+        };
 
         // No diff for identical structs
         assert!(s1.diff(&s2).is_none());
@@ -616,15 +627,25 @@ mod tests {
 
         // Define additional test components to test extended queries
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct TestA { value: i32 }
+        struct TestA {
+            value: i32,
+        }
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct TestB { value: i32 }
+        struct TestB {
+            value: i32,
+        }
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct TestC { value: i32 }
+        struct TestC {
+            value: i32,
+        }
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct TestD { value: i32 }
+        struct TestD {
+            value: i32,
+        }
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct TestE { value: i32 }
+        struct TestE {
+            value: i32,
+        }
 
         // Add multiple components to entity
         world_view.add_component(entity1, TestA { value: 1 });
@@ -634,7 +655,8 @@ mod tests {
         world_view.add_component(entity1, TestE { value: 5 });
 
         // Test 4-component query
-        let results4 = world_view.query_components::<(In<TestA>, In<TestB>, In<TestC>, In<TestD>)>();
+        let results4 =
+            world_view.query_components::<(In<TestA>, In<TestB>, In<TestC>, In<TestD>)>();
         assert_eq!(results4.len(), 1);
         let (entity, (a, b, c, d)) = &results4[0];
         assert_eq!(*entity, entity1);
@@ -644,7 +666,8 @@ mod tests {
         assert_eq!(d.value, 4);
 
         // Test 5-component query
-        let results5 = world_view.query_components::<(In<TestA>, In<TestB>, In<TestC>, In<TestD>, In<TestE>)>();
+        let results5 = world_view
+            .query_components::<(In<TestA>, In<TestB>, In<TestC>, In<TestD>, In<TestE>)>();
         assert_eq!(results5.len(), 1);
         let (entity, (a, b, c, d, e)) = &results5[0];
         assert_eq!(*entity, entity1);
@@ -655,26 +678,28 @@ mod tests {
         assert_eq!(e.value, 5);
 
         // Test mixed access (mutable and immutable)
-        let mut results_mixed = world_view.query_components::<(Out<TestA>, In<TestB>, Out<TestC>, In<TestD>, In<TestE>)>();
+        let mut results_mixed = world_view
+            .query_components::<(Out<TestA>, In<TestB>, Out<TestC>, In<TestD>, In<TestE>)>();
         assert_eq!(results_mixed.len(), 1);
         let (entity, (mut_a, b, mut_c, d, e)) = &mut results_mixed[0];
         assert_eq!(*entity, entity1);
         assert_eq!(b.value, 2);
         assert_eq!(d.value, 4);
         assert_eq!(e.value, 5);
-        
+
         // Modify the mutable components
         mut_a.value = 10;
         mut_c.value = 30;
 
         // Verify modifications were applied
-        let verification = world_view.query_components::<(In<TestA>, In<TestB>, In<TestC>, In<TestD>, In<TestE>)>();
+        let verification = world_view
+            .query_components::<(In<TestA>, In<TestB>, In<TestC>, In<TestD>, In<TestE>)>();
         let (_, (a, b, c, d, e)) = &verification[0];
         assert_eq!(a.value, 10); // Modified
-        assert_eq!(b.value, 2);  // Unchanged
+        assert_eq!(b.value, 2); // Unchanged
         assert_eq!(c.value, 30); // Modified
-        assert_eq!(d.value, 4);  // Unchanged
-        assert_eq!(e.value, 5);  // Unchanged
+        assert_eq!(d.value, 4); // Unchanged
+        assert_eq!(e.value, 5); // Unchanged
     }
 
     #[test]
@@ -684,13 +709,19 @@ mod tests {
 
         // Create some test components for the scenario
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct Tree { id: u32 }
-        
+        struct Tree {
+            id: u32,
+        }
+
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct FallenTree { id: u32 }
-        
+        struct FallenTree {
+            id: u32,
+        }
+
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct AssignedWoodcutter { woodcutter_id: u32 }
+        struct AssignedWoodcutter {
+            woodcutter_id: u32,
+        }
 
         // Create entities with different component combinations
         let entity1 = world_view.create_entity(); // Tree + FallenTree (no AssignedWoodcutter)
@@ -714,8 +745,9 @@ mod tests {
         // No Tree, no AssignedWoodcutter for entity4
 
         // Test the main scenario: entities with Tree AND FallenTree but NOT AssignedWoodcutter
-        let results = world_view.query_components::<(In<Tree>, In<FallenTree>, Not<AssignedWoodcutter>)>();
-        
+        let results =
+            world_view.query_components::<(In<Tree>, In<FallenTree>, Not<AssignedWoodcutter>)>();
+
         // Should only return entity1 (has Tree + FallenTree, but no AssignedWoodcutter)
         assert_eq!(results.len(), 1);
         let (entity, (tree, fallen_tree, _not_assigned)) = &results[0];
@@ -725,7 +757,7 @@ mod tests {
 
         // Test another query: entities with Tree but NOT FallenTree
         let tree_not_fallen = world_view.query_components::<(In<Tree>, Not<FallenTree>)>();
-        
+
         // Should only return entity3 (has Tree but no FallenTree)
         assert_eq!(tree_not_fallen.len(), 1);
         let (entity, (tree, _not_fallen)) = &tree_not_fallen[0];
@@ -734,7 +766,7 @@ mod tests {
 
         // Test query: entities with FallenTree but NOT Tree
         let fallen_not_tree = world_view.query_components::<(In<FallenTree>, Not<Tree>)>();
-        
+
         // Should only return entity4 (has FallenTree but no Tree)
         assert_eq!(fallen_not_tree.len(), 1);
         let (entity, (fallen_tree, _not_tree)) = &fallen_not_tree[0];
@@ -743,7 +775,7 @@ mod tests {
 
         // Test query: entities NOT assigned (without any positive components)
         let not_assigned = world_view.query_components::<(Not<AssignedWoodcutter>,)>();
-        
+
         // Should return entity1, entity3, and entity4 (all except entity2)
         assert_eq!(not_assigned.len(), 3);
         let returned_entities: Vec<Entity> = not_assigned.iter().map(|(e, _)| *e).collect();
@@ -759,15 +791,19 @@ mod tests {
         let mut world_view = WorldView::<(), ()>::new(&mut world);
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct ComponentA { value: i32 }
-        
+        struct ComponentA {
+            value: i32,
+        }
+
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct ComponentB { value: i32 }
+        struct ComponentB {
+            value: i32,
+        }
 
         // Test query with only Not<> components
         let entity1 = world_view.create_entity();
         let entity2 = world_view.create_entity();
-        
+
         // entity1 has no components, entity2 has ComponentA
         world_view.add_component(entity2, ComponentA { value: 42 });
 
@@ -785,16 +821,16 @@ mod tests {
 
         // Test mixing Not<> with Out<> for mutable access
         world_view.add_component(entity1, ComponentB { value: 100 });
-        
+
         let mut mixed_results = world_view.query_components::<(Out<ComponentB>, Not<ComponentA>)>();
         assert_eq!(mixed_results.len(), 1);
         let (entity, (comp_b, _not_a)) = &mut mixed_results[0];
         assert_eq!(*entity, entity1);
         assert_eq!(comp_b.value, 100);
-        
+
         // Modify the component through the mutable reference
         comp_b.value = 200;
-        
+
         // Verify the change was applied
         let verification = world_view.get_component::<ComponentB>(entity1);
         assert_eq!(verification.unwrap().value, 200);
@@ -808,14 +844,20 @@ mod tests {
         let mut world_view = WorldView::<(), ()>::new(&mut world);
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct Tree2 { species_id: u32 }
-        
+        struct Tree2 {
+            species_id: u32,
+        }
+
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct FallenTree { fallen_at: u32 }
-        
+        struct FallenTree {
+            fallen_at: u32,
+        }
+
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
-        struct AssignedWoodcutter { worker_id: u32 }
-        
+        struct AssignedWoodcutter {
+            worker_id: u32,
+        }
+
         let entity1 = world_view.create_entity(); // Tree + FallenTree, no AssignedWoodcutter
         let entity2 = world_view.create_entity(); // Tree + FallenTree + AssignedWoodcutter
         let entity3 = world_view.create_entity(); // Only Tree
@@ -831,8 +873,9 @@ mod tests {
         world_view.add_component(entity3, Tree2 { species_id: 3 });
 
         // Test the exact query from the problem statement
-        let results = world_view.query_components::<(In<Tree2>, In<FallenTree>, Not<AssignedWoodcutter>)>();
-        
+        let results =
+            world_view.query_components::<(In<Tree2>, In<FallenTree>, Not<AssignedWoodcutter>)>();
+
         // Should only return entity1
         assert_eq!(results.len(), 1);
         let (entity, (tree, fallen_tree, _not_assigned)) = &results[0];
@@ -848,11 +891,19 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type InSystems = ();
-        type OutSystems = ();
+            type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct SystemB;
@@ -862,15 +913,23 @@ mod tests {
             type InSystems = (SystemA,);
             type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         let mut world = World::new();
         world.add_system(SystemB); // Add B first
         world.add_system(SystemA); // Add A second
-        
+
         // Should initialize in dependency order: A then B
         world.initialize_systems();
         // Should update in dependency order: A then B
@@ -886,11 +945,19 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type InSystems = ();
-        type OutSystems = ();
+            type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct SystemY;
@@ -898,11 +965,19 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type InSystems = ();
-        type OutSystems = ();
+            type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct SystemZ;
@@ -912,16 +987,24 @@ mod tests {
             type InSystems = (SystemX, SystemY);
             type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         let mut world = World::new();
         world.add_system(SystemZ); // Add Z first (depends on X and Y)
         world.add_system(SystemY); // Add Y second
         world.add_system(SystemX); // Add X third
-        
+
         // Should initialize in dependency order: X and Y first, then Z
         world.initialize_systems();
         world.update();
@@ -932,33 +1015,41 @@ mod tests {
     fn test_frame_diff_shows_system_names() {
         // Create a system that makes changes to test frame diff output
         struct TestSystemWithChanges;
-        
+
         impl System for TestSystemWithChanges {
             type InComponents = ();
             type OutComponents = (Position,);
             type InSystems = ();
             type OutSystems = ();
-            
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            
+
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
+
             fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
                 // Create some changes for the frame diff
                 let entity = world.create_entity();
                 world.add_component(entity, Position { x: 2.0, y: 2.0 });
             }
-            
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
-        
+
         let mut world = World::new();
         world.add_system(TestSystemWithChanges);
         world.initialize_systems();
         world.update();
-        
+
         // Call print_last_frame_diff to ensure it doesn't panic and uses system names
         // In a real scenario, this would print "TestSystemWithChanges:" instead of "System 0:"
         world.print_last_frame_diff();
-        
+
         // The test passes if print_last_frame_diff doesn't panic and compiles correctly
         // Visual verification of output would show system names instead of indices
     }
@@ -970,11 +1061,19 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type InSystems = ();
-        type OutSystems = ();
+            type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct ChainB;
@@ -984,9 +1083,17 @@ mod tests {
             type InSystems = (ChainA,);
             type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct ChainC;
@@ -996,16 +1103,24 @@ mod tests {
             type InSystems = (ChainB,);
             type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         let mut world = World::new();
         world.add_system(ChainC); // Add C first (depends on B)
         world.add_system(ChainA); // Add A second (no dependencies)
         world.add_system(ChainB); // Add B third (depends on A)
-        
+
         // Should initialize in dependency order: A -> B -> C
         world.initialize_systems();
         world.update();
@@ -1019,11 +1134,19 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type InSystems = ();
-        type OutSystems = ();
+            type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct IndependentSystem2;
@@ -1031,17 +1154,25 @@ mod tests {
             type InComponents = ();
             type OutComponents = ();
             type InSystems = ();
-        type OutSystems = ();
+            type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         let mut world = World::new();
         world.add_system(IndependentSystem1);
         world.add_system(IndependentSystem2);
-        
+
         // Should work fine with no dependencies
         world.initialize_systems();
         world.update();
@@ -1052,7 +1183,7 @@ mod tests {
     fn test_system_dependencies_circular_detection() {
         // This test demonstrates that circular dependencies are handled gracefully
         // (falls back to registration order with warning)
-        
+
         struct CircularA;
         impl System for CircularA {
             type InComponents = ();
@@ -1060,9 +1191,17 @@ mod tests {
             type InSystems = (CircularB,);
             type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct CircularB;
@@ -1072,15 +1211,23 @@ mod tests {
             type InSystems = (CircularA,);
             type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         let mut world = World::new();
         world.add_system(CircularA);
         world.add_system(CircularB);
-        
+
         // Should handle circular dependencies gracefully (prints warning and uses registration order)
         world.initialize_systems();
         world.update();
@@ -1096,9 +1243,17 @@ mod tests {
             type InSystems = (NonExistentSystem,);
             type OutSystems = ();
 
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct NonExistentSystem;
@@ -1107,15 +1262,23 @@ mod tests {
             type OutComponents = ();
             type InSystems = ();
             type OutSystems = ();
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         let mut world = World::new();
         world.add_system(MissingDepSystem);
         // Don't add NonExistentSystem - this should trigger missing dependency error
-        
+
         // Should handle missing dependency gracefully and fall back to registration order
         world.initialize_systems();
         world.update();
@@ -1130,9 +1293,17 @@ mod tests {
             type OutComponents = ();
             type InSystems = ();
             type OutSystems = (SecondSystem, ThirdSystem); // Run before Second and Third
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct SecondSystem;
@@ -1141,9 +1312,17 @@ mod tests {
             type OutComponents = ();
             type InSystems = ();
             type OutSystems = ();
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct ThirdSystem;
@@ -1152,9 +1331,17 @@ mod tests {
             type OutComponents = ();
             type InSystems = ();
             type OutSystems = ();
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         let mut world = World::new();
@@ -1162,7 +1349,7 @@ mod tests {
         world.add_system(ThirdSystem);
         world.add_system(SecondSystem);
         world.add_system(FirstSystem);
-        
+
         // Should initialize/update in order: First -> Second/Third
         world.initialize_systems();
         world.update();
@@ -1177,9 +1364,17 @@ mod tests {
             type OutComponents = ();
             type InSystems = ();
             type OutSystems = ();
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct DerivedSystem;
@@ -1188,9 +1383,17 @@ mod tests {
             type OutComponents = ();
             type InSystems = (BaseSystem,); // Run after Base
             type OutSystems = ();
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct AnotherSystem;
@@ -1199,9 +1402,17 @@ mod tests {
             type OutComponents = ();
             type InSystems = (BaseSystem, DerivedSystem); // Run after both Base and Derived
             type OutSystems = ();
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         let mut world = World::new();
@@ -1209,7 +1420,7 @@ mod tests {
         world.add_system(AnotherSystem);
         world.add_system(DerivedSystem);
         world.add_system(BaseSystem);
-        
+
         // Should initialize/update in order: Base -> Derived -> Another
         world.initialize_systems();
         world.update();
@@ -1224,9 +1435,17 @@ mod tests {
             type OutComponents = ();
             type InSystems = ();
             type OutSystems = ();
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct ProcessingSystem;
@@ -1235,9 +1454,17 @@ mod tests {
             type OutComponents = ();
             type InSystems = (CoreSystem,); // Must run after CoreSystem
             type OutSystems = (RenderingSystem,); // Must run before RenderingSystem
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         struct RenderingSystem;
@@ -1246,9 +1473,17 @@ mod tests {
             type OutComponents = ();
             type InSystems = (); // Will be constrained by ProcessingSystem's OutSystems
             type OutSystems = ();
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         let mut world = World::new();
@@ -1256,7 +1491,7 @@ mod tests {
         world.add_system(RenderingSystem);
         world.add_system(ProcessingSystem);
         world.add_system(CoreSystem);
-        
+
         // Should initialize/update in order: Core -> Processing -> Rendering
         world.initialize_systems();
         world.update();
@@ -1271,26 +1506,42 @@ mod tests {
             type OutComponents = ();
             type InSystems = ();
             type OutSystems = (CircularB,); // A should run before B
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
-        struct CircularB; 
+        struct CircularB;
         impl System for CircularB {
             type InComponents = ();
             type OutComponents = ();
             type InSystems = ();
             type OutSystems = (CircularA,); // Creates circular constraint: A->B->A
-            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn initialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
             fn update(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
-            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            fn deinitialize(
+                &mut self,
+                _world: &mut WorldView<Self::InComponents, Self::OutComponents>,
+            ) {
+            }
         }
 
         let mut world = World::new();
         world.add_system(CircularA);
         world.add_system(CircularB);
-        
+
         // Should handle circular constraint gracefully and fall back to registration order
         world.initialize_systems();
         world.update();
@@ -1298,13 +1549,13 @@ mod tests {
     }
 
     // Tests for Event system and Component change notifications
-    
+
     #[derive(Debug, Clone, PartialEq)]
     struct ShotsFired {
         damage: i32,
         target_id: u32,
     }
-    
+
     #[derive(Debug, Clone, PartialEq)]
     struct Soldier {
         id: u32,
@@ -1318,10 +1569,22 @@ mod tests {
         let entity2 = world.create_entity();
 
         // Add a soldier to entity1
-        world.add_component(entity1, Soldier { id: 1, name: "John".to_string() });
-        
+        world.add_component(
+            entity1,
+            Soldier {
+                id: 1,
+                name: "John".to_string(),
+            },
+        );
+
         // Dispatch a ShotsFired event to entity1
-        world.add_event(entity1, ShotsFired { damage: 50, target_id: 2 });
+        world.add_event(
+            entity1,
+            ShotsFired {
+                damage: 50,
+                target_id: 2,
+            },
+        );
 
         // Query for the event
         let events = world.get_component::<Event<ShotsFired>>(entity1);
@@ -1341,7 +1604,13 @@ mod tests {
         let entity = world.create_entity();
 
         // Dispatch an event
-        world.add_event(entity, ShotsFired { damage: 30, target_id: 1 });
+        world.add_event(
+            entity,
+            ShotsFired {
+                damage: 30,
+                target_id: 1,
+            },
+        );
 
         // Event should exist before update
         let event_before = world.get_component::<Event<ShotsFired>>(entity);
@@ -1410,15 +1679,33 @@ mod tests {
         let entity2 = world_view.create_entity();
 
         // Add soldier to both entities
-        world_view.add_component(entity1, Soldier { id: 1, name: "Alice".to_string() });
-        world_view.add_component(entity2, Soldier { id: 2, name: "Bob".to_string() });
+        world_view.add_component(
+            entity1,
+            Soldier {
+                id: 1,
+                name: "Alice".to_string(),
+            },
+        );
+        world_view.add_component(
+            entity2,
+            Soldier {
+                id: 2,
+                name: "Bob".to_string(),
+            },
+        );
 
         // Add event only to entity1
-        world_view.add_event(entity1, ShotsFired { damage: 25, target_id: 2 });
+        world_view.add_event(
+            entity1,
+            ShotsFired {
+                damage: 25,
+                target_id: 2,
+            },
+        );
 
         // Query for soldiers with ShotsFired events
         let results = world_view.query_components::<(In<Soldier>, In<Event<ShotsFired>>)>();
-        
+
         // Should return only entity1
         assert_eq!(results.len(), 1);
         let (entity, (soldier, event)) = &results[0];
@@ -1451,7 +1738,13 @@ mod tests {
         let entity = world.create_entity();
 
         // Add multiple different events to the same entity
-        world.add_event(entity, ShotsFired { damage: 10, target_id: 1 });
+        world.add_event(
+            entity,
+            ShotsFired {
+                damage: 10,
+                target_id: 1,
+            },
+        );
         world.add_event(entity, Position { x: 100.0, y: 200.0 });
 
         // Both events should be queryable
@@ -1471,20 +1764,36 @@ mod tests {
         let entity = world.create_entity();
 
         // Add component (creates ComponentAdded notification)
-        world.add_component(entity, Soldier { id: 1, name: "Test".to_string() });
-        
+        world.add_component(
+            entity,
+            Soldier {
+                id: 1,
+                name: "Test".to_string(),
+            },
+        );
+
         // Add event
-        world.add_event(entity, ShotsFired { damage: 5, target_id: 1 });
+        world.add_event(
+            entity,
+            ShotsFired {
+                damage: 5,
+                target_id: 1,
+            },
+        );
 
         // Both should exist before update
-        assert!(world.get_component::<ComponentAdded<Soldier>>(entity).is_some());
+        assert!(world
+            .get_component::<ComponentAdded<Soldier>>(entity)
+            .is_some());
         assert!(world.get_component::<Event<ShotsFired>>(entity).is_some());
 
         // Run update - both temporary components should be cleaned up
         world.update();
 
         // Both should be cleaned up after update
-        assert!(world.get_component::<ComponentAdded<Soldier>>(entity).is_none());
+        assert!(world
+            .get_component::<ComponentAdded<Soldier>>(entity)
+            .is_none());
         assert!(world.get_component::<Event<ShotsFired>>(entity).is_none());
 
         // But the regular component should still exist
@@ -1499,11 +1808,29 @@ mod tests {
         let entity2 = world.create_entity();
 
         // Add soldiers to both entities
-        world.add_component(entity1, Soldier { id: 1, name: "Soldier1".to_string() });
-        world.add_component(entity2, Soldier { id: 2, name: "Soldier2".to_string() });
+        world.add_component(
+            entity1,
+            Soldier {
+                id: 1,
+                name: "Soldier1".to_string(),
+            },
+        );
+        world.add_component(
+            entity2,
+            Soldier {
+                id: 2,
+                name: "Soldier2".to_string(),
+            },
+        );
 
         // Entity1 fires shots
-        world.add_event(entity1, ShotsFired { damage: 100, target_id: 2 });
+        world.add_event(
+            entity1,
+            ShotsFired {
+                damage: 100,
+                target_id: 2,
+            },
+        );
 
         // Query as described in problem statement: for (entity, (soldier, shots_fired))
         let mut world_view = WorldView::<(), ()>::new(&mut world);
@@ -1519,8 +1846,9 @@ mod tests {
 
         // After world update, events should be automatically cleaned up
         world.update();
-        
-        let results_after_update = world_view.query_components::<(In<Soldier>, In<Event<ShotsFired>>)>();
+
+        let results_after_update =
+            world_view.query_components::<(In<Soldier>, In<Event<ShotsFired>>)>();
         assert_eq!(results_after_update.len(), 0);
     }
 
@@ -1530,10 +1858,17 @@ mod tests {
         let entity = world.create_entity();
 
         // Adding events should not create ComponentAdded notifications for the events themselves
-        world.add_event(entity, ShotsFired { damage: 1, target_id: 1 });
+        world.add_event(
+            entity,
+            ShotsFired {
+                damage: 1,
+                target_id: 1,
+            },
+        );
 
         // Should not have ComponentAdded<Event<ShotsFired>>
-        let no_event_notification = world.get_component::<ComponentAdded<Event<ShotsFired>>>(entity);
+        let no_event_notification =
+            world.get_component::<ComponentAdded<Event<ShotsFired>>>(entity);
         assert!(no_event_notification.is_none());
 
         // But should have the event itself
@@ -1545,88 +1880,117 @@ mod tests {
     fn test_example_from_problem_statement() {
         // This test demonstrates the exact usage described in the problem statement
         println!("=== Event System Demo ===");
-        
+
         let mut world = World::new();
-        
+
         // Create entities
         let soldier1 = world.create_entity();
         let soldier2 = world.create_entity();
-        
+
         // Add soldiers
-        world.add_component(soldier1, Soldier { id: 1, name: "Alice".to_string() });
-        world.add_component(soldier2, Soldier { id: 2, name: "Bob".to_string() });
-        
+        world.add_component(
+            soldier1,
+            Soldier {
+                id: 1,
+                name: "Alice".to_string(),
+            },
+        );
+        world.add_component(
+            soldier2,
+            Soldier {
+                id: 2,
+                name: "Bob".to_string(),
+            },
+        );
+
         println!("Created soldiers Alice and Bob");
-        
+
         // Soldier1 fires shots - dispatch event as described in problem statement
-        world.add_event(soldier1, ShotsFired { damage: 100, target_id: 2 });
+        world.add_event(
+            soldier1,
+            ShotsFired {
+                damage: 100,
+                target_id: 2,
+            },
+        );
         println!("Alice fires shots at Bob!");
-        
+
         // Query for events EXACTLY as described in problem statement:
         // "for (entity, (soldier, shots_fired) in query_components::<Soldier, Event<ShotsFired>>()"
         {
             let mut world_view = WorldView::<(), ()>::new(&mut world);
             let results = world_view.query_components::<(In<Soldier>, In<Event<ShotsFired>>)>();
-            
+
             println!("\nQuerying for soldiers with ShotsFired events:");
             for (entity, (soldier, shots_fired)) in &results {
-                println!("  Entity {:?}: {} fired shots with {} damage targeting {}", 
-                    entity, soldier.name, shots_fired.get().damage, shots_fired.get().target_id);
-                
+                println!(
+                    "  Entity {:?}: {} fired shots with {} damage targeting {}",
+                    entity,
+                    soldier.name,
+                    shots_fired.get().damage,
+                    shots_fired.get().target_id
+                );
+
                 // Verify this matches problem statement expectations
                 assert_eq!(soldier.id, 1);
                 assert_eq!(soldier.name, "Alice");
                 assert_eq!(shots_fired.get().damage, 100);
                 assert_eq!(shots_fired.get().target_id, 2);
             }
-            
+
             // Should find exactly one result as per problem statement
             assert_eq!(results.len(), 1);
         }
-        
+
         println!("\n=== Component Change Notifications Demo ===");
-        
+
         // Add position component (automatically creates ComponentAdded notification)
         world.add_component(soldier1, Position { x: 10.0, y: 20.0 });
-        
+
         // Query for component addition notifications
         {
             let mut world_view = WorldView::<(), ()>::new(&mut world);
             let additions = world_view.query_components::<(In<ComponentAdded<Position>>,)>();
-            println!("Position component was added to {} entities", additions.len());
+            println!(
+                "Position component was added to {} entities",
+                additions.len()
+            );
             assert_eq!(additions.len(), 1);
         }
-        
+
         println!("\n=== Automatic Cleanup Demo ===");
-        
+
         // Before world update - events and notifications exist
         let events_before = world.get_component::<Event<ShotsFired>>(soldier1);
         let additions_before = world.get_component::<ComponentAdded<Position>>(soldier1);
         println!("Before world.update():");
         println!("  Events exist: {}", events_before.is_some());
         println!("  Notifications exist: {}", additions_before.is_some());
-        
+
         assert!(events_before.is_some());
         assert!(additions_before.is_some());
-        
+
         // Run world update - this cleans up all temporary components as specified
         world.update();
-        
+
         // After world update - all temporary components are cleaned up automatically
         let events_after = world.get_component::<Event<ShotsFired>>(soldier1);
         let additions_after = world.get_component::<ComponentAdded<Position>>(soldier1);
         println!("\nAfter world.update():");
         println!("  Events exist: {}", events_after.is_some());
         println!("  Notifications exist: {}", additions_after.is_some());
-        
+
         assert!(events_after.is_none());
         assert!(additions_after.is_none());
-        
+
         // But regular components still exist
         let soldier_still_exists = world.get_component::<Soldier>(soldier1);
-        println!("  Regular components still exist: {}", soldier_still_exists.is_some());
+        println!(
+            "  Regular components still exist: {}",
+            soldier_still_exists.is_some()
+        );
         assert!(soldier_still_exists.is_some());
-        
+
         println!("\n=== Problem Statement Requirements Verified ===");
         println!("✓ Event dispatching works exactly as specified");
         println!("✓ Query syntax matches problem statement exactly");

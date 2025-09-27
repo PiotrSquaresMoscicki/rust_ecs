@@ -1,6 +1,8 @@
-use crate::{In, Out, System, WorldView};
-use super::components::{Actor, Position, Target, WaitTimer, HOME_POS, WORK_POS, WAIT_TICKS, Navigation};
+use super::components::{
+    Actor, Navigation, Position, Target, WaitTimer, HOME_POS, WAIT_TICKS, WORK_POS,
+};
 use super::utils::is_adjacent;
+use crate::{In, Out, System, WorldView};
 
 /// Wait System - handles wait timers and target switching
 /// Simplified thanks to extended query support for up to 16 components!
@@ -21,8 +23,14 @@ impl System for WaitSystem {
         let mut navigation_changes = Vec::new();
 
         // Now we can query all actor components together thanks to extended query support!
-        for (entity, (position, _actor, wait_timer, target, navigation)) in 
-            world.query_components::<(In<Position>, In<Actor>, Out<WaitTimer>, Out<Target>, Out<Navigation>)>()
+        for (entity, (position, _actor, wait_timer, target, navigation)) in world
+            .query_components::<(
+                In<Position>,
+                In<Actor>,
+                Out<WaitTimer>,
+                Out<Target>,
+                Out<Navigation>,
+            )>()
         {
             let current_pos = (position.x, position.y);
             let target_pos = (target.x, target.y);
@@ -38,7 +46,7 @@ impl System for WaitSystem {
             } else if should_switch {
                 wait_timer.ticks = WAIT_TICKS;
             }
-            
+
             // Store wait timer change if it was modified
             if old_wait_timer.ticks != wait_timer.ticks {
                 wait_timer_changes.push((entity, old_wait_timer, *wait_timer));
@@ -55,26 +63,26 @@ impl System for WaitSystem {
                     target.x = HOME_POS.0;
                     target.y = HOME_POS.1;
                 }
-                
+
                 // Store target change
                 target_changes.push((entity, old_target, *target));
-                
+
                 // Signal navigation recalculation for new target
                 let old_navigation = navigation.clone();
                 navigation.request_recalculation();
                 navigation_changes.push((entity, old_navigation, navigation.clone()));
             }
         }
-        
+
         // Record all component changes
         for (entity, old_wait_timer, new_wait_timer) in wait_timer_changes {
             world.record_component_modification(entity, &old_wait_timer, &new_wait_timer);
         }
-        
+
         for (entity, old_target, new_target) in target_changes {
             world.record_component_modification(entity, &old_target, &new_target);
         }
-        
+
         for (entity, old_navigation, new_navigation) in navigation_changes {
             world.record_component_modification(entity, &old_navigation, &new_navigation);
         }
@@ -85,42 +93,54 @@ impl System for WaitSystem {
 
 #[cfg(test)]
 mod tests {
+    use super::super::components::*;
     use super::*;
     use crate::World;
-    use super::super::components::*;
 
     fn create_test_world_with_waiting_actor() -> World {
         let mut world = World::new();
-        
+
         // Create an actor near HOME position
         let actor_entity = world.create_entity();
-        world.add_component(actor_entity, Position { x: HOME_POS.0, y: HOME_POS.1 + 1 }); // Adjacent to home
+        world.add_component(
+            actor_entity,
+            Position {
+                x: HOME_POS.0,
+                y: HOME_POS.1 + 1,
+            },
+        ); // Adjacent to home
         world.add_component(actor_entity, Actor);
-        world.add_component(actor_entity, Target { x: HOME_POS.0, y: HOME_POS.1 });
+        world.add_component(
+            actor_entity,
+            Target {
+                x: HOME_POS.0,
+                y: HOME_POS.1,
+            },
+        );
         world.add_component(actor_entity, WaitTimer { ticks: 3 });
         world.add_component(actor_entity, Navigation::new()); // Add Navigation component
-        
+
         // Add the wait system
         world.add_system(WaitSystem);
         world.initialize_systems();
-        
+
         world
     }
 
     #[test]
     fn test_wait_system_decreases_timer() {
         let mut world = create_test_world_with_waiting_actor();
-        
+
         let actor_entities = world.entities_with_component::<Actor>();
         let actor_entity = actor_entities[0];
-        
+
         // Initial timer should be 3
         let initial_timer = world.get_component::<WaitTimer>(actor_entity).unwrap();
         assert_eq!(initial_timer.ticks, 3);
-        
+
         // Run one update
         world.update();
-        
+
         // Timer should decrease by 1
         let new_timer = world.get_component::<WaitTimer>(actor_entity).unwrap();
         assert_eq!(new_timer.ticks, 2);
@@ -129,25 +149,37 @@ mod tests {
     #[test]
     fn test_wait_system_switches_target_when_timer_reaches_zero() {
         let mut world = World::new();
-        
+
         // Create an actor at HOME position with 0 timer
         let actor_entity = world.create_entity();
-        world.add_component(actor_entity, Position { x: HOME_POS.0, y: HOME_POS.1 });
+        world.add_component(
+            actor_entity,
+            Position {
+                x: HOME_POS.0,
+                y: HOME_POS.1,
+            },
+        );
         world.add_component(actor_entity, Actor);
-        world.add_component(actor_entity, Target { x: HOME_POS.0, y: HOME_POS.1 });
+        world.add_component(
+            actor_entity,
+            Target {
+                x: HOME_POS.0,
+                y: HOME_POS.1,
+            },
+        );
         world.add_component(actor_entity, WaitTimer { ticks: 0 });
         world.add_component(actor_entity, Navigation::new()); // Add Navigation component
-        
+
         world.add_system(WaitSystem);
         world.initialize_systems();
-        
+
         // Run update
         world.update();
-        
+
         // Target should switch to WORK and timer should reset
         let new_target = world.get_component::<Target>(actor_entity).unwrap();
         let new_timer = world.get_component::<WaitTimer>(actor_entity).unwrap();
-        
+
         assert_eq!(new_target.x, WORK_POS.0);
         assert_eq!(new_target.y, WORK_POS.1);
         assert_eq!(new_timer.ticks, WAIT_TICKS);
@@ -156,25 +188,37 @@ mod tests {
     #[test]
     fn test_wait_system_switches_from_work_to_home() {
         let mut world = World::new();
-        
+
         // Create an actor at WORK position with 0 timer
         let actor_entity = world.create_entity();
-        world.add_component(actor_entity, Position { x: WORK_POS.0, y: WORK_POS.1 });
+        world.add_component(
+            actor_entity,
+            Position {
+                x: WORK_POS.0,
+                y: WORK_POS.1,
+            },
+        );
         world.add_component(actor_entity, Actor);
-        world.add_component(actor_entity, Target { x: WORK_POS.0, y: WORK_POS.1 });
+        world.add_component(
+            actor_entity,
+            Target {
+                x: WORK_POS.0,
+                y: WORK_POS.1,
+            },
+        );
         world.add_component(actor_entity, WaitTimer { ticks: 0 });
         world.add_component(actor_entity, Navigation::new()); // Add Navigation component
-        
+
         world.add_system(WaitSystem);
         world.initialize_systems();
-        
+
         // Run update
         world.update();
-        
+
         // Target should switch to HOME and timer should reset
         let new_target = world.get_component::<Target>(actor_entity).unwrap();
         let new_timer = world.get_component::<WaitTimer>(actor_entity).unwrap();
-        
+
         assert_eq!(new_target.x, HOME_POS.0);
         assert_eq!(new_target.y, HOME_POS.1);
         assert_eq!(new_timer.ticks, WAIT_TICKS);
@@ -183,25 +227,31 @@ mod tests {
     #[test]
     fn test_wait_system_no_change_when_not_near_target() {
         let mut world = World::new();
-        
+
         // Create an actor far from target
         let actor_entity = world.create_entity();
         world.add_component(actor_entity, Position { x: 5, y: 5 });
         world.add_component(actor_entity, Actor);
-        world.add_component(actor_entity, Target { x: HOME_POS.0, y: HOME_POS.1 });
+        world.add_component(
+            actor_entity,
+            Target {
+                x: HOME_POS.0,
+                y: HOME_POS.1,
+            },
+        );
         world.add_component(actor_entity, WaitTimer { ticks: 3 });
         world.add_component(actor_entity, Navigation::new()); // Add Navigation component
-        
+
         world.add_system(WaitSystem);
         world.initialize_systems();
-        
+
         // Run update
         world.update();
-        
+
         // Nothing should change since actor is not near target
         let timer = world.get_component::<WaitTimer>(actor_entity).unwrap();
         let target = world.get_component::<Target>(actor_entity).unwrap();
-        
+
         assert_eq!(timer.ticks, 3);
         assert_eq!(target.x, HOME_POS.0);
         assert_eq!(target.y, HOME_POS.1);

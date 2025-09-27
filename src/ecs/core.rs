@@ -2,11 +2,11 @@
 //!
 //! This module contains the fundamental building blocks of the ECS system.
 
+use serde::{Deserialize, Serialize};
 use std::any::TypeId;
-use serde::{Serialize, Deserialize};
 
 /// A unique identifier for entities in the ECS world.
-/// 
+///
 /// Each entity has an ID and generation to handle entity reuse safely.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Entity {
@@ -111,28 +111,28 @@ pub struct ComponentChange {
 }
 
 /// A generic event wrapper component that gets automatically cleaned up at the end of each frame
-/// 
+///
 /// Events are short-lived components that systems can dispatch to communicate with other systems.
 /// They are automatically removed after all systems have been updated.
-/// 
+///
 /// Example usage:
 /// ```
 /// use rust_ecs::*;
-/// 
+///
 /// // Define an event type
 /// #[derive(Debug, Clone)]
 /// struct ShotsFired {
 ///     damage: i32,
 ///     target_id: u32,
 /// }
-/// 
+///
 /// // Create world and entity
 /// let mut world = World::new();
 /// let entity = world.create_entity();
-/// 
+///
 /// // Dispatch the event by adding it to an entity
 /// world.add_event(entity, ShotsFired { damage: 10, target_id: 5 });
-/// 
+///
 /// // The event is now available for querying
 /// let event = world.get_component::<Event<ShotsFired>>(entity);
 /// assert!(event.is_some());
@@ -147,17 +147,17 @@ impl<T> Event<T> {
     pub fn new(data: T) -> Self {
         Self { data }
     }
-    
+
     /// Get a reference to the event data
     pub fn get(&self) -> &T {
         &self.data
     }
-    
+
     /// Get a mutable reference to the event data
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.data
     }
-    
+
     /// Take ownership of the event data
     pub fn into_inner(self) -> T {
         self.data
@@ -165,21 +165,21 @@ impl<T> Event<T> {
 }
 
 /// Automatically generated component that indicates a component was added to an entity
-/// 
+///
 /// This component is automatically created when any component is added to an entity.
 /// It gets cleaned up at the end of each frame.
-/// 
+///
 /// Example usage:
 /// ```
 /// use rust_ecs::*;
-/// 
+///
 /// // Create world and entity
 /// let mut world = World::new();
 /// let entity = world.create_entity();
-/// 
+///
 /// // Add a component (automatically creates ComponentAdded notification)
 /// world.add_component(entity, game::components::Position { x: 10, y: 20 });
-/// 
+///
 /// // The ComponentAdded notification is now available for querying
 /// let added = world.get_component::<ComponentAdded<game::components::Position>>(entity);
 /// assert!(added.is_some());
@@ -206,26 +206,26 @@ impl<T> Default for ComponentAdded<T> {
 }
 
 /// Automatically generated component that indicates a component was removed from an entity
-/// 
+///
 /// This component is automatically created when any component is removed from an entity.
 /// It contains the data of the removed component (moved, not copied).
 /// It gets cleaned up at the end of each frame.
-/// 
+///
 /// Example usage:
 /// ```
 /// use rust_ecs::*;
-/// 
+///
 /// // Create world and entity
 /// let mut world = World::new();
 /// let entity = world.create_entity();
-/// 
+///
 /// // Add a component first
 /// world.add_component(entity, game::components::Position { x: 10, y: 20 });
-/// 
+///
 /// // Remove the component with notification
 /// let was_removed = world.remove_component_with_notification::<game::components::Position>(entity);
 /// assert!(was_removed);
-/// 
+///
 /// // The ComponentRemoved notification is now available for querying
 /// let removed = world.get_component::<ComponentRemoved<game::components::Position>>(entity);
 /// assert!(removed.is_some());
@@ -241,17 +241,17 @@ impl<T> ComponentRemoved<T> {
     pub fn new(data: T) -> Self {
         Self { data }
     }
-    
+
     /// Get a reference to the removed component's data
     pub fn get_data(&self) -> &T {
         &self.data
     }
-    
+
     /// Get a mutable reference to the removed component's data
     pub fn get_data_mut(&mut self) -> &mut T {
         &mut self.data
     }
-    
+
     /// Take ownership of the removed component's data
     pub fn into_data(self) -> T {
         self.data

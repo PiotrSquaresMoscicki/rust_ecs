@@ -1,4 +1,4 @@
-use rust_ecs::{Diff, DiffComponent, In, Out, System, World, WorldView, game};
+use rust_ecs::{game, Diff, DiffComponent, In, Out, System, World, WorldView};
 use std::env;
 
 // Example components with Diff implementation using derive macro
@@ -121,8 +121,10 @@ impl System for PhysicsSystem {
             // Do some physics calculations that depend on updated positions/velocities
             let speed = (velocity.dx * velocity.dx + velocity.dy * velocity.dy).sqrt();
             if speed > 0.1 {
-                println!("  Entity {:?} at ({:.1}, {:.1}) moving at speed {:.2}", 
-                    entity, position.x, position.y, speed);
+                println!(
+                    "  Entity {:?} at ({:.1}, {:.1}) moving at speed {:.2}",
+                    entity, position.x, position.y, speed
+                );
             }
         }
     }
@@ -226,12 +228,14 @@ fn run_ecs_demo() {
 
     // Register systems - note the order: PhysicsSystem depends on MovementSystem
     println!("\n--- System Dependency Demo ---");
-    println!("Adding systems: HealthSystem, PhysicsSystem (depends on MovementSystem), MovementSystem");
+    println!(
+        "Adding systems: HealthSystem, PhysicsSystem (depends on MovementSystem), MovementSystem"
+    );
     println!("Expected order: MovementSystem -> PhysicsSystem, HealthSystem (no dependencies)");
-    
-    world.add_system(HealthSystem);         // No dependencies
-    world.add_system(PhysicsSystem);        // Depends on MovementSystem
-    world.add_system(MovementSystem);       // No dependencies
+
+    world.add_system(HealthSystem); // No dependencies
+    world.add_system(PhysicsSystem); // Depends on MovementSystem
+    world.add_system(MovementSystem); // No dependencies
     println!("Registered systems");
 
     // Initialize systems - should be ordered by dependencies
@@ -406,10 +410,10 @@ fn demo_diff_functionality() {
 /// Demonstrate replay analysis functionality
 fn demo_replay_analysis() {
     println!("\n=== Replay Analysis Demo ===");
-    
+
     // Create a simple world for demonstration
     let mut world = World::new();
-    
+
     // Enable replay logging
     let replay_config = rust_ecs::ReplayLogConfig {
         enabled: true,
@@ -418,7 +422,7 @@ fn demo_replay_analysis() {
         flush_interval: 5,
         include_component_details: true,
     };
-    
+
     match world.enable_replay_logging(replay_config) {
         Ok(()) => {
             println!("Replay logging enabled for demo");
@@ -428,41 +432,41 @@ fn demo_replay_analysis() {
             return;
         }
     }
-    
+
     // Add some entities and components
     let entity1 = world.create_entity();
     let entity2 = world.create_entity();
     world.add_component(entity1, Position { x: 0.0, y: 0.0 });
     world.add_component(entity1, Velocity { dx: 1.0, dy: 0.5 });
     world.add_component(entity2, Position { x: 10.0, y: 10.0 });
-    
+
     // Add a movement system
     world.add_system(MovementSystem);
     world.initialize_systems();
-    
+
     // Run several updates
     for i in 0..15 {
         println!("Update {}", i + 1);
         world.update();
     }
-    
+
     // Analyze the replay data
     let history = world.get_update_history();
     rust_ecs::replay_analysis::print_replay_analysis(history);
-    
+
     // Find anomalous frames (frames with significantly more activity)
     let anomalous = rust_ecs::replay_analysis::find_anomalous_frames(history, 2.0);
     if !anomalous.is_empty() {
         println!("Anomalous frames (2x average activity): {:?}", anomalous);
     }
-    
+
     // Clean up
     if let Err(e) = world.disable_replay_logging() {
         eprintln!("Failed to finalize logging: {}", e);
     }
-    
+
     // Clean up demo directory
     let _ = std::fs::remove_dir_all("demo_replay_logs");
-    
+
     println!("Replay analysis demo completed");
 }
