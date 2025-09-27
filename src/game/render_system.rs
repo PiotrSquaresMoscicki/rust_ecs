@@ -1,6 +1,6 @@
 use super::components::{
     Actor, AssignedWoodcutter, Home, Obstacle, Position, Tree, Woodcutter, WoodcutterHut, Work,
-    GRID_SIZE,
+    GRID_HEIGHT, GRID_WIDTH,
 };
 use crate::{In, System, WorldView};
 
@@ -21,7 +21,7 @@ impl RenderSystem {
 
 impl Default for RenderSystem {
     fn default() -> Self {
-        Self::new(GRID_SIZE as usize, GRID_SIZE as usize)
+        Self::new(GRID_WIDTH as usize, GRID_HEIGHT as usize)
     }
 }
 
@@ -122,13 +122,16 @@ impl System for RenderSystem {
             }
         }
 
-        // Print grid with appropriate legend
-        if self.grid_width == 10 && self.grid_height == 10 {
-            // Navigation demo
+        // Print grid with appropriate legend - detect based on content
+        let has_trees = !world.query_components::<(In<Position>, In<Tree>)>().is_empty();
+        let has_obstacles = !world.query_components::<(In<Position>, In<Obstacle>)>().is_empty();
+        
+        if has_obstacles && !has_trees {
+            // Navigation demo - has obstacles (walls) but no trees
             println!("Navigation Demo - Labyrinth Pathfinding");
             println!("# = Wall, A = Actor, E = Exit, . = Open space");
         } else {
-            // Woodcutter demo - demonstrate Not<> functionality
+            // Woodcutter demo - has trees
             println!("Woodcutter Demo - Not<> Component Query Showcase");
             println!("T = Tree, C = Woodcutter, W = Woodcutter Hut");
             println!("(Woodcutters use Not<AssignedWoodcutter> queries to prevent targeting the same tree)");
@@ -219,8 +222,8 @@ mod tests {
         world.add_component(
             edge_entity,
             Position {
-                x: GRID_SIZE - 1,
-                y: GRID_SIZE - 1,
+                x: GRID_WIDTH - 1,
+                y: GRID_HEIGHT - 1,
             },
         );
 
@@ -229,8 +232,8 @@ mod tests {
         world.add_component(
             out_of_bounds_entity,
             Position {
-                x: GRID_SIZE,
-                y: GRID_SIZE,
+                x: GRID_WIDTH,
+                y: GRID_HEIGHT,
             },
         );
 

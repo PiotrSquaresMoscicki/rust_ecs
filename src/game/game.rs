@@ -51,7 +51,7 @@ pub fn initialize_game() -> World {
         // Generate random position that's not home or work
         let mut pos;
         loop {
-            pos = (rng.gen_range(0..GRID_SIZE), rng.gen_range(0..GRID_SIZE));
+            pos = (rng.gen_range(0..GRID_WIDTH), rng.gen_range(0..GRID_HEIGHT));
             if pos != HOME_POS && pos != WORK_POS {
                 break;
             }
@@ -435,8 +435,8 @@ fn simulate_replay_frame(world: &mut World, frame: usize) {
             let base_x = 2 + i as i32 * 2;
             let base_y = 2 + i as i32;
 
-            let new_x = (base_x + offset_x).clamp(0, GRID_SIZE - 1);
-            let new_y = (base_y + offset_y).clamp(0, GRID_SIZE - 1);
+            let new_x = (base_x + offset_x).clamp(0, GRID_WIDTH - 1);
+            let new_y = (base_y + offset_y).clamp(0, GRID_HEIGHT - 1);
 
             // Update the component with the calculated position
             let new_position = Position { x: new_x, y: new_y };
@@ -671,8 +671,8 @@ fn apply_replay_diff_to_components(world: &mut World, frame: usize) {
             let base_x = 2 + i as i32 * 2;
             let base_y = 2 + i as i32;
 
-            let new_x = (base_x + offset_x).clamp(0, GRID_SIZE - 1);
-            let new_y = (base_y + offset_y).clamp(0, GRID_SIZE - 1);
+            let new_x = (base_x + offset_x).clamp(0, GRID_WIDTH - 1);
+            let new_y = (base_y + offset_y).clamp(0, GRID_HEIGHT - 1);
 
             // Apply the exact component state from replay data
             let replay_position = Position { x: new_x, y: new_y };

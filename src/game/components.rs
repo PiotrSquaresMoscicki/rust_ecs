@@ -1,9 +1,11 @@
 use crate::Diff;
 
-// Grid constants
-pub const GRID_SIZE: i32 = 10;
+// Grid constants - 15x30 (height x width)
+pub const GRID_HEIGHT: i32 = 15;
+pub const GRID_WIDTH: i32 = 30;
+pub const GRID_SIZE: i32 = GRID_HEIGHT; // Maintain backward compatibility for square operations
 pub const HOME_POS: (i32, i32) = (1, 1);
-pub const WORK_POS: (i32, i32) = (6, 6); // Moved to center to avoid blocking woodcutter paths
+pub const WORK_POS: (i32, i32) = (15, 7); // Moved to center of new grid
 pub const WAIT_TICKS: u32 = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
