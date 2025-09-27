@@ -42,6 +42,15 @@ When Copilot encounters impossible or technically infeasible requirements:
 
 ## Debugging and Development Tools
 
+### Frame Diff Debugging (CRITICAL - NEVER REMOVE)
+- **MANDATORY**: All game loops and demos MUST call `world.print_last_frame_diff();` after each `world.update()` call
+- This prints detailed debugging information about what changed in each frame
+- Include this in:
+  - Main game loop (`cargo run game`)
+  - All demo loops (`cargo run demo woodcutter`, `cargo run demo navigation`, `cargo run demo carpenter`, etc.)
+  - Any custom simulation loops
+- This functionality is crucial for debugging and MUST NEVER be removed or omitted
+
 ### Replay Logging System
 - Use the existing replay logging system for debugging complex issues
 - Recording log files are automatically generated for:

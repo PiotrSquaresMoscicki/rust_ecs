@@ -343,6 +343,9 @@ pub fn run_carpenter_demo() {
         world.update();
 
         thread::sleep(Duration::from_millis(1000)); // 1 second between frames
+
+        // Print frame diff after all system updates and after sleep
+        world.print_last_frame_diff();
     }
 
     world.deinitialize_systems();

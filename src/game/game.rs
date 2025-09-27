@@ -226,6 +226,9 @@ fn run_game_normal() {
         update_count += 1;
 
         thread::sleep(Duration::from_millis(500)); // 2 FPS
+
+        // Print frame diff after all system updates and after sleep
+        world.print_last_frame_diff();
     }
 
     // Disable replay logging and finalize the log file
