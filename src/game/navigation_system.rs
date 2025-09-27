@@ -277,11 +277,6 @@ pub fn run_navigation_demo() {
     while running.load(Ordering::SeqCst) {
         update_count += 1;
         
-        println!("=== Update {} ===", update_count);
-        
-        // Log actor states before update
-        log_actor_navigation_states(&world, update_count);
-        
         // Update the world
         world.update();
         
@@ -304,30 +299,15 @@ pub fn run_navigation_demo() {
         }
         
         thread::sleep(Duration::from_millis(500)); // 2 FPS for good observation
+        
+        // Print frame diff after all system updates and after sleep
+        world.print_last_frame_diff();
     }
 
     println!("Navigation demo completed after {} updates", update_count);
 }
 
-fn log_actor_navigation_states(world: &World, _update_count: u32) {
-    let actors = world.entities_with_component::<Actor>();
-    
-    println!("Actor Navigation States:");
-    for &actor in &actors {
-        let position = world.get_component::<Position>(actor);
-        let target = world.get_component::<Target>(actor);
-        let navigation = world.get_component::<Navigation>(actor);
-        
-        if let (Some(pos), Some(tgt), Some(nav)) = (position, target, navigation) {
-            println!("  Actor {:?}: Position({}, {}) -> Target({}, {})", 
-                     actor, pos.x, pos.y, tgt.x, tgt.y);
-            println!("    Path: {:?}", nav.path);
-            println!("    Path index: {}, Needs recalc: {}", 
-                     nav.current_path_index, nav.needs_recalculation);
-        }
-    }
-    println!();
-}
+
 
 #[cfg(test)]
 mod tests {

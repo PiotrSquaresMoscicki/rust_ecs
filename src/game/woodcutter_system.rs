@@ -398,20 +398,6 @@ pub fn run_woodcutter_demo() {
         world.update();
         update_count += 1;
         
-        // Log state every 5 updates
-        if update_count % 5 == 0 {
-            println!("\n=== Update {} ===", update_count);
-            log_woodcutter_states(&world, update_count);
-            
-            // Show unassigned vs assigned trees
-            let total_trees = world.entities_with_component::<Tree>().len();
-            let assigned_trees = world.entities_with_component::<AssignedWoodcutter>().len();
-            let unassigned_trees = total_trees - assigned_trees;
-            
-            println!("Trees: {} total ({} unassigned, {} assigned)", 
-                     total_trees, unassigned_trees, assigned_trees);
-        }
-        
         // Stop after 50 updates or when no trees left
         let tree_count = world.entities_with_component::<Tree>().len();
         if update_count >= 50 || tree_count == 0 {
@@ -419,6 +405,9 @@ pub fn run_woodcutter_demo() {
         }
         
         thread::sleep(Duration::from_millis(500));
+        
+        // Print frame diff after all system updates and after sleep
+        world.print_last_frame_diff();
     }
     
     println!("\n=== Demo Complete ===");
@@ -431,39 +420,7 @@ pub fn run_woodcutter_demo() {
     }
 }
 
-/// Log the state of each woodcutter
-pub fn log_woodcutter_states(world: &World, update_count: u32) {
-    println!("=== Update {} - Woodcutter States ===", update_count);
-    
-    let woodcutter_entities = world.entities_with_component::<Woodcutter>();
-    
-    for (i, &entity) in woodcutter_entities.iter().enumerate() {
-        let pos = world.get_component::<Position>(entity).unwrap();
-        let target = world.get_component::<Target>(entity).unwrap();
-        let timer = world.get_component::<WaitTimer>(entity).unwrap();
-        let carrying = world.get_component::<CarryingTree>(entity);
-        
-        println!("Woodcutter {} (Entity {:?}):", i + 1, entity);
-        println!("  Position: ({}, {})", pos.x, pos.y);
-        println!("  Target: ({}, {})", target.x, target.y);
-        println!("  Timer: {} ticks", timer.ticks);
-        println!("  Carrying tree: {}", carrying.is_some());
-        
-        // Determine what the woodcutter is doing
-        let action = if carrying.is_some() {
-            "Carrying tree to hut"
-        } else {
-            "Going to chop tree"
-        };
-        println!("  Action: {}", action);
-        println!();
-    }
-    
-    // Log total trees remaining
-    let tree_count = world.entities_with_component::<Tree>().len();
-    println!("Trees remaining: {}", tree_count);
-    println!();
-}
+
 
 
 
