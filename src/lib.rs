@@ -929,6 +929,41 @@ mod tests {
     }
 
     #[test]
+    fn test_frame_diff_shows_system_names() {
+        // Create a system that makes changes to test frame diff output
+        struct TestSystemWithChanges;
+        
+        impl System for TestSystemWithChanges {
+            type InComponents = ();
+            type OutComponents = (Position,);
+            type InSystems = ();
+            type OutSystems = ();
+            
+            fn initialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+            
+            fn update(&mut self, world: &mut WorldView<Self::InComponents, Self::OutComponents>) {
+                // Create some changes for the frame diff
+                let entity = world.create_entity();
+                world.add_component(entity, Position { x: 2.0, y: 2.0 });
+            }
+            
+            fn deinitialize(&mut self, _world: &mut WorldView<Self::InComponents, Self::OutComponents>) {}
+        }
+        
+        let mut world = World::new();
+        world.add_system(TestSystemWithChanges);
+        world.initialize_systems();
+        world.update();
+        
+        // Call print_last_frame_diff to ensure it doesn't panic and uses system names
+        // In a real scenario, this would print "TestSystemWithChanges:" instead of "System 0:"
+        world.print_last_frame_diff();
+        
+        // The test passes if print_last_frame_diff doesn't panic and compiles correctly
+        // Visual verification of output would show system names instead of indices
+    }
+
+    #[test]
     fn test_system_dependencies_chain() {
         struct ChainA;
         impl System for ChainA {

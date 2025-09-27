@@ -597,8 +597,15 @@ impl World {
                 let world_operations = system_diff.world_operations().len();
                 
                 if component_changes > 0 || world_operations > 0 {
-                    println!("System {}: {} component changes, {} world operations", 
-                             system_idx, component_changes, world_operations);
+                    // Get system name instead of using index
+                    let system_name = if system_idx < self.systems.len() {
+                        self.systems[system_idx].system_name()
+                    } else {
+                        format!("System_{}", system_idx)
+                    };
+                    
+                    println!("{}: {} component changes, {} world operations", 
+                             system_name, component_changes, world_operations);
                     
                     // Print component changes
                     for change in system_diff.diff_changes() {
@@ -826,6 +833,8 @@ trait SystemWrapper {
     fn deinitialize(&mut self, world: &mut World) -> SystemDeinitDiff;
     /// Get the TypeId of this system
     fn system_type_id(&self) -> TypeId;
+    /// Get the human-readable name of this system
+    fn system_name(&self) -> String;
     /// Get the TypeIds of systems that are executed before this system (InSystems)
     fn in_systems_type_ids(&self) -> Vec<TypeId>;
     /// Get the TypeIds of systems that are executed after this system (OutSystems)
@@ -892,6 +901,12 @@ impl<S: System + 'static> SystemWrapper for ConcreteSystemWrapper<S> {
 
     fn system_type_id(&self) -> TypeId {
         TypeId::of::<S>()
+    }
+
+    fn system_name(&self) -> String {
+        let full_name = std::any::type_name::<S>();
+        // Extract just the struct name from the full path
+        full_name.split("::").last().unwrap_or(full_name).to_string()
     }
 
     fn in_systems_type_ids(&self) -> Vec<TypeId> {
