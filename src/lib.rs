@@ -63,9 +63,9 @@ pub use rust_ecs_derive::Diff;
 
 // Re-export the most commonly used types from the ECS module for convenience
 pub use ecs::{
-    AutoReplayLogger, ComponentAdded, ComponentChange, ComponentOperation, ComponentRemoved,
+    AutoReplayLogger, Component, ComponentAdded, ComponentChange, ComponentOperation, ComponentRemoved,
     DiffComponent, DiffComponentChange, Entity, Event, In, MixedMultiQuery, MixedQueryComponent,
-    Not, Out, QueryComponent, ReplayLogConfig, System, SystemDeinitDiff, SystemInitDiff,
+    Not, Out, QueryComponent, ReplayLogConfig, RequiredComponentsCheck, System, SystemDeinitDiff, SystemInitDiff,
     SystemUpdateDiff, World, WorldOperation, WorldUpdateDiff, WorldUpdateHistory, WorldView,
 };
 
@@ -1998,5 +1998,295 @@ mod tests {
         println!("✓ Component change notifications work");
         println!("✓ Temporary components stored in separate HashMap");
         println!("✓ No manual removal needed - automatic cleanup!");
+    }
+
+    // Component requirements functionality tests
+    #[derive(Debug, PartialEq)]
+    struct TestPosition {
+        x: i32,
+        y: i32,
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct TestHierarchy {
+        parent: Option<u32>,
+        children: Vec<u32>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct TestVelocity {
+        dx: f32,
+        dy: f32,
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct TestAcceleration {
+        ddx: f32,
+        ddy: f32,
+    }
+
+    // Implement Component trait with no requirements for base components
+    impl Component for TestPosition {
+        type RequiredComponents = ();
+    }
+
+    impl Component for TestHierarchy {
+        type RequiredComponents = ();
+    }
+
+    // Implement Component trait with requirements for velocity (needs position and hierarchy)
+    impl Component for TestVelocity {
+        type RequiredComponents = (TestPosition, TestHierarchy);
+    }
+
+    // Implement Component trait with single requirement for acceleration (needs velocity)
+    impl Component for TestAcceleration {
+        type RequiredComponents = (TestVelocity,);
+    }
+
+    #[test]
+    fn test_component_requirements_success() {
+        let mut world = World::new();
+        let entity = world.create_entity();
+
+        // Add required components first
+        world.add_component(entity, TestPosition { x: 10, y: 20 });
+        world.add_component(entity, TestHierarchy { parent: None, children: vec![] });
+
+        // Now adding velocity should succeed
+        let result = world.add_component_checked(entity, TestVelocity { dx: 1.0, dy: 2.0 });
+        assert!(result.is_ok());
+
+        // Verify the component was actually added
+        let velocity = world.get_component::<TestVelocity>(entity);
+        assert!(velocity.is_some());
+        assert_eq!(velocity.unwrap().dx, 1.0);
+        assert_eq!(velocity.unwrap().dy, 2.0);
+    }
+
+    #[test]
+    fn test_component_requirements_failure() {
+        let mut world = World::new();
+        let entity = world.create_entity();
+
+        // Try to add velocity without required components
+        let result = world.add_component_checked(entity, TestVelocity { dx: 1.0, dy: 2.0 });
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("required components are missing"));
+
+        // Verify the component was not added
+        let velocity = world.get_component::<TestVelocity>(entity);
+        assert!(velocity.is_none());
+    }
+
+    #[test]
+    fn test_component_requirements_partial_satisfaction() {
+        let mut world = World::new();
+        let entity = world.create_entity();
+
+        // Add only one of the required components
+        world.add_component(entity, TestPosition { x: 10, y: 20 });
+
+        // Try to add velocity with only partial requirements
+        let result = world.add_component_checked(entity, TestVelocity { dx: 1.0, dy: 2.0 });
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("required components are missing"));
+
+        // Verify the component was not added
+        let velocity = world.get_component::<TestVelocity>(entity);
+        assert!(velocity.is_none());
+    }
+
+    #[test]
+    fn test_component_requirements_single_requirement() {
+        let mut world = World::new();
+        let entity = world.create_entity();
+
+        // Add required components for velocity first
+        world.add_component(entity, TestPosition { x: 10, y: 20 });
+        world.add_component(entity, TestHierarchy { parent: None, children: vec![] });
+        let _ = world.add_component_checked(entity, TestVelocity { dx: 1.0, dy: 2.0 });
+
+        // Now adding acceleration should succeed (only needs velocity)
+        let result = world.add_component_checked(entity, TestAcceleration { ddx: 0.5, ddy: -0.5 });
+        assert!(result.is_ok());
+
+        // Verify the component was actually added
+        let acceleration = world.get_component::<TestAcceleration>(entity);
+        assert!(acceleration.is_some());
+        assert_eq!(acceleration.unwrap().ddx, 0.5);
+        assert_eq!(acceleration.unwrap().ddy, -0.5);
+    }
+
+    #[test]
+    fn test_component_requirements_single_requirement_failure() {
+        let mut world = World::new();
+        let entity = world.create_entity();
+
+        // Try to add acceleration without velocity
+        let result = world.add_component_checked(entity, TestAcceleration { ddx: 0.5, ddy: -0.5 });
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("required components are missing"));
+
+        // Verify the component was not added  
+        let acceleration = world.get_component::<TestAcceleration>(entity);
+        assert!(acceleration.is_none());
+    }
+
+    #[test]
+    fn test_component_requirements_empty() {
+        let mut world = World::new();
+        let entity = world.create_entity();
+
+        // Add components with no requirements - should always succeed
+        let pos_result = world.add_component_checked(entity, TestPosition { x: 5, y: 10 });
+        assert!(pos_result.is_ok());
+
+        let hier_result = world.add_component_checked(entity, TestHierarchy { parent: Some(1), children: vec![2, 3] });
+        assert!(hier_result.is_ok());
+
+        // Verify both components were added
+        let position = world.get_component::<TestPosition>(entity);
+        assert!(position.is_some());
+        assert_eq!(position.unwrap().x, 5);
+        assert_eq!(position.unwrap().y, 10);
+
+        let hierarchy = world.get_component::<TestHierarchy>(entity);
+        assert!(hierarchy.is_some());
+        assert_eq!(hierarchy.unwrap().parent, Some(1));
+        assert_eq!(hierarchy.unwrap().children, vec![2, 3]);
+    }
+
+    #[test]
+    fn test_component_requirements_worldview() {
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        let entity = world_view.create_entity();
+
+        // Add required components first
+        world_view.add_component(entity, TestPosition { x: 100, y: 200 });
+        world_view.add_component(entity, TestHierarchy { parent: None, children: vec![] });
+
+        // Now adding velocity through WorldView should succeed
+        let result = world_view.add_component_checked(entity, TestVelocity { dx: 5.0, dy: -3.0 });
+        assert!(result.is_ok());
+
+        // Verify the component was actually added through WorldView
+        let velocity = world_view.get_component::<TestVelocity>(entity);
+        assert!(velocity.is_some());
+        assert_eq!(velocity.unwrap().dx, 5.0);
+        assert_eq!(velocity.unwrap().dy, -3.0);
+    }
+
+    #[test]
+    fn test_component_requirements_worldview_failure() {
+        let mut world = World::new();
+        let mut world_view = WorldView::<(), ()>::new(&mut world);
+        let entity = world_view.create_entity();
+
+        // Try to add velocity without required components through WorldView
+        let result = world_view.add_component_checked(entity, TestVelocity { dx: 5.0, dy: -3.0 });
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("required components are missing"));
+
+        // Verify the component was not added
+        let velocity = world_view.get_component::<TestVelocity>(entity);
+        assert!(velocity.is_none());
+    }
+
+    #[test]
+    fn test_component_requirements_problem_statement_example() {
+        let mut world = World::new();
+        let entity = world.create_entity();
+
+        // Following the problem statement example exactly
+        #[derive(Debug, PartialEq)]
+        struct Position;
+        
+        #[derive(Debug, PartialEq)]
+        struct Hierarchy;
+        
+        #[derive(Debug, PartialEq)]
+        struct Velocity;
+
+        impl Component for Position {
+            type RequiredComponents = ();
+        }
+
+        impl Component for Hierarchy {
+            type RequiredComponents = ();
+        }
+
+        impl Component for Velocity {
+            type RequiredComponents = (Position, Hierarchy);
+        }
+
+        // Add required components first
+        world.add_component(entity, Position);
+        world.add_component(entity, Hierarchy);
+
+        // Now adding velocity should succeed
+        let result = world.add_component_checked(entity, Velocity);
+        assert!(result.is_ok());
+
+        // Verify all components exist
+        assert!(world.get_component::<Position>(entity).is_some());
+        assert!(world.get_component::<Hierarchy>(entity).is_some());
+        assert!(world.get_component::<Velocity>(entity).is_some());
+    }
+
+    #[test]
+    fn test_component_requirements_demonstration() {
+        println!("\n=== Component Requirements Feature Demonstration ===");
+        
+        let mut world = World::new();
+        let entity = world.create_entity();
+
+        // Define components matching the problem statement
+        #[derive(Debug, PartialEq)]
+        struct Position { x: i32, y: i32 }
+        
+        #[derive(Debug, PartialEq)]
+        struct Hierarchy { parent: Option<u32> }
+        
+        #[derive(Debug, PartialEq)]
+        struct Velocity { dx: f32, dy: f32 }
+
+        impl Component for Position {
+            type RequiredComponents = ();
+        }
+
+        impl Component for Hierarchy {
+            type RequiredComponents = ();
+        }
+
+        impl Component for Velocity {
+            type RequiredComponents = (Position, Hierarchy);
+        }
+
+        println!("1. Attempting to add Velocity without required components...");
+        let result = world.add_component_checked(entity, Velocity { dx: 1.0, dy: 2.0 });
+        assert!(result.is_err());
+        println!("   ✗ Failed as expected: {}", result.unwrap_err());
+
+        println!("2. Adding required components (Position and Hierarchy)...");
+        world.add_component(entity, Position { x: 10, y: 20 });
+        world.add_component(entity, Hierarchy { parent: None });
+        println!("   ✓ Required components added successfully");
+
+        println!("3. Now attempting to add Velocity with requirements satisfied...");
+        let result = world.add_component_checked(entity, Velocity { dx: 1.0, dy: 2.0 });
+        assert!(result.is_ok());
+        println!("   ✓ Success! Velocity component added");
+
+        println!("4. Verifying all components exist:");
+        assert!(world.has_component::<Position>(entity));
+        assert!(world.has_component::<Hierarchy>(entity));
+        assert!(world.has_component::<Velocity>(entity));
+        println!("   ✓ Position: exists");
+        println!("   ✓ Hierarchy: exists");
+        println!("   ✓ Velocity: exists");
+
+        println!("=== Component Requirements Feature Working Correctly! ===\n");
     }
 }

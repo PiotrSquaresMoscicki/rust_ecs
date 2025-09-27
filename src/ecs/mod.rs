@@ -12,8 +12,8 @@ pub mod world;
 
 // Re-export the most commonly used types
 pub use core::{
-    ComponentAdded, ComponentChange, ComponentOperation, ComponentRemoved, Entity, Event, In, Not,
-    Out, WorldOperation,
+    Component, ComponentAdded, ComponentChange, ComponentOperation, ComponentRemoved, Entity, Event, In, Not,
+    Out, RequiredComponentsCheck, WorldOperation,
 };
 pub use diff::{Diff, DiffComponent, DiffComponentChange};
 pub use query::{MixedMultiQuery, MixedQueryComponent, QueryComponent};

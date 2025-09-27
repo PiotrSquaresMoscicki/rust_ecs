@@ -76,6 +76,76 @@ pub struct In<T>(std::marker::PhantomData<T>);
 /// A wrapper to mark that entities should NOT have a specific component
 pub struct Not<T>(std::marker::PhantomData<T>);
 
+/// Trait for components that can specify their required components
+/// 
+/// Components implementing this trait can specify other components that must be present
+/// on an entity before this component can be added.
+/// 
+/// Example usage:
+/// ```rust
+/// use rust_ecs::*;
+/// 
+/// #[derive(Debug)]
+/// struct Position { x: i32, y: i32 }
+/// 
+/// #[derive(Debug)]
+/// struct Velocity { dx: f32, dy: f32 }
+/// 
+/// impl Component for Velocity {
+///     type RequiredComponents = (Position,);
+/// }
+/// ```
+pub trait Component: 'static {
+    /// Tuple of component types that must be present on an entity before this component can be added
+    type RequiredComponents: RequiredComponentsCheck;
+}
+
+/// Trait for types that can validate required components exist on an entity
+pub trait RequiredComponentsCheck {
+    /// Check if all required components exist on the given entity in the world
+    fn check_requirements(world: &crate::ecs::world::World, entity: Entity) -> bool;
+}
+
+// Implement RequiredComponentsCheck for empty requirements
+impl RequiredComponentsCheck for () {
+    fn check_requirements(_world: &crate::ecs::world::World, _entity: Entity) -> bool {
+        true // No requirements, always satisfied
+    }
+}
+
+// Implement RequiredComponentsCheck for single component requirement
+impl<T: 'static> RequiredComponentsCheck for (T,) {
+    fn check_requirements(world: &crate::ecs::world::World, entity: Entity) -> bool {
+        world.has_component::<T>(entity)
+    }
+}
+
+// Implement RequiredComponentsCheck for two component requirements
+impl<T1: 'static, T2: 'static> RequiredComponentsCheck for (T1, T2) {
+    fn check_requirements(world: &crate::ecs::world::World, entity: Entity) -> bool {
+        world.has_component::<T1>(entity) && world.has_component::<T2>(entity)
+    }
+}
+
+// Implement RequiredComponentsCheck for three component requirements
+impl<T1: 'static, T2: 'static, T3: 'static> RequiredComponentsCheck for (T1, T2, T3) {
+    fn check_requirements(world: &crate::ecs::world::World, entity: Entity) -> bool {
+        world.has_component::<T1>(entity) 
+            && world.has_component::<T2>(entity) 
+            && world.has_component::<T3>(entity)
+    }
+}
+
+// Implement RequiredComponentsCheck for four component requirements
+impl<T1: 'static, T2: 'static, T3: 'static, T4: 'static> RequiredComponentsCheck for (T1, T2, T3, T4) {
+    fn check_requirements(world: &crate::ecs::world::World, entity: Entity) -> bool {
+        world.has_component::<T1>(entity) 
+            && world.has_component::<T2>(entity) 
+            && world.has_component::<T3>(entity)
+            && world.has_component::<T4>(entity)
+    }
+}
+
 /// Enumeration of component operations that can occur during system execution
 #[derive(Debug, Clone)]
 pub enum ComponentOperation {
