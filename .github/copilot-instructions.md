@@ -6,6 +6,8 @@
 - **ALWAYS** run `cargo test` at the end of task development
 - All tests must compile and pass without failures
 - Integration tests use the game and demo modules as specified
+- **ALWAYS** run `cargo clippy` at the end of task development
+- Address all clippy warnings or justify any ignored warnings in PR comments
 
 ### Test Coverage Standards
 - **Unit tests required** for all new functionalities
@@ -54,9 +56,9 @@ When Copilot encounters impossible or technically infeasible requirements:
 2. Implement changes with full functionality
 3. Add comprehensive unit tests for new features
 4. Use game/demo integration tests for end-to-end validation
-5. Ensure no compilation warnings remain
-6. Document any unavoidable warning suppressions in PR comments
-7. Final verification: `cargo test` must pass completely
+5. Ensure no compilation or clippy warnings remain
+6. Document any unavoidable compilation or clippy warning suppressions in PR comments
+7. Final verification: `cargo test` and `cargo clippy` must pass completely
 
 ## Architecture Integration
 - This is a debuggable ECS framework emphasizing change tracking and replay functionality
