@@ -1,5 +1,5 @@
+use super::components::GRID_SIZE;
 use std::collections::HashSet;
-use super::components::{GRID_SIZE};
 
 /// Calculate the next move towards the target while avoiding obstacles
 pub fn calculate_next_move(

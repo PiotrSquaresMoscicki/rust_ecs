@@ -3,8 +3,8 @@
 //! This module provides the diffing system that enables the ECS to track
 //! changes between component states for replay functionality.
 
-use std::collections::HashMap;
 use crate::ecs::core::Entity;
+use std::collections::HashMap;
 
 /// Trait for types that can be diffed to track changes
 pub trait Diff {

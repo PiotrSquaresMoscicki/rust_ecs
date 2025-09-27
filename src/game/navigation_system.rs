@@ -1,8 +1,8 @@
-use crate::{In, Out, System, WorldView, World};
-use std::collections::HashSet;
+use super::components::{Actor, Navigation, Obstacle, Position, Target, Work};
+use super::utils::{is_adjacent, is_valid_position};
+use crate::{In, Out, System, World, WorldView};
 use pathfinding::prelude::astar;
-use super::components::{Actor, Position, Target, Navigation, Obstacle, Work};
-use super::utils::{is_valid_position, is_adjacent};
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -123,7 +123,9 @@ impl System for NavigationSystem {
                     target_pos
                 };
 
-                if let Some(mut path) = Self::calculate_path(current_pos, path_target, &temp_obstacles) {
+                if let Some(mut path) =
+                    Self::calculate_path(current_pos, path_target, &temp_obstacles)
+                {
                     // Remove the first position if it's the current position
                     if !path.is_empty() && path[0] == current_pos {
                         path.remove(0);
@@ -185,7 +187,7 @@ pub fn initialize_navigation_demo() -> World {
     let mut world = World::new();
 
     println!("Creating labyrinth maze...");
-    
+
     // Define labyrinth layout (1 = wall, 0 = open space)
     // Simpler 10x10 grid with guaranteed path to exit
     let labyrinth_layout = [
@@ -200,54 +202,60 @@ pub fn initialize_navigation_demo() -> World {
         [1, 0, 1, 1, 1, 1, 1, 1, 0, 0], // Exit at (9, 8)
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     ];
-    
+
     // Create wall entities
     for (y, row) in labyrinth_layout.iter().enumerate() {
         for (x, &cell) in row.iter().enumerate() {
             if cell == 1 {
                 let wall_entity = world.create_entity();
-                world.add_component(wall_entity, Position { x: x as i32, y: y as i32 });
+                world.add_component(
+                    wall_entity,
+                    Position {
+                        x: x as i32,
+                        y: y as i32,
+                    },
+                );
                 world.add_component(wall_entity, Obstacle);
             }
         }
     }
-    
+
     // Create exit marker (special component to show the exit)
     let exit_entity = world.create_entity();
     world.add_component(exit_entity, Position { x: 9, y: 8 });
     world.add_component(exit_entity, Work); // Use Work as exit marker for rendering
-    
+
     println!("Creating two actors with navigation components...");
-    
+
     // Create Actor 1 at starting position (1, 1)
     let actor1_entity = world.create_entity();
     world.add_component(actor1_entity, Position { x: 1, y: 1 });
     world.add_component(actor1_entity, Actor);
     world.add_component(actor1_entity, Target { x: 9, y: 8 }); // Target the exit
     world.add_component(actor1_entity, Navigation::new());
-    
+
     // Create Actor 2 at starting position (1, 7)
     let actor2_entity = world.create_entity();
     world.add_component(actor2_entity, Position { x: 1, y: 7 });
     world.add_component(actor2_entity, Actor);
     world.add_component(actor2_entity, Target { x: 9, y: 8 }); // Target the exit
     world.add_component(actor2_entity, Navigation::new());
-    
+
     // Add navigation system (uses A* pathfinding)
     world.add_system(NavigationSystem);
-    
+
     // Add render system for visualization
     world.add_system(super::render_system::RenderSystem::new(10, 10)); // 10x10 grid for labyrinth
-    
+
     // Initialize systems
     world.initialize_systems();
-    
+
     println!("Labyrinth demo world initialized!");
     println!("Grid size: 10x10");
     println!("Actors: 2 (starting at (1,1) and (1,7))");
     println!("Exit: (9,8)");
     println!("Wall obstacles: Created from maze layout");
-    
+
     world
 }
 
@@ -265,25 +273,26 @@ pub fn run_navigation_demo() {
     // Set up Ctrl+C handler for graceful shutdown
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
-    
+
     ctrlc::set_handler(move || {
         println!("\nReceived Ctrl+C, shutting down gracefully...");
         r.store(false, Ordering::SeqCst);
-    }).expect("Error setting Ctrl-C handler");
+    })
+    .expect("Error setting Ctrl-C handler");
 
     let mut update_count = 0;
-    
+
     // Demo loop - 2 FPS for good observation speed
     while running.load(Ordering::SeqCst) {
         update_count += 1;
-        
+
         // Update the world
         world.update();
-        
+
         // Check if any actor reached the exit
         let actors = world.entities_with_component::<Actor>();
         let mut actors_at_exit = 0;
-        
+
         for &actor in &actors {
             if let Some(position) = world.get_component::<Position>(actor) {
                 if position.x == 9 && position.y == 8 {
@@ -292,14 +301,14 @@ pub fn run_navigation_demo() {
                 }
             }
         }
-        
+
         if actors_at_exit == 2 {
             println!("🎉 Both actors have reached the exit! Demo complete! 🎉");
             break;
         }
-        
+
         thread::sleep(Duration::from_millis(500)); // 2 FPS for good observation
-        
+
         // Print frame diff after all system updates and after sleep
         world.print_last_frame_diff();
     }
@@ -307,106 +316,126 @@ pub fn run_navigation_demo() {
     println!("Navigation demo completed after {} updates", update_count);
 }
 
-
-
 #[cfg(test)]
 mod tests {
+    use super::super::components::*;
     use super::*;
     use crate::World;
-    use super::super::components::*;
 
     #[test]
     fn test_navigation_system_basic_pathfinding() {
         let mut world = World::new();
-        
+
         // Create an actor with navigation
         let actor_entity = world.create_entity();
         world.add_component(actor_entity, Position { x: 0, y: 0 });
         world.add_component(actor_entity, Actor);
         world.add_component(actor_entity, Target { x: 2, y: 2 });
         world.add_component(actor_entity, Navigation::new());
-        
+
         world.add_system(NavigationSystem);
         world.initialize_systems();
-        
+
         println!("Initial state:");
         let initial_navigation = world.get_component::<Navigation>(actor_entity).unwrap();
-        println!("Initial navigation: path={:?}, index={}, needs_recalc={}", 
-                 initial_navigation.path, initial_navigation.current_path_index, initial_navigation.needs_recalculation);
-        
+        println!(
+            "Initial navigation: path={:?}, index={}, needs_recalc={}",
+            initial_navigation.path,
+            initial_navigation.current_path_index,
+            initial_navigation.needs_recalculation
+        );
+
         // Run one update to calculate path
         world.update();
-        
+
         // Check that navigation component has a path
         let navigation = world.get_component::<Navigation>(actor_entity).unwrap();
         println!("After first update:");
-        println!("Navigation: path={:?}, index={}, needs_recalc={}", 
-                 navigation.path, navigation.current_path_index, navigation.needs_recalculation);
-        
-        assert!(!navigation.path.is_empty(), "Navigation path should not be empty after first update");
+        println!(
+            "Navigation: path={:?}, index={}, needs_recalc={}",
+            navigation.path, navigation.current_path_index, navigation.needs_recalculation
+        );
+
+        assert!(
+            !navigation.path.is_empty(),
+            "Navigation path should not be empty after first update"
+        );
         // Note: after path calculation, the path should be set and index reset to 0
-        
+
         // Run another update to move
         world.update();
-        
+
         // Position should have moved towards target
         let position = world.get_component::<Position>(actor_entity).unwrap();
         println!("After second update:");
         println!("Position: ({}, {})", position.x, position.y);
-        
+
         let navigation = world.get_component::<Navigation>(actor_entity).unwrap();
-        println!("Navigation: path={:?}, index={}, needs_recalc={}", 
-                 navigation.path, navigation.current_path_index, navigation.needs_recalculation);
-        
-        assert_ne!((position.x, position.y), (0, 0), "Actor should have moved from starting position");
-        
+        println!(
+            "Navigation: path={:?}, index={}, needs_recalc={}",
+            navigation.path, navigation.current_path_index, navigation.needs_recalculation
+        );
+
+        assert_ne!(
+            (position.x, position.y),
+            (0, 0),
+            "Actor should have moved from starting position"
+        );
+
         // After moving, the path index should have advanced
-        assert!(navigation.current_path_index >= 1 || navigation.path.len() <= 1, 
-                "Path index should advance or path should be short. Current index: {}, path length: {}", 
-                navigation.current_path_index, navigation.path.len());
+        assert!(
+            navigation.current_path_index >= 1 || navigation.path.len() <= 1,
+            "Path index should advance or path should be short. Current index: {}, path length: {}",
+            navigation.current_path_index,
+            navigation.path.len()
+        );
     }
 
     #[test]
     fn test_navigation_system_avoids_obstacles() {
         let mut world = World::new();
-        
+
         // Create obstacles blocking direct path
         let obstacle1 = world.create_entity();
         world.add_component(obstacle1, Position { x: 1, y: 1 });
         world.add_component(obstacle1, Obstacle);
-        
+
         let obstacle2 = world.create_entity();
         world.add_component(obstacle2, Position { x: 1, y: 0 });
         world.add_component(obstacle2, Obstacle);
-        
+
         let obstacle3 = world.create_entity();
         world.add_component(obstacle3, Position { x: 0, y: 1 });
         world.add_component(obstacle3, Obstacle);
-        
+
         // Create an actor that needs to navigate around obstacles
         let actor_entity = world.create_entity();
         world.add_component(actor_entity, Position { x: 0, y: 0 });
         world.add_component(actor_entity, Actor);
         world.add_component(actor_entity, Target { x: 2, y: 2 });
         world.add_component(actor_entity, Navigation::new());
-        
+
         world.add_system(NavigationSystem);
         world.initialize_systems();
-        
+
         // Run update to calculate path
         world.update();
-        
+
         // Check that a path was found (even with obstacles)
         let navigation = world.get_component::<Navigation>(actor_entity).unwrap();
         println!("Path calculated: {:?}", navigation.path);
         println!("Needs recalculation: {}", navigation.needs_recalculation);
-        
+
         // The path should not go through any obstacle positions
         let obstacle_positions = [(1, 1), (1, 0), (0, 1)];
         for pos in &navigation.path {
-            assert!(!obstacle_positions.contains(pos), "Path goes through obstacle at {:?}", pos);
+            assert!(
+                !obstacle_positions.contains(pos),
+                "Path goes through obstacle at {:?}",
+                pos
+            );
         }
-        
+
         // If no path was found, it means the obstacles completely block access
         // In this test setup, there should be alternative routes available (like going via (0, 2) or (2, 0))
         if navigation.path.is_empty() {
@@ -416,10 +445,13 @@ mod tests {
             test_obstacles.insert((1, 1));
             test_obstacles.insert((1, 0));
             test_obstacles.insert((0, 1));
-            
+
             let test_path = NavigationSystem::calculate_path((0, 0), (2, 2), &test_obstacles);
             if test_path.is_some() {
-                panic!("Path should be found in navigation system but wasn't. Test path: {:?}", test_path);
+                panic!(
+                    "Path should be found in navigation system but wasn't. Test path: {:?}",
+                    test_path
+                );
             }
         }
     }
@@ -427,49 +459,66 @@ mod tests {
     #[test]
     fn test_navigation_system_recalculates_when_path_blocked() {
         let mut world = World::new();
-        
+
         // Create an actor
         let actor_entity = world.create_entity();
         world.add_component(actor_entity, Position { x: 0, y: 0 });
         world.add_component(actor_entity, Actor);
         world.add_component(actor_entity, Target { x: 4, y: 0 }); // Longer path
         world.add_component(actor_entity, Navigation::new());
-        
+
         world.add_system(NavigationSystem);
         world.initialize_systems();
-        
+
         // Run update to calculate initial path
         world.update();
-        
-        let initial_navigation = world.get_component::<Navigation>(actor_entity).unwrap().clone();
-        assert!(!initial_navigation.path.is_empty(), "Initial path should not be empty");
+
+        let initial_navigation = world
+            .get_component::<Navigation>(actor_entity)
+            .unwrap()
+            .clone();
+        assert!(
+            !initial_navigation.path.is_empty(),
+            "Initial path should not be empty"
+        );
         println!("Initial path: {:?}", initial_navigation.path);
-        
+
         // Move the actor one step
         world.update();
         let position_after_move = world.get_component::<Position>(actor_entity).unwrap();
-        println!("Position after first move: ({}, {})", position_after_move.x, position_after_move.y);
-        
+        println!(
+            "Position after first move: ({}, {})",
+            position_after_move.x, position_after_move.y
+        );
+
         // Add an obstacle that blocks a position in the middle of the path (not the target)
         let obstacle = world.create_entity();
         world.add_component(obstacle, Position { x: 3, y: 0 }); // Block position (3,0) which should be on the path to (4,0)
         world.add_component(obstacle, Obstacle);
-        
+
         // Run update - should detect path is blocked and recalculate
         world.update();
-        
+
         let new_navigation = world.get_component::<Navigation>(actor_entity).unwrap();
-        println!("Navigation after obstacle added: path={:?}, needs_recalc={}, index={}", 
-                 new_navigation.path, new_navigation.needs_recalculation, new_navigation.current_path_index);
-        
+        println!(
+            "Navigation after obstacle added: path={:?}, needs_recalc={}, index={}",
+            new_navigation.path,
+            new_navigation.needs_recalculation,
+            new_navigation.current_path_index
+        );
+
         // Should either request recalculation or have a different path
         let path_changed = new_navigation.path != initial_navigation.path;
         let needs_recalc = new_navigation.needs_recalculation;
-        
-        assert!(needs_recalc || path_changed, 
-                "Navigation should either need recalculation or have a different path when blocked. \
-                 Initial path: {:?}, New path: {:?}, Needs recalc: {}", 
-                initial_navigation.path, new_navigation.path, needs_recalc);
+
+        assert!(
+            needs_recalc || path_changed,
+            "Navigation should either need recalculation or have a different path when blocked. \
+                 Initial path: {:?}, New path: {:?}, Needs recalc: {}",
+            initial_navigation.path,
+            new_navigation.path,
+            needs_recalc
+        );
     }
 
     #[test]
@@ -478,19 +527,23 @@ mod tests {
         obstacles.insert((1, 0));
         obstacles.insert((1, 1));
         obstacles.insert((1, 2));
-        
+
         let path = NavigationSystem::calculate_path((0, 1), (2, 1), &obstacles);
-        
+
         assert!(path.is_some());
         let path = path.unwrap();
-        
+
         // Path should start at (0,1) and end at (2,1)
         assert_eq!(path[0], (0, 1));
         assert_eq!(path[path.len() - 1], (2, 1));
-        
+
         // Path should not go through any obstacles
         for pos in &path {
-            assert!(!obstacles.contains(pos), "Path goes through obstacle at {:?}", pos);
+            assert!(
+                !obstacles.contains(pos),
+                "Path goes through obstacle at {:?}",
+                pos
+            );
         }
     }
 
@@ -501,7 +554,7 @@ mod tests {
         for y in 0..GRID_SIZE {
             obstacles.insert((2, y));
         }
-        
+
         let path = NavigationSystem::calculate_path((0, 0), (5, 5), &obstacles);
         assert!(path.is_none()); // No path should be found
     }

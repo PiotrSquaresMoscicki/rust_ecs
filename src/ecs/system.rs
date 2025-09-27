@@ -45,14 +45,27 @@ impl<A: 'static, B: 'static, C: 'static> SystemDependencies for (A, B, C) {
 /// Four dependencies
 impl<A: 'static, B: 'static, C: 'static, D: 'static> SystemDependencies for (A, B, C, D) {
     fn dependency_type_ids() -> Vec<TypeId> {
-        vec![TypeId::of::<A>(), TypeId::of::<B>(), TypeId::of::<C>(), TypeId::of::<D>()]
+        vec![
+            TypeId::of::<A>(),
+            TypeId::of::<B>(),
+            TypeId::of::<C>(),
+            TypeId::of::<D>(),
+        ]
     }
 }
 
 /// Five dependencies
-impl<A: 'static, B: 'static, C: 'static, D: 'static, E: 'static> SystemDependencies for (A, B, C, D, E) {
+impl<A: 'static, B: 'static, C: 'static, D: 'static, E: 'static> SystemDependencies
+    for (A, B, C, D, E)
+{
     fn dependency_type_ids() -> Vec<TypeId> {
-        vec![TypeId::of::<A>(), TypeId::of::<B>(), TypeId::of::<C>(), TypeId::of::<D>(), TypeId::of::<E>()]
+        vec![
+            TypeId::of::<A>(),
+            TypeId::of::<B>(),
+            TypeId::of::<C>(),
+            TypeId::of::<D>(),
+            TypeId::of::<E>(),
+        ]
     }
 }
 
@@ -69,13 +82,22 @@ pub trait System {
     type OutSystems: SystemDependencies;
 
     /// Called once before the first update to initialize system state
-    fn initialize(&mut self, world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>);
+    fn initialize(
+        &mut self,
+        world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>,
+    );
 
     /// Called every frame to update the system
-    fn update(&mut self, world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>);
+    fn update(
+        &mut self,
+        world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>,
+    );
 
     /// Called when the system is being removed or the world is shutting down
-    fn deinitialize(&mut self, world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>);
+    fn deinitialize(
+        &mut self,
+        world: &mut crate::ecs::WorldView<Self::InComponents, Self::OutComponents>,
+    );
 }
 
 /// Records changes made during system initialization

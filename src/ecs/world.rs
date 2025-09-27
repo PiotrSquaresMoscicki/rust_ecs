@@ -6,11 +6,14 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-use crate::ecs::core::{Entity, WorldOperation, Event, ComponentAdded, ComponentRemoved};
+use crate::ecs::core::{ComponentAdded, ComponentRemoved, Entity, Event, WorldOperation};
 use crate::ecs::diff::{Diff, DiffComponentChange};
-use crate::ecs::system::{System, SystemDependencies, SystemInitDiff, SystemUpdateDiff, SystemDeinitDiff, WorldUpdateDiff, WorldUpdateHistory};
-use crate::ecs::query::{MixedMultiQuery};
-use crate::ecs::replay::{ReplayLogConfig, AutoReplayLogger};
+use crate::ecs::query::MixedMultiQuery;
+use crate::ecs::replay::{AutoReplayLogger, ReplayLogConfig};
+use crate::ecs::system::{
+    System, SystemDeinitDiff, SystemDependencies, SystemInitDiff, SystemUpdateDiff,
+    WorldUpdateDiff, WorldUpdateHistory,
+};
 
 // Type aliases to reduce complexity
 type ComponentStorage = HashMap<TypeId, Vec<(Entity, Box<dyn Any>)>>;
@@ -139,14 +142,14 @@ impl World {
     /// Add a system to the world
     pub fn add_system<S: System + 'static>(&mut self, system: S) {
         let system_type_name = std::any::type_name::<S>().to_string();
-        
+
         // Record the system addition operation in world update history
         let mut world_diff = WorldUpdateDiff::new();
         let mut system_diff = SystemUpdateDiff::new();
         system_diff.record_world_operation(WorldOperation::AddSystem(system_type_name));
         world_diff.record(system_diff);
         self.world_update_history.record(world_diff);
-        
+
         // Add the system to the world
         self.add_system_internal(system);
     }
@@ -186,7 +189,7 @@ impl World {
             .entry(TypeId::of::<T>())
             .or_default()
             .push((entity, Box::new(component)));
-        
+
         // Automatically create a ComponentAdded notification
         // Only create notification for non-temporary components to avoid infinite recursion
         if !Self::is_event_or_notification::<T>() {
@@ -215,12 +218,12 @@ impl World {
                 let (_, component_box) = components.remove(pos);
                 if let Ok(component) = component_box.downcast::<T>() {
                     let component_data = *component;
-                    
+
                     // Create ComponentRemoved notification with the removed data
                     if !Self::is_event_or_notification::<T>() {
                         self.add_temporary_component(entity, ComponentRemoved::new(component_data));
                     }
-                    
+
                     return true;
                 }
             }
@@ -238,14 +241,14 @@ impl World {
     fn is_event_or_notification<T: 'static>() -> bool {
         let _type_id = TypeId::of::<T>();
         let type_name = std::any::type_name::<T>();
-        
+
         // Check if it's an Event<_>, ComponentAdded<_>, or ComponentRemoved<_>
-        type_name.starts_with("rust_ecs::ecs::core::Event<") ||
-        type_name.starts_with("rust_ecs::ecs::core::ComponentAdded<") ||
-        type_name.starts_with("rust_ecs::ecs::core::ComponentRemoved<") ||
-        type_name.starts_with("rust_ecs::Event<") ||
-        type_name.starts_with("rust_ecs::ComponentAdded<") ||
-        type_name.starts_with("rust_ecs::ComponentRemoved<")
+        type_name.starts_with("rust_ecs::ecs::core::Event<")
+            || type_name.starts_with("rust_ecs::ecs::core::ComponentAdded<")
+            || type_name.starts_with("rust_ecs::ecs::core::ComponentRemoved<")
+            || type_name.starts_with("rust_ecs::Event<")
+            || type_name.starts_with("rust_ecs::ComponentAdded<")
+            || type_name.starts_with("rust_ecs::ComponentRemoved<")
     }
 
     /// Remove an entity and all its components
@@ -273,30 +276,26 @@ impl World {
     pub fn get_component<T: 'static>(&self, entity: Entity) -> Option<&T> {
         // First check regular components
         if let Some(components) = self.components.get(&TypeId::of::<T>()) {
-            if let Some(component) = components
-                .iter()
-                .find_map(|(e, component)| {
-                    if *e == entity {
-                        component.downcast_ref::<T>()
-                    } else {
-                        None
-                    }
-                }) {
+            if let Some(component) = components.iter().find_map(|(e, component)| {
+                if *e == entity {
+                    component.downcast_ref::<T>()
+                } else {
+                    None
+                }
+            }) {
                 return Some(component);
             }
         }
-        
+
         // Then check temporary components (Events, ComponentAdded, ComponentRemoved)
         if let Some(temp_components) = self.temporary_components.get(&TypeId::of::<T>()) {
-            temp_components
-                .iter()
-                .find_map(|(e, component)| {
-                    if *e == entity {
-                        component.downcast_ref::<T>()
-                    } else {
-                        None
-                    }
-                })
+            temp_components.iter().find_map(|(e, component)| {
+                if *e == entity {
+                    component.downcast_ref::<T>()
+                } else {
+                    None
+                }
+            })
         } else {
             None
         }
@@ -308,14 +307,18 @@ impl World {
         let n = self.systems.len();
         let mut in_degree = vec![0; n];
         let mut adj_list: Vec<Vec<usize>> = vec![Vec::new(); n];
-        
+
         // Build adjacency list and calculate in-degrees from InSystems/OutSystems
         for i in 0..n {
             // Handle InSystems: systems that must run before this system
             let in_systems = self.systems[i].in_systems_type_ids();
             for in_system_type_id in in_systems {
                 // Find the system with the matching type
-                if let Some(in_system_index) = self.systems.iter().position(|s| s.system_type_id() == in_system_type_id) {
+                if let Some(in_system_index) = self
+                    .systems
+                    .iter()
+                    .position(|s| s.system_type_id() == in_system_type_id)
+                {
                     // in_system_index should run before system i
                     adj_list[in_system_index].push(i);
                     in_degree[i] += 1;
@@ -323,11 +326,15 @@ impl World {
                     return Err(format!("InSystem not found: {:?}", in_system_type_id));
                 }
             }
-            
+
             // Handle OutSystems: systems that must run after this system
             let out_systems = self.systems[i].out_systems_type_ids();
             for out_system_type_id in out_systems {
-                if let Some(out_system_index) = self.systems.iter().position(|s| s.system_type_id() == out_system_type_id) {
+                if let Some(out_system_index) = self
+                    .systems
+                    .iter()
+                    .position(|s| s.system_type_id() == out_system_type_id)
+                {
                     // System i should run before out_system_index
                     adj_list[i].push(out_system_index);
                     in_degree[out_system_index] += 1;
@@ -336,21 +343,21 @@ impl World {
                 }
             }
         }
-        
+
         // Topological sort using Kahn's algorithm
         let mut queue = Vec::new();
         let mut result = Vec::new();
-        
+
         // Add all nodes with no incoming edges
         for (i, &degree) in in_degree.iter().enumerate().take(n) {
             if degree == 0 {
                 queue.push(i);
             }
         }
-        
+
         while let Some(current) = queue.pop() {
             result.push(current);
-            
+
             // For each neighbor of current
             for neighbor in &adj_list[current] {
                 in_degree[*neighbor] -= 1;
@@ -359,12 +366,12 @@ impl World {
                 }
             }
         }
-        
+
         // Check for circular dependencies
         if result.len() != n {
             return Err("Circular dependency detected".to_string());
         }
-        
+
         Ok(result)
     }
 
@@ -420,26 +427,26 @@ impl World {
         }
 
         self.systems = systems;
-        
+
         // Increment replay frame if in replay mode
         if self.replay_mode {
             self.replay_frame += 1;
         }
-        
+
         // Record the update in history
         self.world_update_history.record(world_update_diff.clone());
-        
+
         // Log the update if replay logging is enabled
         if let Some(ref mut logger) = self.replay_logger {
             if let Err(e) = logger.log_update(&world_update_diff) {
                 eprintln!("Failed to log replay data: {}", e);
             }
         }
-        
+
         // Clean up all temporary components at the end of the frame
         self.cleanup_temporary_components();
     }
-    
+
     /// Deinitialize all systems (called when shutting down)
     /// Systems are deinitialized in reverse dependency order
     pub fn deinitialize_systems(&mut self) {
@@ -448,7 +455,7 @@ impl World {
             Ok(mut indices) => {
                 indices.reverse(); // Deinitialize in reverse order
                 indices
-            },
+            }
             Err(err) => {
                 eprintln!("Warning: Failed to resolve system dependencies: {}. Deinitializing in reverse registration order.", err);
                 (0..self.systems.len()).rev().collect()
@@ -536,10 +543,10 @@ impl World {
 
     /// Enable replay logging with basic parameters (convenience method)
     pub fn enable_replay_logging_simple(
-        &mut self, 
-        log_directory: &str, 
-        file_prefix: &str, 
-        flush_interval: usize
+        &mut self,
+        log_directory: &str,
+        file_prefix: &str,
+        flush_interval: usize,
     ) -> Result<(), std::io::Error> {
         let config = ReplayLogConfig {
             enabled: true,
@@ -566,16 +573,22 @@ impl World {
 
     /// Get the current replay logger session ID (if logging is enabled)
     pub fn replay_session_id(&self) -> Option<&str> {
-        self.replay_logger.as_ref().map(|logger| logger.session_id())
+        self.replay_logger
+            .as_ref()
+            .map(|logger| logger.session_id())
     }
 
     /// Get the current replay logger update count (if logging is enabled)
     pub fn replay_update_count(&self) -> Option<usize> {
-        self.replay_logger.as_ref().map(|logger| logger.update_count())
+        self.replay_logger
+            .as_ref()
+            .map(|logger| logger.update_count())
     }
 
     /// Parse a replay log file and return the parsed history
-    pub fn parse_replay_log_file(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn std::error::Error>> {
+    pub fn parse_replay_log_file(
+        file_path: &str,
+    ) -> Result<WorldUpdateHistory, Box<dyn std::error::Error>> {
         crate::ecs::replay::parse_replay_log(file_path)
     }
 
@@ -592,14 +605,14 @@ impl World {
         let history = &self.world_update_history;
         if let Some(last_update) = history.updates().last() {
             println!("=== Frame Diff ===");
-            
+
             let mut total_component_changes = 0;
             let mut total_world_operations = 0;
-            
+
             for (system_idx, system_diff) in last_update.system_diffs().iter().enumerate() {
                 let component_changes = system_diff.diff_changes().len();
                 let world_operations = system_diff.world_operations().len();
-                
+
                 if component_changes > 0 || world_operations > 0 {
                     // Get system name instead of using index
                     let system_name = if system_idx < self.systems.len() {
@@ -607,25 +620,38 @@ impl World {
                     } else {
                         format!("System_{}", system_idx)
                     };
-                    
-                    println!("{}: {} component changes, {} world operations", 
-                             system_name, component_changes, world_operations);
-                    
+
+                    println!(
+                        "{}: {} component changes, {} world operations",
+                        system_name, component_changes, world_operations
+                    );
+
                     // Print component changes
                     for change in system_diff.diff_changes() {
                         match change {
-                            crate::ecs::diff::DiffComponentChange::Added { entity, type_name, data } => {
+                            crate::ecs::diff::DiffComponentChange::Added {
+                                entity,
+                                type_name,
+                                data,
+                            } => {
                                 println!("  + {:?} {} {}", entity, type_name, data);
                             }
-                            crate::ecs::diff::DiffComponentChange::Modified { entity, type_name, diff } => {
+                            crate::ecs::diff::DiffComponentChange::Modified {
+                                entity,
+                                type_name,
+                                diff,
+                            } => {
                                 println!("  ~ {:?} {} {}", entity, type_name, diff);
                             }
-                            crate::ecs::diff::DiffComponentChange::Removed { entity, type_name } => {
+                            crate::ecs::diff::DiffComponentChange::Removed {
+                                entity,
+                                type_name,
+                            } => {
                                 println!("  - {:?} {}", entity, type_name);
                             }
                         }
                     }
-                    
+
                     // Print world operations
                     for operation in system_diff.world_operations() {
                         match operation {
@@ -647,16 +673,18 @@ impl World {
                         }
                     }
                 }
-                
+
                 total_component_changes += component_changes;
                 total_world_operations += world_operations;
             }
-            
+
             if total_component_changes == 0 && total_world_operations == 0 {
                 println!("No changes recorded in last frame");
             } else {
-                println!("Total: {} component changes, {} world operations", 
-                         total_component_changes, total_world_operations);
+                println!(
+                    "Total: {} component changes, {} world operations",
+                    total_component_changes, total_world_operations
+                );
             }
             println!();
         } else {
@@ -693,40 +721,46 @@ impl<I, O> WorldView<I, O> {
 
     /// Record a component modification (call this when you modify a component)
     pub fn record_component_modification<T: Diff + Clone + std::fmt::Debug + 'static>(
-        &mut self, 
-        entity: Entity, 
-        old_value: &T, 
-        new_value: &T
+        &mut self,
+        entity: Entity,
+        old_value: &T,
+        new_value: &T,
     ) {
         if let Some(diff) = old_value.diff(new_value) {
             let diff_str = T::diff_to_string(&diff);
-            let type_name = std::any::type_name::<T>().split("::").last().unwrap_or(std::any::type_name::<T>());
-            
+            let type_name = std::any::type_name::<T>()
+                .split("::")
+                .last()
+                .unwrap_or(std::any::type_name::<T>());
+
             let change = DiffComponentChange::Modified {
                 entity,
                 type_name: type_name.to_string(),
                 diff: diff_str,
             };
-            
+
             self.system_diff.record_component_change(change);
         }
     }
 
     /// Record a component addition
     pub fn record_component_addition<T: std::fmt::Debug + 'static>(
-        &mut self, 
-        entity: Entity, 
-        component: &T
+        &mut self,
+        entity: Entity,
+        component: &T,
     ) {
-        let type_name = std::any::type_name::<T>().split("::").last().unwrap_or(std::any::type_name::<T>());
+        let type_name = std::any::type_name::<T>()
+            .split("::")
+            .last()
+            .unwrap_or(std::any::type_name::<T>());
         let data = format!("{:?}", component);
-        
+
         let change = DiffComponentChange::Added {
             entity,
             type_name: type_name.to_string(),
             data,
         };
-        
+
         self.system_diff.record_component_change(change);
     }
 
@@ -762,7 +796,7 @@ impl<I, O> WorldView<I, O> {
     pub fn get_component_mut<T: 'static>(&mut self, entity: Entity) -> Option<&mut T> {
         unsafe {
             let world = self.world_mut();
-            
+
             // First check regular components
             if let Some(component) = world
                 .components
@@ -774,10 +808,11 @@ impl<I, O> WorldView<I, O> {
                     } else {
                         None
                     }
-                }) {
+                })
+            {
                 return Some(component);
             }
-            
+
             // Then check temporary components
             world
                 .temporary_components
@@ -800,7 +835,10 @@ impl<I, O> WorldView<I, O> {
 
     /// Remove a component from an entity and create a ComponentRemoved notification
     pub fn remove_component_with_notification<T: 'static>(&mut self, entity: Entity) -> bool {
-        unsafe { self.world_mut().remove_component_with_notification::<T>(entity) }
+        unsafe {
+            self.world_mut()
+                .remove_component_with_notification::<T>(entity)
+        }
     }
 
     /// Add an event to an entity (will be automatically cleaned up at end of frame)
@@ -821,7 +859,7 @@ impl<I, O> WorldView<I, O> {
     {
         // Get the query results
         let results = unsafe { Q::query_mixed(self.world_mut()) };
-        
+
         // For now, return results directly without tracking
         // Automatic change tracking is implemented through the system diff mechanism
         results
@@ -860,7 +898,7 @@ impl<S: System + 'static> SystemWrapper for ConcreteSystemWrapper<S> {
     fn initialize(&mut self, world: &mut World) -> SystemInitDiff {
         let mut world_view = WorldView::new(world);
         self.system.initialize(&mut world_view);
-        
+
         // Convert SystemUpdateDiff to SystemInitDiff
         let update_diff = world_view.get_system_diff();
         let mut init_diff = SystemInitDiff::new();
@@ -870,7 +908,7 @@ impl<S: System + 'static> SystemWrapper for ConcreteSystemWrapper<S> {
         for operation in update_diff.world_operations() {
             init_diff.record_world_operation(operation.clone());
         }
-        
+
         init_diff
     }
 
@@ -889,7 +927,7 @@ impl<S: System + 'static> SystemWrapper for ConcreteSystemWrapper<S> {
     fn deinitialize(&mut self, world: &mut World) -> SystemDeinitDiff {
         let mut world_view = WorldView::new(world);
         self.system.deinitialize(&mut world_view);
-        
+
         // Convert SystemUpdateDiff to SystemDeinitDiff
         let update_diff = world_view.get_system_diff();
         let mut deinit_diff = SystemDeinitDiff::new();
@@ -899,7 +937,7 @@ impl<S: System + 'static> SystemWrapper for ConcreteSystemWrapper<S> {
         for operation in update_diff.world_operations() {
             deinit_diff.record_world_operation(operation.clone());
         }
-        
+
         deinit_diff
     }
 
@@ -910,7 +948,11 @@ impl<S: System + 'static> SystemWrapper for ConcreteSystemWrapper<S> {
     fn system_name(&self) -> String {
         let full_name = std::any::type_name::<S>();
         // Extract just the struct name from the full path
-        full_name.split("::").last().unwrap_or(full_name).to_string()
+        full_name
+            .split("::")
+            .last()
+            .unwrap_or(full_name)
+            .to_string()
     }
 
     fn in_systems_type_ids(&self) -> Vec<TypeId> {

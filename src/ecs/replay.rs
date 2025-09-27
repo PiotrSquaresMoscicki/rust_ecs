@@ -3,15 +3,15 @@
 //! This module provides comprehensive replay functionality for the ECS framework,
 //! enabling debugging through replay and analysis of game sessions.
 
+use std::collections::HashSet;
 use std::fs::{File, OpenOptions};
-use std::io::{Write, BufWriter};
+use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::collections::HashSet;
 
 use crate::ecs::core::WorldOperation;
 use crate::ecs::diff::DiffComponentChange;
-use crate::ecs::system::{WorldUpdateDiff, WorldUpdateHistory, SystemUpdateDiff};
+use crate::ecs::system::{SystemUpdateDiff, WorldUpdateDiff, WorldUpdateHistory};
 
 /// Configuration for automatic replay logging
 #[derive(Debug, Clone)]
@@ -53,7 +53,7 @@ impl AutoReplayLogger {
     /// Create a new auto replay logger with the given configuration
     pub fn new(config: ReplayLogConfig) -> Self {
         let session_id = Self::generate_session_id();
-        
+
         Self {
             config,
             log_file: None,
@@ -83,26 +83,33 @@ impl AutoReplayLogger {
         // Create log file
         let filename = format!("{}_{}.log", self.config.file_prefix, self.session_id);
         let filepath = Path::new(&self.config.log_directory).join(filename);
-        
+
         let file = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
             .open(filepath)?;
-        
+
         let mut writer = BufWriter::new(file);
-        
+
         // Write header
         writeln!(writer, "# ECS Replay Log")?;
         writeln!(writer, "# Session ID: {}", self.session_id)?;
-        writeln!(writer, "# Timestamp: {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"))?;
+        writeln!(
+            writer,
+            "# Timestamp: {}",
+            chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+        )?;
         writeln!(writer, "# Configuration: {:?}", self.config)?;
         writeln!(writer, "# Format: Each line represents one world update")?;
         writeln!(writer)?;
-        
+
         self.log_file = Some(writer);
-        
-        println!("Replay logging initialized - Session ID: {}", self.session_id);
+
+        println!(
+            "Replay logging initialized - Session ID: {}",
+            self.session_id
+        );
         Ok(())
     }
 
@@ -122,16 +129,28 @@ impl AutoReplayLogger {
         // Log each system update
         for (system_idx, system_diff) in update.system_diffs().iter().enumerate() {
             writeln!(writer, "  SYSTEM {}", system_idx)?;
-            
+
             // Log component changes
             if self.config.include_component_details && !system_diff.diff_changes().is_empty() {
-                writeln!(writer, "    COMPONENT_CHANGES: {}", system_diff.diff_changes().len())?;
+                writeln!(
+                    writer,
+                    "    COMPONENT_CHANGES: {}",
+                    system_diff.diff_changes().len()
+                )?;
                 for change in system_diff.diff_changes() {
                     match change {
-                        DiffComponentChange::Added { entity, type_name, data } => {
+                        DiffComponentChange::Added {
+                            entity,
+                            type_name,
+                            data,
+                        } => {
                             writeln!(writer, "      ADD {:?} {} {}", entity, type_name, data)?;
                         }
-                        DiffComponentChange::Modified { entity, type_name, diff } => {
+                        DiffComponentChange::Modified {
+                            entity,
+                            type_name,
+                            diff,
+                        } => {
                             writeln!(writer, "      MOD {:?} {} {}", entity, type_name, diff)?;
                         }
                         DiffComponentChange::Removed { entity, type_name } => {
@@ -143,7 +162,11 @@ impl AutoReplayLogger {
 
             // Log world operations
             if !system_diff.world_operations().is_empty() {
-                writeln!(writer, "    WORLD_OPERATIONS: {}", system_diff.world_operations().len())?;
+                writeln!(
+                    writer,
+                    "    WORLD_OPERATIONS: {}",
+                    system_diff.world_operations().len()
+                )?;
                 for operation in system_diff.world_operations() {
                     match operation {
                         WorldOperation::CreateEntity(entity) => {
@@ -179,9 +202,16 @@ impl AutoReplayLogger {
     /// Finalize logging - flush and close file
     pub fn finalize(&mut self) -> Result<(), std::io::Error> {
         if let Some(mut writer) = self.log_file.take() {
-            writeln!(writer, "# End of replay log - Total updates: {}", self.update_count)?;
+            writeln!(
+                writer,
+                "# End of replay log - Total updates: {}",
+                self.update_count
+            )?;
             writer.flush()?;
-            println!("Replay logging finalized - {} updates logged", self.update_count);
+            println!(
+                "Replay logging finalized - {} updates logged",
+                self.update_count
+            );
         }
         Ok(())
     }
@@ -230,20 +260,21 @@ pub fn analyze_replay_history(history: &WorldUpdateHistory) -> ReplayStats {
 
     for update in history.updates() {
         stats.total_system_executions += update.system_diffs().len();
-        
+
         let mut frame_change_count = 0;
-        
+
         for system_diff in update.system_diffs() {
             stats.total_component_changes += system_diff.diff_changes().len();
             stats.total_world_operations += system_diff.world_operations().len();
-            frame_change_count += system_diff.diff_changes().len() + system_diff.world_operations().len();
+            frame_change_count +=
+                system_diff.diff_changes().len() + system_diff.world_operations().len();
 
             // Collect component types
             for change in system_diff.diff_changes() {
                 match change {
-                    DiffComponentChange::Added { type_name, .. } |
-                    DiffComponentChange::Modified { type_name, .. } |
-                    DiffComponentChange::Removed { type_name, .. } => {
+                    DiffComponentChange::Added { type_name, .. }
+                    | DiffComponentChange::Modified { type_name, .. }
+                    | DiffComponentChange::Removed { type_name, .. } => {
                         component_types.insert(type_name.clone());
                     }
                 }
@@ -258,12 +289,16 @@ pub fn analyze_replay_history(history: &WorldUpdateHistory) -> ReplayStats {
                 }
             }
         }
-        
+
         frame_changes.push(frame_change_count);
     }
 
     // Find most active frame
-    if let Some((frame_idx, max_changes)) = frame_changes.iter().enumerate().max_by_key(|(_, &changes)| changes) {
+    if let Some((frame_idx, max_changes)) = frame_changes
+        .iter()
+        .enumerate()
+        .max_by_key(|(_, &changes)| changes)
+    {
         stats.most_active_frame = Some(frame_idx);
         stats.most_changes_in_frame = *max_changes;
     }
@@ -277,7 +312,7 @@ pub fn analyze_replay_history(history: &WorldUpdateHistory) -> ReplayStats {
 /// Print a detailed analysis report of a replay session
 pub fn print_replay_analysis(history: &WorldUpdateHistory) {
     let stats = analyze_replay_history(history);
-    
+
     println!("=== ECS Replay Analysis Report ===");
     println!("Total Updates: {}", stats.total_updates);
     println!("Total System Executions: {}", stats.total_system_executions);
@@ -285,48 +320,63 @@ pub fn print_replay_analysis(history: &WorldUpdateHistory) {
     println!("Total World Operations: {}", stats.total_world_operations);
     println!("Entities Created: {}", stats.entities_created);
     println!("Entities Removed: {}", stats.entities_removed);
-    
+
     if let Some(frame) = stats.most_active_frame {
-        println!("Most Active Frame: {} (with {} changes)", frame, stats.most_changes_in_frame);
+        println!(
+            "Most Active Frame: {} (with {} changes)",
+            frame, stats.most_changes_in_frame
+        );
     }
-    
+
     println!("Component Types Involved:");
     for component_type in &stats.component_types_involved {
         println!("  - {}", component_type);
     }
-    
+
     if stats.total_updates > 0 {
-        println!("Average Changes per Frame: {:.2}", 
-            stats.total_component_changes as f64 / stats.total_updates as f64);
+        println!(
+            "Average Changes per Frame: {:.2}",
+            stats.total_component_changes as f64 / stats.total_updates as f64
+        );
     }
-    
+
     println!("=== End Report ===");
 }
 
 /// Find frames with unusual activity (significantly above average)
-pub fn find_anomalous_frames(history: &WorldUpdateHistory, threshold_multiplier: f64) -> Vec<usize> {
+pub fn find_anomalous_frames(
+    history: &WorldUpdateHistory,
+    threshold_multiplier: f64,
+) -> Vec<usize> {
     let updates = history.updates();
     if updates.is_empty() {
         return Vec::new();
     }
 
     // Calculate average changes per frame
-    let total_changes: usize = updates.iter()
-        .map(|update| update.system_diffs().iter()
-            .map(|sys| sys.diff_changes().len() + sys.world_operations().len())
-            .sum::<usize>())
+    let total_changes: usize = updates
+        .iter()
+        .map(|update| {
+            update
+                .system_diffs()
+                .iter()
+                .map(|sys| sys.diff_changes().len() + sys.world_operations().len())
+                .sum::<usize>()
+        })
         .sum();
-    
+
     let avg_changes = total_changes as f64 / updates.len() as f64;
     let threshold = avg_changes * threshold_multiplier;
 
     let mut anomalous_frames = Vec::new();
-    
+
     for (frame_idx, update) in updates.iter().enumerate() {
-        let frame_changes: usize = update.system_diffs().iter()
+        let frame_changes: usize = update
+            .system_diffs()
+            .iter()
             .map(|sys| sys.diff_changes().len() + sys.world_operations().len())
             .sum();
-        
+
         if frame_changes as f64 > threshold {
             anomalous_frames.push(frame_idx);
         }
@@ -349,7 +399,7 @@ pub fn parse_replay_log(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn s
     let mut current_system: Option<SystemUpdateDiff> = None;
     for line in lines.into_iter() {
         let line = line.trim();
-        
+
         // Skip comments and empty lines
         if line.starts_with('#') || line.is_empty() {
             continue;
@@ -449,10 +499,12 @@ pub fn parse_replay_log(file_path: &str) -> Result<WorldUpdateHistory, Box<dyn s
 /// Parse entity from string like "Entity(0, 123)"
 fn parse_entity(input: &str) -> Option<crate::ecs::core::Entity> {
     if input.starts_with("Entity(") && input.ends_with(')') {
-        let content = &input[7..input.len()-1];
+        let content = &input[7..input.len() - 1];
         let parts: Vec<&str> = content.split(", ").collect();
         if parts.len() == 2 {
-            if let (Ok(world_index), Ok(entity_index)) = (parts[0].parse::<usize>(), parts[1].parse::<usize>()) {
+            if let (Ok(world_index), Ok(entity_index)) =
+                (parts[0].parse::<usize>(), parts[1].parse::<usize>())
+            {
                 return Some(crate::ecs::core::Entity::new(world_index, entity_index));
             }
         }
@@ -466,8 +518,16 @@ fn parse_component_add(input: &str) -> Option<DiffComponentChange> {
     if parts.len() >= 3 {
         if let Some(entity) = parse_entity(parts[0]) {
             let type_name = parts[1].to_string();
-            let data = if parts.len() > 2 { parts[2].to_string() } else { String::new() };
-            return Some(DiffComponentChange::Added { entity, type_name, data });
+            let data = if parts.len() > 2 {
+                parts[2].to_string()
+            } else {
+                String::new()
+            };
+            return Some(DiffComponentChange::Added {
+                entity,
+                type_name,
+                data,
+            });
         }
     }
     None
@@ -479,8 +539,16 @@ fn parse_component_mod(input: &str) -> Option<DiffComponentChange> {
     if parts.len() >= 3 {
         if let Some(entity) = parse_entity(parts[0]) {
             let type_name = parts[1].to_string();
-            let diff = if parts.len() > 2 { parts[2].to_string() } else { String::new() };
-            return Some(DiffComponentChange::Modified { entity, type_name, diff });
+            let diff = if parts.len() > 2 {
+                parts[2].to_string()
+            } else {
+                String::new()
+            };
+            return Some(DiffComponentChange::Modified {
+                entity,
+                type_name,
+                diff,
+            });
         }
     }
     None

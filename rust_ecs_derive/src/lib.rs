@@ -20,14 +20,15 @@ pub fn derive_diff(input: TokenStream) -> TokenStream {
                     let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
                     let field_types: Vec<_> = fields.named.iter().map(|f| &f.ty).collect();
 
-                    let diff_fields = field_names
-                        .iter()
-                        .zip(field_types.iter())
-                        .map(|(name, ty)| {
-                            quote! {
-                                pub #name: Option<<#ty as crate::Diff>::Diff>
-                            }
-                        });
+                    let diff_fields =
+                        field_names
+                            .iter()
+                            .zip(field_types.iter())
+                            .map(|(name, ty)| {
+                                quote! {
+                                    pub #name: Option<<#ty as crate::Diff>::Diff>
+                                }
+                            });
 
                     let diff_computation = field_names.iter().map(|name| {
                         quote! {
