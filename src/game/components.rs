@@ -117,6 +117,13 @@ pub struct AssignedWoodcutter {
     pub woodcutter_id: u32,
 }
 
+// Carpenter system components
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct Carpenter;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Diff)]
+pub struct CarpenterHut;
+
 // Component trait implementations for all game components
 // Most components have no requirements (empty tuple)
 
@@ -173,5 +180,13 @@ impl crate::Component for CarryingTree {
 }
 
 impl crate::Component for AssignedWoodcutter {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for Carpenter {
+    type RequiredComponents = ();
+}
+
+impl crate::Component for CarpenterHut {
     type RequiredComponents = ();
 }

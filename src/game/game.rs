@@ -10,9 +10,11 @@ use std::time::Duration;
 use super::components::*;
 
 // Re-export systems for backward compatibility
+pub use super::carpenter_system::CarpenterSystem;
 pub use super::navigation_system::NavigationSystem;
 pub use super::render_system::RenderSystem;
 pub use super::wait_system::WaitSystem;
+pub use super::woodcutter_system::WoodcutterSystem;
 
 // Game initialization and main loop
 
@@ -20,66 +22,153 @@ pub fn initialize_game() -> World {
     let mut world = World::new();
     let mut rng = rand::thread_rng();
 
-    // Create home entity
-    let home_entity = world.create_entity();
-    world.add_component(
-        home_entity,
-        Position {
-            x: HOME_POS.0,
-            y: HOME_POS.1,
-        },
-    );
-    world.add_component(home_entity, Home);
-    world.add_component(home_entity, Obstacle);
+    // Create some trees scattered around the map
+    println!("Creating trees...");
+    let num_trees = 30; // Fewer trees than woodcutter demo
+    for _i in 0..num_trees {
+        let tree_entity = world.create_entity();
 
-    // Create work entity
-    let work_entity = world.create_entity();
-    world.add_component(
-        work_entity,
-        Position {
-            x: WORK_POS.0,
-            y: WORK_POS.1,
-        },
-    );
-    world.add_component(work_entity, Work);
-    world.add_component(work_entity, Obstacle);
+        // Generate random position
+        let pos = (rng.gen_range(0..GRID_WIDTH), rng.gen_range(0..GRID_HEIGHT));
 
-    // Create 3 actors at random positions
-    for _i in 0..3 {
-        let actor_entity = world.create_entity();
-
-        // Generate random position that's not home or work
-        let mut pos;
-        loop {
-            pos = (rng.gen_range(0..GRID_WIDTH), rng.gen_range(0..GRID_HEIGHT));
-            if pos != HOME_POS && pos != WORK_POS {
-                break;
-            }
-        }
-
-        world.add_component(actor_entity, Position { x: pos.0, y: pos.1 });
-        world.add_component(actor_entity, Actor);
-        world.add_component(
-            actor_entity,
-            Target {
-                x: WORK_POS.0,
-                y: WORK_POS.1,
-            },
-        ); // Start by going to work
-        world.add_component(actor_entity, WaitTimer { ticks: 0 });
-        world.add_component(actor_entity, ActorState::MovingToWork);
-        world.add_component(actor_entity, Navigation::new()); // Add Navigation for pathfinding
+        world.add_component(tree_entity, Position { x: pos.0, y: pos.1 });
+        world.add_component(tree_entity, Tree);
     }
 
-    // Add systems - same for both normal and replay modes
+    // Create 2 woodcutter huts as required
+    println!("Creating 2 woodcutter huts...");
+    let woodcutter_hut_positions = [
+        (5, 3),   // Left side
+        (25, 10), // Right side
+    ];
+
+    for (i, &pos) in woodcutter_hut_positions.iter().enumerate() {
+        let hut_entity = world.create_entity();
+        world.add_component(hut_entity, Position { x: pos.0, y: pos.1 });
+        world.add_component(hut_entity, WoodcutterHut);
+        println!("  Woodcutter Hut {} at ({}, {})", i + 1, pos.0, pos.1);
+    }
+
+    // Create 1 carpenter hut as required
+    println!("Creating 1 carpenter hut...");
+    let carpenter_hut_position = (15, 7); // Center
+    let carpenter_hut_entity = world.create_entity();
+    world.add_component(
+        carpenter_hut_entity,
+        Position {
+            x: carpenter_hut_position.0,
+            y: carpenter_hut_position.1,
+        },
+    );
+    world.add_component(carpenter_hut_entity, CarpenterHut);
+    println!(
+        "  Carpenter Hut at ({}, {})",
+        carpenter_hut_position.0, carpenter_hut_position.1
+    );
+
+    // Create 2 woodcutters as required
+    println!("Creating 2 woodcutters...");
+    let woodcutter_positions = [
+        (6, 3),   // Near first woodcutter hut
+        (24, 10), // Near second woodcutter hut
+    ];
+
+    for (i, &pos) in woodcutter_positions.iter().enumerate() {
+        let woodcutter_entity = world.create_entity();
+        world.add_component(woodcutter_entity, Position { x: pos.0, y: pos.1 });
+        world.add_component(woodcutter_entity, Actor); // For rendering
+        world.add_component(woodcutter_entity, Woodcutter);
+        world.add_component(woodcutter_entity, WaitTimer { ticks: 1 });
+
+        // Target nearest tree initially
+        if let Some(tree_pos) = find_nearest_tree_position(&world, pos) {
+            world.add_component(
+                woodcutter_entity,
+                Target {
+                    x: tree_pos.0,
+                    y: tree_pos.1,
+                },
+            );
+        } else {
+            // Fallback to first woodcutter hut if no trees
+            world.add_component(
+                woodcutter_entity,
+                Target {
+                    x: woodcutter_hut_positions[0].0,
+                    y: woodcutter_hut_positions[0].1,
+                },
+            );
+        }
+
+        world.add_component(woodcutter_entity, Navigation::new());
+        println!("  Woodcutter {} at ({}, {})", i + 1, pos.0, pos.1);
+    }
+
+    // Create 1 carpenter as required
+    println!("Creating 1 carpenter...");
+    let carpenter_position = (14, 7); // Near carpenter hut
+    let carpenter_entity = world.create_entity();
+    world.add_component(
+        carpenter_entity,
+        Position {
+            x: carpenter_position.0,
+            y: carpenter_position.1,
+        },
+    );
+    world.add_component(carpenter_entity, Actor); // For rendering
+    world.add_component(carpenter_entity, Carpenter);
+    world.add_component(carpenter_entity, WaitTimer { ticks: 1 });
+
+    // Initially target the nearest woodcutter hut
+    let nearest_woodcutter_hut = woodcutter_hut_positions
+        .iter()
+        .min_by_key(|&&hut_pos| {
+            let dx = carpenter_position.0 - hut_pos.0;
+            let dy = carpenter_position.1 - hut_pos.1;
+            dx * dx + dy * dy
+        })
+        .unwrap();
+
+    world.add_component(
+        carpenter_entity,
+        Target {
+            x: nearest_woodcutter_hut.0,
+            y: nearest_woodcutter_hut.1,
+        },
+    );
+    world.add_component(carpenter_entity, Navigation::new());
+    println!(
+        "  Carpenter at ({}, {}) targeting woodcutter hut at ({}, {})",
+        carpenter_position.0,
+        carpenter_position.1,
+        nearest_woodcutter_hut.0,
+        nearest_woodcutter_hut.1
+    );
+
+    // Add systems - including carpenter and woodcutter systems
     world.add_system(NavigationSystem);
-    world.add_system(WaitSystem);
+    world.add_system(WoodcutterSystem);
+    world.add_system(CarpenterSystem);
     world.add_system(RenderSystem::default());
 
     // Initialize systems
     world.initialize_systems();
 
+    println!("Game world initialized!");
+    println!("- {} trees", num_trees);
+    println!("- 2 woodcutter huts");
+    println!("- 1 carpenter hut");
+    println!("- 2 woodcutters");
+    println!("- 1 carpenter");
+
     world
+}
+
+/// Helper function to find the nearest tree position to a given position
+fn find_nearest_tree_position(_world: &World, _from: (i32, i32)) -> Option<(i32, i32)> {
+    // For now, return None since we can't query directly on world
+    // Trees will be targeted by woodcutters through the woodcutter system
+    None
 }
 
 pub fn run_game() {
@@ -161,17 +250,21 @@ mod tests {
     fn test_game_initialization() {
         let world = initialize_game();
 
-        // Should have 5 entities: home, work, and 3 actors
-        assert_eq!(world.entity_count(), 5);
+        // Should have 36 entities: 30 trees, 2 woodcutter huts, 1 carpenter hut, 2 woodcutters, 1 carpenter
+        assert_eq!(world.entity_count(), 36);
 
-        // Should have entities with Home and Work components
-        let home_entities = world.entities_with_component::<Home>();
-        let work_entities = world.entities_with_component::<Work>();
-        let actor_entities = world.entities_with_component::<Actor>();
+        // Should have entities with correct components
+        let tree_entities = world.entities_with_component::<Tree>();
+        let woodcutter_hut_entities = world.entities_with_component::<WoodcutterHut>();
+        let carpenter_hut_entities = world.entities_with_component::<CarpenterHut>();
+        let woodcutter_entities = world.entities_with_component::<Woodcutter>();
+        let carpenter_entities = world.entities_with_component::<Carpenter>();
 
-        assert_eq!(home_entities.len(), 1);
-        assert_eq!(work_entities.len(), 1);
-        assert_eq!(actor_entities.len(), 3);
+        assert_eq!(tree_entities.len(), 30);
+        assert_eq!(woodcutter_hut_entities.len(), 2);
+        assert_eq!(carpenter_hut_entities.len(), 1);
+        assert_eq!(woodcutter_entities.len(), 2);
+        assert_eq!(carpenter_entities.len(), 1);
     }
 
     #[test]
@@ -190,7 +283,7 @@ mod tests {
         println!("Test replay history tracking:");
         println!("  Total updates recorded: {}", history.len());
 
-        assert_eq!(history.len(), 8); // 3 system additions + 5 updates
+        assert_eq!(history.len(), 9); // 4 system additions + 5 updates
         assert!(!history.is_empty());
 
         // Check that each update has system diffs
@@ -209,7 +302,7 @@ mod tests {
         // Test that our simplified game systems work with the extended query support
         let mut world = initialize_game();
 
-        // Get initial positions and targets of actors
+        // Get initial positions and targets of actors (woodcutters and carpenters)
         let initial_data: Vec<((i32, i32), (i32, i32))> = {
             let mut world_view = crate::WorldView::<(), ()>::new(&mut world);
             world_view
@@ -219,13 +312,12 @@ mod tests {
                 .collect()
         };
 
-        // Should have 3 actors
+        // Should have 3 actors (2 woodcutters + 1 carpenter)
         assert_eq!(initial_data.len(), 3);
 
-        // All actors should initially target work
-        for (_, target) in &initial_data {
-            assert_eq!(*target, WORK_POS);
-        }
+        // Verify we have the expected entities
+        assert_eq!(world.entities_with_component::<Woodcutter>().len(), 2);
+        assert_eq!(world.entities_with_component::<Carpenter>().len(), 1);
 
         // Run a few updates to verify the simplified systems work
         for _ in 0..10 {
@@ -271,7 +363,7 @@ mod tests {
 
         // Verify history is being tracked
         let history = world.get_update_history();
-        assert_eq!(history.len(), 8); // 3 system additions + 5 updates
+        assert_eq!(history.len(), 9); // 4 system additions + 5 updates
 
         // Verify each update has system diffs
         for (i, update) in history.updates().iter().enumerate() {
@@ -280,12 +372,12 @@ mod tests {
                 i + 1,
                 update.system_diffs().len()
             );
-            if i < 3 {
-                // First 3 updates are system additions - each has 1 system diff
+            if i < 4 {
+                // First 4 updates are system additions - each has 1 system diff
                 assert_eq!(update.system_diffs().len(), 1);
             } else {
-                // Remaining updates are game updates - each has 3 system diffs (Movement, Wait, Render)
-                assert_eq!(update.system_diffs().len(), 3);
+                // Remaining updates are game updates - each has 4 system diffs (Navigation, Woodcutter, Carpenter, Render)
+                assert_eq!(update.system_diffs().len(), 4);
             }
         }
 

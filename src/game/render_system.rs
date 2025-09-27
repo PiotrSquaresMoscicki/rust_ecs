@@ -1,6 +1,6 @@
 use super::components::{
-    Actor, AssignedWoodcutter, Home, Obstacle, Position, Tree, Woodcutter, WoodcutterHut, Work,
-    GRID_HEIGHT, GRID_WIDTH,
+    Actor, AssignedWoodcutter, Carpenter, CarpenterHut, Home, Obstacle, Position, Tree, Woodcutter,
+    WoodcutterHut, Work, GRID_HEIGHT, GRID_WIDTH,
 };
 use crate::{In, System, WorldView};
 
@@ -33,7 +33,9 @@ impl System for RenderSystem {
         Actor,
         Tree,
         WoodcutterHut,
+        CarpenterHut,
         Woodcutter,
+        Carpenter,
         Obstacle,
         AssignedWoodcutter,
     );
@@ -81,6 +83,17 @@ impl System for RenderSystem {
             }
         }
 
+        // Place carpenter huts on grid
+        for (_entity, (position, _hut)) in
+            world.query_components::<(In<Position>, In<CarpenterHut>)>()
+        {
+            let x = position.x as usize;
+            let y = position.y as usize;
+            if x < self.grid_width && y < self.grid_height {
+                grid[y][x] = 'R'; // Carpenter hut (R for caRpenter)
+            }
+        }
+
         // Place work positions
         for (_entity, (position, _work)) in world.query_components::<(In<Position>, In<Work>)>() {
             let x = position.x as usize;
@@ -122,6 +135,23 @@ impl System for RenderSystem {
             }
         }
 
+        // Place carpenters on grid (separate from regular actors and woodcutters)
+        for (_entity, (position, _carpenter)) in
+            world.query_components::<(In<Position>, In<Carpenter>)>()
+        {
+            let x = position.x as usize;
+            let y = position.y as usize;
+            if x < self.grid_width
+                && y < self.grid_height
+                && grid[y][x] != 'H'
+                && grid[y][x] != 'A'
+                && grid[y][x] != 'C'
+            {
+                // Don't overwrite home, actor, or woodcutter
+                grid[y][x] = 'P'; // Carpenter (P for carPenter)
+            }
+        }
+
         // Print grid with appropriate legend - detect based on content
         let has_trees = !world
             .query_components::<(In<Position>, In<Tree>)>()
@@ -129,11 +159,22 @@ impl System for RenderSystem {
         let has_obstacles = !world
             .query_components::<(In<Position>, In<Obstacle>)>()
             .is_empty();
+        let has_carpenters = !world
+            .query_components::<(In<Position>, In<Carpenter>)>()
+            .is_empty();
+        let has_carpenter_huts = !world
+            .query_components::<(In<Position>, In<CarpenterHut>)>()
+            .is_empty();
 
-        if has_obstacles && !has_trees {
-            // Navigation demo - has obstacles (walls) but no trees
+        if has_obstacles && !has_trees && !has_carpenters {
+            // Navigation demo - has obstacles (walls) but no trees or carpenters
             println!("Navigation Demo - Labyrinth Pathfinding");
             println!("# = Wall, A = Actor, E = Exit, . = Open space");
+        } else if has_carpenters || has_carpenter_huts {
+            // Carpenter demo - has carpenters or carpenter huts
+            println!("Carpenter Demo - Carpenters Travel Between Huts");
+            println!("W = Woodcutter Hut, R = Carpenter Hut, P = Carpenter, C = Woodcutter");
+            println!("(Carpenters collect wood from woodcutter huts and work at carpenter huts)");
         } else {
             // Woodcutter demo - has trees
             println!("Woodcutter Demo - Not<> Component Query Showcase");
