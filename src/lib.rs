@@ -2234,4 +2234,59 @@ mod tests {
         assert!(world.get_component::<Hierarchy>(entity).is_some());
         assert!(world.get_component::<Velocity>(entity).is_some());
     }
+
+    #[test]
+    fn test_component_requirements_demonstration() {
+        println!("\n=== Component Requirements Feature Demonstration ===");
+        
+        let mut world = World::new();
+        let entity = world.create_entity();
+
+        // Define components matching the problem statement
+        #[derive(Debug, PartialEq)]
+        struct Position { x: i32, y: i32 }
+        
+        #[derive(Debug, PartialEq)]
+        struct Hierarchy { parent: Option<u32> }
+        
+        #[derive(Debug, PartialEq)]
+        struct Velocity { dx: f32, dy: f32 }
+
+        impl Component for Position {
+            type RequiredComponents = ();
+        }
+
+        impl Component for Hierarchy {
+            type RequiredComponents = ();
+        }
+
+        impl Component for Velocity {
+            type RequiredComponents = (Position, Hierarchy);
+        }
+
+        println!("1. Attempting to add Velocity without required components...");
+        let result = world.add_component_checked(entity, Velocity { dx: 1.0, dy: 2.0 });
+        assert!(result.is_err());
+        println!("   ✗ Failed as expected: {}", result.unwrap_err());
+
+        println!("2. Adding required components (Position and Hierarchy)...");
+        world.add_component(entity, Position { x: 10, y: 20 });
+        world.add_component(entity, Hierarchy { parent: None });
+        println!("   ✓ Required components added successfully");
+
+        println!("3. Now attempting to add Velocity with requirements satisfied...");
+        let result = world.add_component_checked(entity, Velocity { dx: 1.0, dy: 2.0 });
+        assert!(result.is_ok());
+        println!("   ✓ Success! Velocity component added");
+
+        println!("4. Verifying all components exist:");
+        assert!(world.has_component::<Position>(entity));
+        assert!(world.has_component::<Hierarchy>(entity));
+        assert!(world.has_component::<Velocity>(entity));
+        println!("   ✓ Position: exists");
+        println!("   ✓ Hierarchy: exists");
+        println!("   ✓ Velocity: exists");
+
+        println!("=== Component Requirements Feature Working Correctly! ===\n");
+    }
 }
