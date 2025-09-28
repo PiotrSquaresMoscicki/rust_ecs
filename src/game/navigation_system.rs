@@ -341,6 +341,9 @@ pub fn run_navigation_demo() {
     while running.load(Ordering::SeqCst) {
         update_count += 1;
 
+        // Print frame diff before world update
+        world.print_last_frame_diff();
+
         // Update the world
         world.update();
 
@@ -363,9 +366,6 @@ pub fn run_navigation_demo() {
         }
 
         thread::sleep(Duration::from_millis(500)); // 2 FPS for good observation
-
-        // Print frame diff after all system updates and after sleep
-        world.print_last_frame_diff();
     }
 
     println!("Navigation demo completed after {} updates", update_count);

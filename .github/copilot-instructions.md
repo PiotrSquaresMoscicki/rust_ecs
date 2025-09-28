@@ -64,6 +64,18 @@ When Copilot encounters impossible or technically infeasible requirements:
 7. Document any unavoidable compilation or clippy warning suppressions in PR comments
 8. Final verification: `cargo test`, `cargo clippy`, and `cargo fmt --check` must pass completely
 
+### Frame Diff Debugging Requirement
+- **MANDATORY**: All games and demos **MUST** print the last frame diff before each `world.update()` call
+- **NEVER REMOVE**: This functionality must be preserved in all user-facing games and demos:
+  - Main game (`cargo run game`)
+  - Woodcutter demo (`cargo run demo woodcutter`)
+  - Navigation demo (`cargo run demo navigation`) 
+  - Replay demo (`cargo run replay-demo`)
+  - ECS framework demo (`cargo run`)
+- Use `world.print_last_frame_diff();` immediately before `world.update();`
+- This provides critical debugging information showing component changes and world operations
+- **This requirement must never be removed or modified** - it is essential for debugging and development
+
 ## Architecture Integration
 - This is a debuggable ECS framework emphasizing change tracking and replay functionality
 - All new systems should integrate with the existing replay logging infrastructure
