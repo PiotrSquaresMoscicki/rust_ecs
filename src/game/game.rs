@@ -133,6 +133,9 @@ fn run_game_normal() {
 
     // Game loop - 2 ticks per second
     while running.load(Ordering::SeqCst) {
+        // Print frame diff before world update
+        world.print_last_frame_diff();
+
         world.update();
         update_count += 1;
 

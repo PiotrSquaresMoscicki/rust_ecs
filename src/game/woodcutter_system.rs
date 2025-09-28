@@ -492,6 +492,9 @@ pub fn run_woodcutter_demo() {
     println!("\nStarting simulation... (Press Ctrl+C to stop)\n");
 
     while !stop_signal.load(Ordering::SeqCst) {
+        // Print frame diff before world update
+        world.print_last_frame_diff();
+
         world.update();
         update_count += 1;
 
@@ -502,9 +505,6 @@ pub fn run_woodcutter_demo() {
         }
 
         thread::sleep(Duration::from_millis(500));
-
-        // Print frame diff after all system updates and after sleep
-        world.print_last_frame_diff();
     }
 
     println!("\n=== Demo Complete ===");

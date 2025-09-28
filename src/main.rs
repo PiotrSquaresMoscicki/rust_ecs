@@ -247,6 +247,8 @@ fn run_ecs_demo() {
     println!("\nRunning simulation...");
     for frame in 1..=3 {
         println!("\nFrame {}", frame);
+        // Print frame diff before world update
+        world.print_last_frame_diff();
         world.update();
     }
 
@@ -366,6 +368,8 @@ fn demo_diff_functionality() {
     // Run updates - all component changes will be tracked transparently
     for frame in 1..=3 {
         println!("Frame {}", frame);
+        // Print frame diff before world update
+        world.print_last_frame_diff();
         world.update();
     }
 
@@ -447,6 +451,8 @@ fn demo_replay_analysis() {
     // Run several updates
     for i in 0..15 {
         println!("Update {}", i + 1);
+        // Print frame diff before world update
+        world.print_last_frame_diff();
         world.update();
     }
 
