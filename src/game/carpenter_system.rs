@@ -2,14 +2,17 @@ use super::components::{
     Actor, Carpenter, CarpenterHut, Navigation, Position, Target, WaitTimer, WoodcutterHut,
 };
 use super::utils::is_adjacent;
-use crate::{In, Out, System, World, WorldView};
+use crate::{Entity, In, Out, System, World, WorldView};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
 /// Carpenter System - manages carpenter behavior for traveling between woodcutter huts and carpenter huts
-pub struct CarpenterSystem;
+pub struct CarpenterSystem {
+    last_target_changes: Option<std::collections::HashMap<Entity, (i32, i32)>>,
+}
 
 impl System for CarpenterSystem {
     type InComponents = (

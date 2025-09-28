@@ -1,4 +1,4 @@
-use crate::World;
+use crate::{Entity, World};
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -193,7 +193,51 @@ pub fn initialize_game() -> World {
     println!("- 2 woodcutters");
     println!("- 1 carpenter");
 
+    // Debug: Check what components each entity has
+    println!("\nDEBUG: Entity component analysis:");
+    println!("Entities with Woodcutter component: {:?}", world.entities_with_component::<Woodcutter>());
+    println!("Entities with Carpenter component: {:?}", world.entities_with_component::<Carpenter>());
+
     world
+}
+
+/// Detect oscillation patterns in entity movement
+fn detect_oscillation(position_history: &std::collections::HashMap<Entity, Vec<(i32, i32)>>, frame: usize) {
+    for (entity, positions) in position_history {
+        if positions.len() >= 6 {
+            // Check for back-and-forth pattern in last 6 positions
+            let len = positions.len();
+            let recent_positions = &positions[len.saturating_sub(6)..];
+            
+            // Count oscillations between two positions
+            let mut oscillation_count = 0;
+            let mut last_direction: Option<(i32, i32)> = None;
+            
+            for i in 1..recent_positions.len() {
+                let prev_pos = recent_positions[i-1];
+                let curr_pos = recent_positions[i];
+                
+                if prev_pos != curr_pos {
+                    let direction = (curr_pos.0 - prev_pos.0, curr_pos.1 - prev_pos.1);
+                    
+                    if let Some(last_dir) = last_direction {
+                        // Check if direction reversed (oscillation)
+                        if (direction.0 * last_dir.0 + direction.1 * last_dir.1) < 0 {
+                            oscillation_count += 1;
+                        }
+                    }
+                    last_direction = Some(direction);
+                }
+            }
+            
+            // Report if more than 3 oscillations
+            if oscillation_count > 3 {
+                println!("🚨 OSCILLATION DETECTED at frame {}: {:?} oscillated {} times between positions {:?}", 
+                    frame, entity, oscillation_count, recent_positions);
+                println!("   This violates the requirement of no more than 3 back-and-forth movements");
+            }
+        }
+    }
 }
 
 /// Helper function to find the nearest tree position to a given position
@@ -258,11 +302,40 @@ fn run_game_normal(no_sleep: bool) {
     .expect("Error setting Ctrl-C handler");
 
     let mut update_count = 0;
+    
+    // Track entity positions for oscillation detection
+    let mut position_history: std::collections::HashMap<Entity, Vec<(i32, i32)>> = std::collections::HashMap::new();
 
     // Game loop - 2 ticks per second (unless no_sleep is enabled)
     while running.load(Ordering::SeqCst) {
         world.update();
         update_count += 1;
+
+        // Track positions for all actors with Position component
+        let entities_with_positions = world.entities_with_component::<Position>();
+        for entity in entities_with_positions {
+            if let Some(position) = world.get_component::<Position>(entity) {
+                let pos = (position.x, position.y);
+                position_history.entry(entity).or_insert_with(Vec::new).push(pos);
+                
+                // Keep only last 10 positions for oscillation detection
+                let positions = position_history.get_mut(&entity).unwrap();
+                if positions.len() > 10 {
+                    positions.remove(0);
+                }
+            }
+        }
+
+        // Check for oscillation patterns up to frame 60
+        if update_count <= 60 {
+            detect_oscillation(&position_history, update_count);
+        }
+
+        // Stop after frame 60 for validation
+        if update_count >= 60 {
+            println!("\nReached frame 60 - stopping for oscillation validation");
+            break;
+        }
 
         if !no_sleep {
             thread::sleep(Duration::from_millis(500)); // 2 FPS
