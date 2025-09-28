@@ -70,11 +70,12 @@ impl System for CarpenterSystem {
             let target_pos = (target.x, target.y);
             let is_near_target = is_adjacent(current_pos, target_pos) || current_pos == target_pos;
 
-            // Determine current state based on target location
-            let at_woodcutter_hut = woodcutter_hut_positions.contains(&target_pos);
-            let at_carpenter_hut = carpenter_hut_positions.contains(&target_pos);
-
+            // Only change targets when at destination, not while traveling
             if is_near_target {
+                // Check what type of location we're at
+                let at_woodcutter_hut = woodcutter_hut_positions.contains(&target_pos);
+                let at_carpenter_hut = carpenter_hut_positions.contains(&target_pos);
+
                 if at_woodcutter_hut {
                     // At woodcutter hut - collect wood for 5 ticks then go to carpenter hut
                     if wait_timer.ticks > 1 {
@@ -151,31 +152,31 @@ impl System for CarpenterSystem {
                     }
                 }
             } else {
-                // Not at target yet - ensure we're heading to the right place
-                // This handles cases where the carpenter needs to retarget
-                if !at_woodcutter_hut && !at_carpenter_hut {
-                    // Target is neither a woodcutter hut nor carpenter hut - go to nearest woodcutter hut
+                // Not at target yet - NEVER change targets while traveling
+                // Just ensure the target is valid, if not, set a default
+                let target_is_valid_hut = woodcutter_hut_positions.contains(&target_pos)
+                    || carpenter_hut_positions.contains(&target_pos);
+
+                if !target_is_valid_hut {
+                    // Only change target if it's completely invalid (not a hut at all)
                     if let Some(&nearest_woodcutter_hut) =
                         find_nearest_position(current_pos, &woodcutter_hut_positions)
                     {
-                        if target_pos != nearest_woodcutter_hut {
-                            let old_target = *target;
-                            target.x = nearest_woodcutter_hut.0;
-                            target.y = nearest_woodcutter_hut.1;
-                            target_changes.push((entity, old_target, *target));
+                        let old_target = *target;
+                        target.x = nearest_woodcutter_hut.0;
+                        target.y = nearest_woodcutter_hut.1;
+                        target_changes.push((entity, old_target, *target));
 
-                            // Set timer for collecting wood
-                            let old_timer = *wait_timer;
-                            wait_timer.ticks = 5;
-                            timer_changes.push((entity, old_timer, *wait_timer));
+                        let old_timer = *wait_timer;
+                        wait_timer.ticks = 5;
+                        timer_changes.push((entity, old_timer, *wait_timer));
 
-                            // Signal navigation recalculation for new target
-                            let old_navigation = navigation.clone();
-                            navigation.request_recalculation();
-                            navigation_changes.push((entity, old_navigation, navigation.clone()));
-                        }
+                        let old_navigation = navigation.clone();
+                        navigation.request_recalculation();
+                        navigation_changes.push((entity, old_navigation, navigation.clone()));
                     }
                 }
+                // If target is a valid hut, keep traveling to it - DO NOT CHANGE
             }
         }
 
