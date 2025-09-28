@@ -344,22 +344,15 @@ pub fn run_navigation_demo() {
         // Update the world
         world.update();
 
-        // Check if any actor reached the exit
+        // Check if any actor reached the exit and announce it
         let actors = world.entities_with_component::<Actor>();
-        let mut actors_at_exit = 0;
 
         for &actor in &actors {
             if let Some(position) = world.get_component::<Position>(actor) {
                 if position.x == GRID_WIDTH - 2 && position.y == GRID_HEIGHT - 2 {
-                    actors_at_exit += 1;
                     println!("🎉 Actor {:?} reached the exit! 🎉", actor);
                 }
             }
-        }
-
-        if actors_at_exit == 2 {
-            println!("🎉 Both actors have reached the exit! Demo complete! 🎉");
-            break;
         }
 
         thread::sleep(Duration::from_millis(500)); // 2 FPS for good observation

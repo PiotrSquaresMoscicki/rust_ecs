@@ -495,12 +495,6 @@ pub fn run_woodcutter_demo() {
         world.update();
         update_count += 1;
 
-        // Stop after 50 updates or when no trees left
-        let tree_count = world.entities_with_component::<Tree>().len();
-        if update_count >= 50 || tree_count == 0 {
-            break;
-        }
-
         thread::sleep(Duration::from_millis(500));
 
         // Print frame diff after all system updates and after sleep
