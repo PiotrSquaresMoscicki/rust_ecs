@@ -234,12 +234,17 @@ impl System for WoodcutterSystem {
                         }
                     }
                 } else {
-                    // Not at tree yet - ensure target is nearest unassigned tree using Not<> query
+                    // Not at tree yet - check if current target is still valid
                     let available_trees = get_available_trees(&frame_assigned_trees);
-                    if let Some(&nearest_tree) =
-                        find_nearest_position(current_pos, &available_trees)
-                    {
-                        if target_pos != nearest_tree {
+
+                    // Only reassign target if current target is no longer available
+                    let current_target_valid = available_trees.contains(&target_pos);
+
+                    if !current_target_valid {
+                        // Current target is no longer available, find a new one
+                        if let Some(&nearest_tree) =
+                            find_nearest_position(current_pos, &available_trees)
+                        {
                             // Remove assignment from old target if it was assigned to this woodcutter
                             if all_tree_positions.contains(&target_pos) {
                                 assignment_changes.push((target_pos, None));
@@ -269,6 +274,7 @@ impl System for WoodcutterSystem {
                             navigation_changes.push((entity, old_navigation, navigation.clone()));
                         }
                     }
+                    // If current target is still valid, keep moving toward it - don't reassign
                 }
             }
         }
