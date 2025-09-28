@@ -33,9 +33,9 @@ impl System for CarpenterSystem {
         Position,
         WaitTimer,
         Target,
+        Navigation,
         WoodcutterHut,
         CarpenterHut,
-        Navigation,
     );
     type OutComponents = (Target, WaitTimer, Navigation);
     type InSystems = ();
@@ -73,7 +73,7 @@ impl System for CarpenterSystem {
         let mut navigation_changes = Vec::new();
 
         // Query carpenters
-        for (entity, (position, _carpenter, wait_timer, target, navigation)) in world
+        let carpenter_entities: Vec<_> = world
             .query_components::<(
                 In<Position>,
                 In<Carpenter>,
@@ -81,6 +81,16 @@ impl System for CarpenterSystem {
                 Out<Target>,
                 Out<Navigation>,
             )>()
+            .into_iter()
+            .collect();
+            
+        // Debug: Print which entities the carpenter system is processing
+        if !carpenter_entities.is_empty() {
+            println!("DEBUG CarpenterSystem processing entities: {:?}", 
+                carpenter_entities.iter().map(|(entity, _)| entity).collect::<Vec<_>>());
+        }
+        
+        for (entity, (position, _carpenter, wait_timer, target, navigation)) in carpenter_entities
         {
             let current_pos = (position.x, position.y);
             let target_pos = (target.x, target.y);

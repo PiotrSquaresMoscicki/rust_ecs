@@ -96,7 +96,7 @@ impl System for WoodcutterSystem {
         let mut entities_to_remove = Vec::new();
 
         // Query woodcutters
-        for (entity, (position, _woodcutter, wait_timer, target, navigation)) in world
+        let woodcutter_entities: Vec<_> = world
             .query_components::<(
                 In<Position>,
                 In<Woodcutter>,
@@ -104,6 +104,16 @@ impl System for WoodcutterSystem {
                 Out<Target>,
                 Out<Navigation>,
             )>()
+            .into_iter()
+            .collect();
+            
+        // Debug: Print which entities the woodcutter system is processing
+        if !woodcutter_entities.is_empty() {
+            println!("DEBUG WoodcutterSystem processing entities: {:?}", 
+                woodcutter_entities.iter().map(|(entity, _)| entity).collect::<Vec<_>>());
+        }
+        
+        for (entity, (position, _woodcutter, wait_timer, target, navigation)) in woodcutter_entities
         {
             let current_pos = (position.x, position.y);
             let target_pos = (target.x, target.y);
@@ -240,7 +250,11 @@ impl System for WoodcutterSystem {
                     // Only reassign target if current target is no longer available
                     let current_target_valid = available_trees.contains(&target_pos);
 
-                    if !current_target_valid {
+                    // Anti-oscillation: Only allow target changes if navigation cooldown is 0
+                    // This prevents rapid target switching that causes oscillation
+                    let can_change_target = navigation.recalculation_cooldown == 0;
+
+                    if !current_target_valid && can_change_target {
                         // Current target is no longer available, find a new one
                         if let Some(&nearest_tree) =
                             find_nearest_position(current_pos, &available_trees)

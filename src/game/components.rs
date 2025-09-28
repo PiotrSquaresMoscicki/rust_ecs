@@ -88,7 +88,7 @@ impl Navigation {
         // Only allow recalculation if cooldown has expired
         if self.recalculation_cooldown == 0 {
             self.needs_recalculation = true;
-            self.recalculation_cooldown = 3; // Prevent recalculation for 3 frames
+            self.recalculation_cooldown = 8; // Increased cooldown to prevent oscillation (was 3)
         }
     }
 
