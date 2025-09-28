@@ -172,7 +172,11 @@ fn find_nearest_tree_position(_world: &World, _from: (i32, i32)) -> Option<(i32,
 }
 
 pub fn run_game() {
-    run_game_normal();
+    run_game_normal(false);
+}
+
+pub fn run_game_with_options(no_sleep: bool) {
+    run_game_normal(no_sleep);
 }
 
 pub fn run_game_replay(replay_log_path: &str) {
@@ -193,10 +197,13 @@ pub fn run_game_replay(replay_log_path: &str) {
     }
 }
 
-fn run_game_normal() {
+fn run_game_normal(no_sleep: bool) {
     println!("Starting Simulation Game...");
     println!("Actors will travel between Home (H) and Work (W)");
     println!("Press Ctrl+C to stop the simulation");
+    if no_sleep {
+        println!("Running in fast mode (no sleep delays)");
+    }
 
     let mut world = initialize_game();
 
@@ -220,12 +227,14 @@ fn run_game_normal() {
 
     let mut update_count = 0;
 
-    // Game loop - 2 ticks per second
+    // Game loop - 2 ticks per second (unless no_sleep is enabled)
     while running.load(Ordering::SeqCst) {
         world.update();
         update_count += 1;
 
-        thread::sleep(Duration::from_millis(500)); // 2 FPS
+        if !no_sleep {
+            thread::sleep(Duration::from_millis(500)); // 2 FPS
+        }
 
         // Print frame diff after all system updates and after sleep
         world.print_last_frame_diff();

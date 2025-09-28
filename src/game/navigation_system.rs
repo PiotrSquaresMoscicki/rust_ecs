@@ -315,12 +315,19 @@ pub fn initialize_navigation_demo() -> World {
 }
 
 pub fn run_navigation_demo() {
+    run_navigation_demo_with_options(false);
+}
+
+pub fn run_navigation_demo_with_options(no_sleep: bool) {
     println!("🧭 Starting Navigation Demo 🧭");
     println!("=====================================");
     println!("This demo shows 2 actors navigating through a labyrinth to reach the exit");
     println!("Symbols: # = Wall, A = Actor, E = Exit, . = Open space");
     println!("The actors use A* pathfinding to find the optimal route while avoiding walls");
     println!("Press Ctrl+C to stop the demo");
+    if no_sleep {
+        println!("Running in fast mode (no sleep delays)");
+    }
     println!();
 
     let mut world = initialize_navigation_demo();
@@ -337,7 +344,7 @@ pub fn run_navigation_demo() {
 
     let mut update_count = 0;
 
-    // Demo loop - 2 FPS for good observation speed
+    // Demo loop - 2 FPS for good observation speed (unless no_sleep is enabled)
     while running.load(Ordering::SeqCst) {
         update_count += 1;
 
@@ -355,7 +362,9 @@ pub fn run_navigation_demo() {
             }
         }
 
-        thread::sleep(Duration::from_millis(500)); // 2 FPS for good observation
+        if !no_sleep {
+            thread::sleep(Duration::from_millis(500)); // 2 FPS for good observation
+        }
 
         // Print frame diff after all system updates and after sleep
         world.print_last_frame_diff();

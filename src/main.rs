@@ -137,15 +137,18 @@ impl System for PhysicsSystem {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
+    // Check for --no-sleep flag
+    let no_sleep = args.contains(&"--no-sleep".to_string());
+
     // Check if "game" argument is provided with optional replay file
     if args.len() > 1 && args[1] == "game" {
-        if args.len() > 2 {
+        if args.len() > 2 && !args[2].starts_with("--") {
             // Replay mode: cargo run game <replay_log_path>
             let replay_path = &args[2];
             game::run_game_replay(replay_path);
         } else {
-            // Normal game mode: cargo run game
-            game::run_game();
+            // Normal game mode: cargo run game [--no-sleep]
+            game::run_game_with_options(no_sleep);
         }
         return;
     }
@@ -154,20 +157,21 @@ fn main() {
     if args.len() > 2 && args[1] == "demo" {
         match args[2].as_str() {
             "woodcutter" => {
-                game::woodcutter_system::run_woodcutter_demo();
+                game::woodcutter_system::run_woodcutter_demo_with_options(no_sleep);
                 return;
             }
             "navigation" => {
-                game::navigation_system::run_navigation_demo();
+                game::navigation_system::run_navigation_demo_with_options(no_sleep);
                 return;
             }
             "carpenter" => {
-                game::carpenter_system::run_carpenter_demo();
+                game::carpenter_system::run_carpenter_demo_with_options(no_sleep);
                 return;
             }
             _ => {
                 eprintln!("Unknown demo type: {}", args[2]);
                 eprintln!("Available demos: woodcutter, navigation, carpenter");
+                eprintln!("Add --no-sleep flag for faster debugging: cargo run demo woodcutter --no-sleep");
                 return;
             }
         }

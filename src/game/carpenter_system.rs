@@ -322,9 +322,17 @@ pub fn initialize_carpenter_demo() -> World {
 
 /// Run the carpenter demo
 pub fn run_carpenter_demo() {
+    run_carpenter_demo_with_options(false);
+}
+
+/// Run the carpenter demo with optional no-sleep mode for faster debugging
+pub fn run_carpenter_demo_with_options(no_sleep: bool) {
     let mut world = initialize_carpenter_demo();
 
     println!("\nStarting simulation... (Press Ctrl+C to stop)");
+    if no_sleep {
+        println!("Running in fast mode (no sleep delays)");
+    }
 
     // Set up signal handler for graceful shutdown
     let running = Arc::new(AtomicBool::new(true));
@@ -342,7 +350,9 @@ pub fn run_carpenter_demo() {
         println!("\n--- Frame {} ---", frame);
         world.update();
 
-        thread::sleep(Duration::from_millis(1000)); // 1 second between frames
+        if !no_sleep {
+            thread::sleep(Duration::from_millis(1000)); // 1 second between frames
+        }
 
         // Print frame diff after all system updates and after sleep
         world.print_last_frame_diff();

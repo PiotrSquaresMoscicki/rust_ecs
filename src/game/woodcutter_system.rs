@@ -477,9 +477,17 @@ pub fn initialize_woodcutter_demo() -> World {
 
 /// Run the woodcutter demo showcasing Not<> component queries
 pub fn run_woodcutter_demo() {
+    run_woodcutter_demo_with_options(false);
+}
+
+/// Run the woodcutter demo with optional no-sleep mode for faster debugging
+pub fn run_woodcutter_demo_with_options(no_sleep: bool) {
     println!("=== Woodcutter Not<> Component Query Demo ===");
     println!("This demo showcases the new Not<> query functionality.");
     println!("Woodcutters will only target trees that are NOT assigned to other woodcutters.\n");
+    if no_sleep {
+        println!("Running in fast mode (no sleep delays)\n");
+    }
 
     let mut world = initialize_woodcutter_demo();
 
@@ -501,7 +509,9 @@ pub fn run_woodcutter_demo() {
         world.update();
         update_count += 1;
 
-        thread::sleep(Duration::from_millis(500));
+        if !no_sleep {
+            thread::sleep(Duration::from_millis(500));
+        }
 
         // Print frame diff after all system updates and after sleep
         world.print_last_frame_diff();
