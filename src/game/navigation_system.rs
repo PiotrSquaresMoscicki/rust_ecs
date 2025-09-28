@@ -111,6 +111,13 @@ impl System for NavigationSystem {
             let current_pos = (position.x, position.y);
             let target_pos = (target.x, target.y);
 
+            // Update cooldown counter
+            let old_navigation = navigation.clone();
+            navigation.update_cooldown();
+            if old_navigation != *navigation {
+                navigation_changes.push((entity, old_navigation, navigation.clone()));
+            }
+
             // Check if we need to recalculate the path
             if navigation.needs_recalculation || navigation.path.is_empty() {
                 // Remove current actor from obstacles for pathfinding

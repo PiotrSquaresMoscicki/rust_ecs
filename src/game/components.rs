@@ -43,6 +43,8 @@ pub struct Navigation {
     pub path: Vec<(i32, i32)>,
     pub current_path_index: usize,
     pub needs_recalculation: bool,
+    /// Counter to prevent excessive path recalculations that can cause oscillation
+    pub recalculation_cooldown: u32,
 }
 
 impl Default for Navigation {
@@ -57,6 +59,7 @@ impl Navigation {
             path: Vec::new(),
             current_path_index: 0,
             needs_recalculation: true,
+            recalculation_cooldown: 0,
         }
     }
 
@@ -64,6 +67,7 @@ impl Navigation {
         self.path = path;
         self.current_path_index = 0;
         self.needs_recalculation = false;
+        self.recalculation_cooldown = 0;
     }
 
     pub fn get_next_position(&self) -> Option<(i32, i32)> {
@@ -81,7 +85,17 @@ impl Navigation {
     }
 
     pub fn request_recalculation(&mut self) {
-        self.needs_recalculation = true;
+        // Only allow recalculation if cooldown has expired
+        if self.recalculation_cooldown == 0 {
+            self.needs_recalculation = true;
+            self.recalculation_cooldown = 3; // Prevent recalculation for 3 frames
+        }
+    }
+
+    pub fn update_cooldown(&mut self) {
+        if self.recalculation_cooldown > 0 {
+            self.recalculation_cooldown -= 1;
+        }
     }
 
     pub fn is_path_complete(&self) -> bool {
