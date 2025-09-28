@@ -653,9 +653,18 @@ impl World {
 
     /// Print the last frame diff (component changes and world operations)
     pub fn print_last_frame_diff(&self) {
+        self.print_last_frame_diff_with_index(None);
+    }
+
+    /// Print the last frame diff with frame index for debugging
+    pub fn print_last_frame_diff_with_index(&self, frame_index: Option<usize>) {
         let history = &self.world_update_history;
         if let Some(last_update) = history.updates().last() {
-            println!("=== Frame Diff ===");
+            if let Some(frame) = frame_index {
+                println!("=== Frame {} Diff ===", frame);
+            } else {
+                println!("=== Frame Diff ===");
+            }
 
             let mut total_component_changes = 0;
             let mut total_world_operations = 0;

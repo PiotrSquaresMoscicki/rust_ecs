@@ -1,5 +1,4 @@
 use crate::World;
-use rand::Rng;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -20,17 +19,50 @@ pub use super::woodcutter_system::WoodcutterSystem;
 
 pub fn initialize_game() -> World {
     let mut world = World::new();
-    let mut rng = rand::thread_rng();
 
-    // Create some trees scattered around the map
+    // Create some trees scattered around the map using fixed positions for deterministic debugging
     println!("Creating trees...");
     let num_trees = 30; // Fewer trees than woodcutter demo
-    for _i in 0..num_trees {
+
+    // Fixed tree positions for deterministic behavior (no randomization)
+    let tree_positions = [
+        (2, 1),
+        (7, 2),
+        (12, 1),
+        (18, 3),
+        (23, 2), // Row 1-3
+        (1, 5),
+        (8, 4),
+        (15, 6),
+        (22, 4),
+        (28, 5), // Row 4-6
+        (3, 8),
+        (9, 9),
+        (16, 8),
+        (21, 9),
+        (27, 8), // Row 8-9
+        (4, 11),
+        (10, 12),
+        (17, 11),
+        (24, 12),
+        (29, 11), // Row 11-12
+        (1, 13),
+        (6, 14),
+        (13, 13),
+        (19, 14),
+        (26, 13), // Row 13-14
+        (5, 0),
+        (14, 0),
+        (20, 1),
+        (11, 3),
+        (25, 6), // Additional scattered trees
+    ];
+
+    for (i, &pos) in tree_positions.iter().enumerate() {
+        if i >= num_trees {
+            break;
+        }
         let tree_entity = world.create_entity();
-
-        // Generate random position
-        let pos = (rng.gen_range(0..GRID_WIDTH), rng.gen_range(0..GRID_HEIGHT));
-
         world.add_component(tree_entity, Position { x: pos.0, y: pos.1 });
         world.add_component(tree_entity, Tree);
     }
@@ -237,7 +269,7 @@ fn run_game_normal(no_sleep: bool) {
         }
 
         // Print frame diff after all system updates and after sleep
-        world.print_last_frame_diff();
+        world.print_last_frame_diff_with_index(Some(update_count));
     }
 
     // Disable replay logging and finalize the log file

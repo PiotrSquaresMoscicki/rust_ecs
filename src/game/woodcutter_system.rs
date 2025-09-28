@@ -369,40 +369,36 @@ pub fn initialize_woodcutter_demo() -> World {
     println!("Creating ~180 trees (40% of map coverage)...");
     let mut tree_positions = Vec::new();
 
-    // Generate tree positions scattered across the map
-    use rand::prelude::*;
-    let mut rng = rand::thread_rng();
-
-    // Create clusters of trees in different areas
-    // Cluster 1: Top-left area (0-9, 0-4)
-    for _ in 0..50 {
-        let x = rng.gen_range(0..10);
-        let y = rng.gen_range(0..5);
-        tree_positions.push((x, y));
+    // Create deterministic clusters of trees in different areas (no randomization)
+    // Cluster 1: Top-left area (0-9, 0-4) - 50 trees
+    for x in 0..10 {
+        for y in 0..5 {
+            tree_positions.push((x, y));
+        }
     }
 
-    // Cluster 2: Top-right area (20-29, 0-4)
-    for _ in 0..40 {
-        let x = rng.gen_range(20..30);
-        let y = rng.gen_range(0..5);
-        tree_positions.push((x, y));
+    // Cluster 2: Top-right area (20-29, 0-4) - 50 trees
+    for x in 20..30 {
+        for y in 0..5 {
+            tree_positions.push((x, y));
+        }
     }
 
-    // Cluster 3: Middle-left area (0-14, 6-9)
-    for _ in 0..45 {
-        let x = rng.gen_range(0..15);
-        let y = rng.gen_range(6..10);
-        tree_positions.push((x, y));
+    // Cluster 3: Middle-left area (0-14, 6-9) - 60 trees
+    for x in 0..15 {
+        for y in 6..10 {
+            tree_positions.push((x, y));
+        }
     }
 
-    // Cluster 4: Bottom area (5-24, 11-14)
-    for _ in 0..45 {
-        let x = rng.gen_range(5..25);
-        let y = rng.gen_range(11..15);
-        tree_positions.push((x, y));
+    // Cluster 4: Bottom area (5-24, 11-14) - 80 trees
+    for x in 5..25 {
+        for y in 11..15 {
+            tree_positions.push((x, y));
+        }
     }
 
-    // Remove duplicates and limit to exactly 180 trees
+    // Remove duplicates and limit to exactly 180 trees for consistent behavior
     tree_positions.sort();
     tree_positions.dedup();
     tree_positions.truncate(180);
@@ -514,7 +510,7 @@ pub fn run_woodcutter_demo_with_options(no_sleep: bool) {
         }
 
         // Print frame diff after all system updates and after sleep
-        world.print_last_frame_diff();
+        world.print_last_frame_diff_with_index(Some(update_count));
     }
 
     println!("\n=== Demo Complete ===");

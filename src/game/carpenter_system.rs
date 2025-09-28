@@ -355,7 +355,7 @@ pub fn run_carpenter_demo_with_options(no_sleep: bool) {
         }
 
         // Print frame diff after all system updates and after sleep
-        world.print_last_frame_diff();
+        world.print_last_frame_diff_with_index(Some(frame));
     }
 
     world.deinitialize_systems();
