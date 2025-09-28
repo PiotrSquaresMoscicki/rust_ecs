@@ -180,7 +180,7 @@ pub fn initialize_game() -> World {
     // Add systems - including carpenter and woodcutter systems
     world.add_system(NavigationSystem);
     world.add_system(WoodcutterSystem);
-    world.add_system(CarpenterSystem);
+    world.add_system(CarpenterSystem::new());
     world.add_system(RenderSystem::default());
 
     // Initialize systems

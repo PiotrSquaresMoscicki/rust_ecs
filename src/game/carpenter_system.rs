@@ -3,7 +3,6 @@ use super::components::{
 };
 use super::utils::is_adjacent;
 use crate::{Entity, In, Out, System, World, WorldView};
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -12,6 +11,20 @@ use std::time::Duration;
 /// Carpenter System - manages carpenter behavior for traveling between woodcutter huts and carpenter huts
 pub struct CarpenterSystem {
     last_target_changes: Option<std::collections::HashMap<Entity, (i32, i32)>>,
+}
+
+impl CarpenterSystem {
+    pub fn new() -> Self {
+        Self {
+            last_target_changes: None,
+        }
+    }
+}
+
+impl Default for CarpenterSystem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl System for CarpenterSystem {
@@ -310,7 +323,7 @@ pub fn initialize_carpenter_demo() -> World {
 
     // Add systems
     world.add_system(super::navigation_system::NavigationSystem);
-    world.add_system(CarpenterSystem);
+    world.add_system(CarpenterSystem::new());
     world.add_system(super::render_system::RenderSystem::default());
 
     // Initialize systems
@@ -372,7 +385,7 @@ mod tests {
 
     #[test]
     fn test_carpenter_system_creation() {
-        let system = CarpenterSystem;
+        let system = CarpenterSystem::new();
         // Just verify it can be created - integration tests will test functionality
         drop(system);
     }
@@ -408,7 +421,7 @@ mod tests {
         world.add_component(carpenter_entity, Navigation::new());
 
         // Add system
-        world.add_system(CarpenterSystem);
+        world.add_system(CarpenterSystem::new());
         world.initialize_systems();
 
         // Run one update
