@@ -660,16 +660,24 @@ impl World {
             let mut total_component_changes = 0;
             let mut total_world_operations = 0;
 
-            for (system_idx, system_diff) in last_update.system_diffs().iter().enumerate() {
+            // Get the sorted system indices to correctly map system_diff position to actual system
+            let sorted_indices = match self.sort_systems_by_dependencies() {
+                Ok(indices) => indices,
+                Err(_) => (0..self.systems.len()).collect(),
+            };
+
+            for (system_diff_idx, system_diff) in last_update.system_diffs().iter().enumerate() {
                 let component_changes = system_diff.diff_changes().len();
                 let world_operations = system_diff.world_operations().len();
 
                 if component_changes > 0 || world_operations > 0 {
-                    // Get system name instead of using index
-                    let system_name = if system_idx < self.systems.len() {
-                        self.systems[system_idx].system_name()
+                    // Map system_diff_idx to the actual system using sorted indices
+                    let system_name = if system_diff_idx < sorted_indices.len()
+                        && sorted_indices[system_diff_idx] < self.systems.len()
+                    {
+                        self.systems[sorted_indices[system_diff_idx]].system_name()
                     } else {
-                        format!("System_{}", system_idx)
+                        format!("System_{}", system_diff_idx)
                     };
 
                     println!(
